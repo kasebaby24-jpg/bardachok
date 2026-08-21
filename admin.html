@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0B0D0C">
+<meta name="robots" content="noindex, nofollow">
+<title>Бардачок — керування</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="styles.css">
+<style>
+  body{overflow:auto}
+  .wrap{max-width:620px;margin:0 auto;padding:26px 16px 60px}
+  h1{font-family:var(--disp);font-weight:800;font-size:25px;letter-spacing:-.02em;margin:0 0 5px}
+  h1 em{font-style:normal;color:var(--lime)}
+  .sub{color:var(--mut);font-size:13.5px;margin-bottom:20px}
+  .sect{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--mut);font-weight:700;margin:0 0 10px}
+  .card{margin-bottom:12px}
+  .rw{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid var(--line)}
+  .rw:last-child{border-bottom:0}
+  .rw .lb{flex:1;min-width:0;font-size:14px;font-weight:600}
+  .rw .lb small{display:block;color:var(--mut);font-size:11.5px;font-weight:500;margin-top:3px;line-height:1.45}
+  .rw input{width:120px;flex:0 0 120px;padding:11px 13px;border-radius:14px;background:var(--surf2);
+    border:1.5px solid transparent;font-size:15px;font-weight:600;text-align:right;outline:none}
+  .rw input:focus{border-color:var(--lime)}
+  .st{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-bottom:12px}
+  .st div{background:var(--surf);border-radius:18px;padding:14px 10px;text-align:center}
+  .st b{display:block;font-family:var(--disp);font-weight:800;font-size:21px;font-variant-numeric:tabular-nums}
+  .st small{color:var(--mut);font-size:10.5px;font-weight:600}
+  .gate{max-width:380px;margin:14vh auto 0;padding:0 16px}
+  .gate input{width:100%;padding:14px 16px;border-radius:16px;background:var(--surf2);
+    border:1.5px solid transparent;font-size:16px;font-weight:600;outline:none;margin-bottom:11px}
+  .gate input:focus{border-color:var(--lime)}
+</style>
+</head>
+<body>
+
+<div class="gate" id="gate">
+  <div class="card">
+    <h1 style="text-align:center">Барда<em>чок</em></h1>
+    <div class="sub" style="text-align:center">Панель керування</div>
+    <div class="msg er hidden" id="gErr"></div>
+    <input type="password" id="pass" placeholder="Пароль" autocomplete="current-password">
+    <button class="btn" id="login">Увійти</button>
+    <div class="note">Пароль задається в Cloudflare — секрет <b>ADMIN_PASSWORD</b>.</div>
+  </div>
+</div>
+
+<div class="wrap hidden" id="panel">
+  <h1>Керування</h1>
+  <div class="sub">Зміни діють одразу для всіх користувачів</div>
+
+  <div class="msg inf" id="info">Завантаження…</div>
+
+  <div class="st" id="stats">
+    <div><b id="stU">—</b><small>усього</small></div>
+    <div><b id="stP">—</b><small>преміум</small></div>
+    <div><b id="stC">—</b><small>авто</small></div>
+    <div><b id="stD">—</b><small>активні</small></div>
+  </div>
+
+  <div class="card">
+    <div class="sect">Преміум вручну</div>
+    <div class="rw"><div class="lb">Telegram ID<small>Користувач має спершу відкрити застосунок</small></div>
+      <input type="text" id="gid" placeholder="123456789" style="text-align:left"></div>
+    <div class="rw"><div class="lb">Скільки днів<small>30 · 180 · 365. Мінус — забрати</small></div>
+      <input type="number" id="gdays" value="30"></div>
+    <button class="btn" id="grant" style="margin-top:12px">Видати преміум</button>
+    <div class="msg ok hidden" id="gOk" style="margin-top:10px"></div>
+    <div class="msg er hidden" id="gEr" style="margin-top:10px"></div>
+    <div class="note">Користувачу автоматично прийде повідомлення в бот.</div>
+  </div>
+
+  <div class="card">
+    <div class="sect">Ціни преміуму, ₴</div>
+    <div class="rw"><div class="lb">Місяць</div><input type="number" id="premiumMonth"></div>
+    <div class="rw"><div class="lb">Півроку</div><input type="number" id="premiumHalf"></div>
+    <div class="rw"><div class="lb">Рік</div><input type="number" id="premiumYear"></div>
+  </div>
+
+  <div class="card">
+    <div class="sect">Правила</div>
+    <div class="rw"><div class="lb">Авто без преміуму<small>Скільки машин можна вести безкоштовно</small></div>
+      <input type="number" id="freeCars"></div>
+    <div class="rw"><div class="lb">Попереджати про страховку<small>За скільки днів</small></div>
+      <input type="number" id="remindInsurance"></div>
+    <div class="rw"><div class="lb">Попереджати про ТО<small>За скільки кілометрів</small></div>
+      <input type="number" id="remindService"></div>
+    <div class="rw"><div class="lb">Інтервал заміни масла<small>Кілометрів між замінами</small></div>
+      <input type="number" id="oilInterval"></div>
+  </div>
+
+  <div class="card">
+    <div class="sect">Контакт для клієнтів</div>
+    <div class="rw"><div class="lb">Telegram<small>Без «@». Сюди пишуть щодо оплати</small></div>
+      <input type="text" id="contactTg" style="text-align:left"></div>
+  </div>
+
+  <div class="msg ok hidden" id="sOk"></div>
+  <div class="msg er hidden" id="sEr"></div>
+  <div style="display:flex;gap:9px">
+    <button class="btn" id="save">Зберегти</button>
+    <button class="btn sec" id="reload">Скасувати</button>
+  </div>
+
+  <div class="card" style="margin-top:14px">
+    <div class="sect">Бот</div>
+    <button class="btn sec" id="hook">Підключити бота</button>
+    <div class="msg ok hidden" id="hOk" style="margin-top:10px"></div>
+    <div class="msg er hidden" id="hEr" style="margin-top:10px"></div>
+    <div class="note">Натисніть один раз після розгортання. Бот почне відповідати на «/start»,
+      онови́ться опис і кнопка меню.</div>
+  </div>
+
+  <div class="card">
+    <div class="sect">Стан сервера</div>
+    <div class="rw"><div class="lb">Сховище</div><b id="hS">—</b></div>
+    <div class="rw"><div class="lb">Токен бота</div><b id="hB">—</b></div>
+    <div class="rw"><div class="lb">AI (голос і питання)</div><b id="hA">—</b></div>
+  </div>
+</div>
+
+<script>
+/* ⚠️ Та сама адреса, що і в app.js */
+var API = 'https://bardachok.kasebaby24.workers.dev';
+
+var NUM = ['premiumMonth','premiumHalf','premiumYear','freeCars','remindInsurance','remindService','oilInterval'];
+var TXT = ['contactTg'];
+var KEY = '';
+var $ = function (s) { return document.querySelector(s); };
+function show(id, t, on) { var e = $('#' + id); e.textContent = t || ''; e.classList.toggle('hidden', !on); }
+function post(path, body) {
+  return fetch(API.replace(/\/+$/, '') + path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Admin-Key': KEY },
+    body: JSON.stringify(body || {}),
+  }).then(function (r) { return r.json(); });
+}
+
+$('#login').addEventListener('click', doLogin);
+$('#pass').addEventListener('keydown', function (e) { if (e.key === 'Enter') doLogin(); });
+
+function doLogin() {
+  var p = $('#pass').value;
+  if (!p) { show('gErr', 'Введіть пароль', true); return; }
+  KEY = p;
+  $('#login').disabled = true;
+  show('gErr', '', false);
+  fetch(API.replace(/\/+$/, '') + '/admin-check', { headers: { 'X-Admin-Key': p } })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      $('#login').disabled = false;
+      if (!d.configured) { show('gErr', 'На сервері не заданий ADMIN_PASSWORD.', true); return; }
+      if (!d.ok) { show('gErr', 'Невірний пароль', true); return; }
+      try { sessionStorage.setItem('bKey', p); } catch (e) {}
+      $('#gate').classList.add('hidden');
+      $('#panel').classList.remove('hidden');
+      $('#hS').textContent = d.storage ? 'працює' : 'НЕ підключено';
+      $('#hB').textContent = d.bot ? 'є' : 'немає';
+      $('#hA').textContent = d.ai ? 'увімкнено' : 'вимкнено';
+      load(); stats();
+    })
+    .catch(function () { $('#login').disabled = false; show('gErr', 'Сервер не відповідає.', true); });
+}
+
+function load() {
+  fetch(API.replace(/\/+$/, '') + '/settings').then(function (r) { return r.json(); }).then(function (d) {
+    NUM.concat(TXT).forEach(function (k) { if (d[k] !== undefined && $('#' + k)) $('#' + k).value = d[k]; });
+    if (d._storage === false) { show('info', 'Сховище не підключене — зберегти не вийде.', true); $('#info').className = 'msg er'; }
+    else { show('info', 'Налаштування завантажено.', true); $('#info').className = 'msg inf'; }
+  }).catch(function () { show('info', 'Не вдалося завантажити налаштування.', true); $('#info').className = 'msg er'; });
+}
+
+function stats() {
+  post('/admin/stats', {}).then(function (d) {
+    if (!d.ok) return;
+    $('#stU').textContent = d.users; $('#stP').textContent = d.pro;
+    $('#stC').textContent = d.cars;  $('#stD').textContent = d.withData;
+  }).catch(function () {});
+}
+
+$('#save').addEventListener('click', function () {
+  var body = {}, bad = '';
+  NUM.forEach(function (k) { var v = $('#' + k).value; if (v === '') { bad = bad || k; return; } body[k] = parseFloat(v); });
+  TXT.forEach(function (k) { body[k] = $('#' + k).value.trim(); });
+  show('sOk', '', false); show('sEr', '', false);
+  if (bad) { show('sEr', 'Заповніть усі числові поля.', true); return; }
+  this.disabled = true;
+  var b = this;
+  post('/settings', body).then(function (d) {
+    b.disabled = false;
+    if (d.ok) { show('sOk', 'Збережено. Зміни вже діють.', true); setTimeout(function () { show('sOk', '', false); }, 4000); }
+    else show('sEr', d.error || 'Не вдалося зберегти.', true);
+  }).catch(function () { b.disabled = false; show('sEr', 'Сервер не відповідає.', true); });
+});
+
+$('#reload').addEventListener('click', function () { show('sOk', '', false); show('sEr', '', false); load(); });
+
+$('#grant').addEventListener('click', function () {
+  var b = this;
+  show('gOk', '', false); show('gEr', '', false);
+  var id = $('#gid').value.trim(), days = parseInt($('#gdays').value, 10);
+  if (!id) { show('gEr', 'Вкажіть Telegram ID.', true); return; }
+  if (!days) { show('gEr', 'Вкажіть кількість днів.', true); return; }
+  b.disabled = true;
+  post('/admin/grant', { tgId: id, days: days }).then(function (d) {
+    b.disabled = false;
+    if (d.ok) { show('gOk', (d.name || 'Користувач') + ' — преміум до ' + d.until + ' (' + d.cars + ' авто).', true); stats(); }
+    else show('gEr', d.error || 'Не вдалося.', true);
+  }).catch(function () { b.disabled = false; show('gEr', 'Сервер не відповідає.', true); });
+});
+
+$('#hook').addEventListener('click', function () {
+  var b = this; b.disabled = true; b.textContent = 'Підключаю…';
+  show('hOk', '', false); show('hEr', '', false);
+  post('/tg-setup', {}).then(function (d) {
+    b.disabled = false; b.textContent = 'Підключити бота';
+    if (d.ok) show('hOk', 'Готово. Бот ' + (d.bot || '') + ' відповідає. Напишіть йому /start.', true);
+    else show('hEr', d.error || 'Не вдалося.', true);
+  }).catch(function () { b.disabled = false; b.textContent = 'Підключити бота'; show('hEr', 'Сервер не відповідає.', true); });
+});
+
+(function () {
+  var k = ''; try { k = sessionStorage.getItem('bKey') || ''; } catch (e) {}
+  if (k) { $('#pass').value = k; doLogin(); }
+})();
+</script>
+</body>
+</html>
