@@ -96,6 +96,17 @@
       <input type="text" id="contactTg" style="text-align:left"></div>
   </div>
 
+  <div class="card">
+    <div class="sect">Оплата карткою (WayForPay)</div>
+    <div class="rw"><div class="lb">Мерчант<small>Логін з кабінету WayForPay</small></div>
+      <input type="text" id="wfpMerchant" style="text-align:left" placeholder="напр. bardachok_com_ua"></div>
+    <div class="rw"><div class="lb">Домен<small>Той, що зареєстрований у WayForPay</small></div>
+      <input type="text" id="wfpDomain" style="text-align:left" placeholder="напр. bardachok.com.ua"></div>
+    <div class="note">Секретний ключ сюди не вписується — він живе в Cloudflare як
+      секрет <b>WFP_SECRET</b>. Для криптоплатежів додайте секрет <b>CRYPTO_TOKEN</b>
+      (видає @CryptoBot → Crypto Pay → Create App).</div>
+  </div>
+
   <div class="msg ok hidden" id="sOk"></div>
   <div class="msg er hidden" id="sEr"></div>
   <div style="display:flex;gap:9px">
@@ -117,6 +128,9 @@
     <div class="rw"><div class="lb">Сховище</div><b id="hS">—</b></div>
     <div class="rw"><div class="lb">Токен бота</div><b id="hB">—</b></div>
     <div class="rw"><div class="lb">AI (голос і питання)</div><b id="hA">—</b></div>
+    <div class="rw"><div class="lb">Оплата карткою</div><b id="hPC">—</b></div>
+    <div class="rw"><div class="lb">Оплата криптою</div><b id="hPY">—</b></div>
+    <div class="rw"><div class="lb">Успішних оплат</div><b id="hPN">—</b></div>
   </div>
 </div>
 
@@ -125,7 +139,7 @@
 var API = 'https://bardachok.kasebaby24.workers.dev';
 
 var NUM = ['premiumMonth','premiumHalf','premiumYear','freeCars','remindInsurance','remindService','oilInterval'];
-var TXT = ['contactTg'];
+var TXT = ['contactTg','wfpMerchant','wfpDomain'];
 var KEY = '';
 var $ = function (s) { return document.querySelector(s); };
 function show(id, t, on) { var e = $('#' + id); e.textContent = t || ''; e.classList.toggle('hidden', !on); }
@@ -158,6 +172,8 @@ function doLogin() {
       $('#hS').textContent = d.storage ? 'працює' : 'НЕ підключено';
       $('#hB').textContent = d.bot ? 'є' : 'немає';
       $('#hA').textContent = d.ai ? 'увімкнено' : 'вимкнено';
+      $('#hPC').textContent = d.payCard ? 'ключ є' : 'нема ключа WFP_SECRET';
+      $('#hPY').textContent = d.payCrypto ? 'ключ є' : 'нема ключа CRYPTO_TOKEN';
       load(); stats();
     })
     .catch(function () { $('#login').disabled = false; show('gErr', 'Сервер не відповідає.', true); });
@@ -176,6 +192,7 @@ function stats() {
     if (!d.ok) return;
     $('#stU').textContent = d.users; $('#stP').textContent = d.pro;
     $('#stC').textContent = d.cars;  $('#stD').textContent = d.withData;
+    if ($('#hPN')) $('#hPN').textContent = (d.paid || 0) + (d.revenue ? ' · ' + d.revenue + ' ₴' : '');
   }).catch(function () {});
 }
 

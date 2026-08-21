@@ -31,15 +31,27 @@ function esc(s) {
 }
 function nfmt(n) { return Math.round(n || 0).toLocaleString('uk-UA').replace(/ /g, ' '); }
 function money(n) { return nfmt(n) + ' ₴'; }
-function today() { return new Date().toISOString().slice(0, 10); }
+function today() {
+  var d = new Date();                       // місцева дата, не гринвіцька:
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000)
+    .toISOString().slice(0, 10);            // інакше після опівночі запис іде «вчора»
+}
 
 var MONTHS = ['січня','лютого','березня','квітня','травня','червня',
               'липня','серпня','вересня','жовтня','листопада','грудня'];
+function fmtDateY(s) {              // з роком — для документів
+  if (!s) return '';
+  var p = String(s).split('-');
+  if (p.length !== 3) return s;
+  return parseInt(p[2], 10) + ' ' + MONTHS[parseInt(p[1], 10) - 1] + ' ' + p[0];
+}
 function fmtDate(s) {
   if (!s) return '';
   var p = String(s).split('-');
   if (p.length !== 3) return s;
-  return parseInt(p[2], 10) + ' ' + MONTHS[parseInt(p[1], 10) - 1];
+  var out = parseInt(p[2], 10) + ' ' + MONTHS[parseInt(p[1], 10) - 1];
+  if (p[0] !== today().slice(0, 4)) out += ' ' + p[0];   // інший рік — показуємо його
+  return out;
 }
 function daysLeft(d) {
   if (!d) return null;
@@ -111,6 +123,8 @@ var ICONS = {
   globe:  '<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.5 2.6 2.5 14.4 0 17M12 3.5c-2.5 2.6-2.5 14.4 0 17"/>',
   plus:   '<path d="M12 5v14M5 12h14"/>',
   star:   '<path d="m12 4 2.4 5 5.6.8-4 3.9 1 5.5-5-2.7-5 2.7 1-5.5-4-3.9 5.6-.8L12 4Z"/>',
+  idcard: '<rect x="3" y="5.5" width="18" height="13" rx="2.5"/><circle cx="8.5" cy="11" r="2"/>' +
+          '<path d="M5.5 16c.6-1.4 1.7-2 3-2s2.4.6 3 2M14 10h4.5M14 13.5h3"/>',
   gift:   '<rect x="3.5" y="9" width="17" height="11" rx="1.5"/><path d="M3.5 13h17M12 9v11"/><path d="M12 9c-3.5 0-4.5-1-4.5-2.5S9 4 10 5s2 4 2 4Zm0 0c3.5 0 4.5-1 4.5-2.5S15 4 14 5s-2 4-2 4Z"/>',
 };
 
@@ -138,7 +152,16 @@ function api(path, body) {
 /* Виконує дію на сервері, оновлює стан, показує помилку якщо є. */
 function act(payload, onOk) {
   return api('/api/save', payload).then(function (d) {
-    if (!d.ok) { toast(d.message || d.error || 'Не вдалося зберегти'); return false; }
+    if (!d.ok) {
+      if (d.error === 'limit') {                 // вперлись у безкоштовну межу — показуємо чому
+        openSheet('Ліміт безкоштовної версії',
+          '<div class="msg inf">' + esc(d.message || 'Це вже за межами безкоштовної версії.') + '</div>' +
+          paywallHtml('Кілька авто'));
+        return false;
+      }
+      toast(d.message || d.error || 'Не вдалося зберегти');
+      return false;
+    }
     S = d.data; PRO = d.premium;
     render();
     if (onOk) onOk();
@@ -178,6 +201,58 @@ document.addEventListener('click', function (e) {
 });
 
 /* ------------------------------------------------------------------ */
+/* ФОТО АВТО                                                           */
+/* Стискаємо на телефоні перед відправкою — щоб не тягати мегабайти.   */
+/* ------------------------------------------------------------------ */
+var PHOTOS = {};   // carId -> dataURL
+var PH_REQ = {};   // за яким carId фото вже запитували
+
+function loadPhoto(carId) {
+  if (PHOTOS[carId] !== undefined) return Promise.resolve(PHOTOS[carId]);
+  return api('/api/photo', { carId: carId, get: 1 }).then(function (d) {
+    PHOTOS[carId] = d.ok ? d.data : null;
+    return PHOTOS[carId];
+  }).catch(function () { return null; });
+}
+
+function pickPhoto(carId) {
+  var inp = document.createElement('input');
+  inp.type = 'file';
+  inp.accept = 'image/*';
+  inp.onchange = function () {
+    var f = inp.files && inp.files[0];
+    if (!f) return;
+    if (f.size > 12 * 1024 * 1024) { toast('Фото завелике — оберіть інше'); return; }
+    var fr = new FileReader();
+    fr.onload = function () {
+      var img = new Image();
+      img.onload = function () {
+        var W = 900;
+        var k = Math.min(1, W / img.width);
+        var c = document.createElement('canvas');
+        c.width = Math.round(img.width * k);
+        c.height = Math.round(img.height * k);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        var data = c.toDataURL('image/jpeg', 0.78);
+        toast('Завантажую…');
+        api('/api/photo', { carId: carId, data: data }).then(function (d) {
+          if (!d.ok) { toast(d.error || 'Не вдалося зберегти фото'); return; }
+          PHOTOS[carId] = data; PH_REQ[carId] = 1;
+          var car = S.cars.filter(function (x) { return x.id === carId; })[0];
+          if (car) car.photo = true;
+          render();
+          haptic('medium');
+        }).catch(function () { toast('Немає звʼязку'); });
+      };
+      img.onerror = function () { toast('Не вдалося прочитати фото'); };
+      img.src = fr.result;
+    };
+    fr.readAsDataURL(f);
+  };
+  inp.click();
+}
+
+/* ------------------------------------------------------------------ */
 /* ОБЧИСЛЕННЯ                                                          */
 /* ------------------------------------------------------------------ */
 function nextOil(car) {
@@ -206,16 +281,33 @@ function spend(carId, days) {
 }
 
 /* середня витрата пального між заправками */
+/* Витрата рахується від повного бака до повного бака: тільки тоді відомо,
+   скільки саме пального пішло на пройдений відрізок. Неповні заправки
+   всередині відрізка додаються до його обсягу, але самі його не закривають. */
 function consumption(carId) {
   var rows = (S.fuel || []).filter(function (r) { return r.carId === carId && r.odo > 0 && r.qty > 0; })
                            .sort(function (a, b) { return a.odo - b.odo; });
   if (rows.length < 2) return null;
-  var dist = rows[rows.length - 1].odo - rows[0].odo;
-  if (dist <= 0) return null;
-  var qty = 0;
-  for (var i = 1; i < rows.length; i++) qty += rows[i].qty;
-  if (qty <= 0) return null;
-  return { per100: qty / dist * 100, dist: dist };
+
+  var segs = [], start = null, acc = 0, accCost = 0;
+  rows.forEach(function (r) {
+    var full = r.full !== false;
+    if (start === null) { if (full) start = r; return; }
+    acc += r.qty; accCost += r.cost || 0;
+    if (full) {
+      var dist = r.odo - start.odo;
+      if (dist > 0 && acc > 0)
+        segs.push({ dist: dist, qty: acc, cost: accCost, per100: acc / dist * 100, date: r.date });
+      start = r; acc = 0; accCost = 0;
+    }
+  });
+  if (!segs.length) return null;
+
+  var dist = 0, qty = 0, cost = 0;
+  segs.forEach(function (g) { dist += g.dist; qty += g.qty; cost += g.cost; });
+  return { per100: qty / dist * 100, dist: dist, tanks: segs.length,
+           last: segs[segs.length - 1].per100,
+           perKm: cost > 0 ? cost / dist : null };   // ціна кілометра — з тих самих відрізків
 }
 
 /* список того, що потребує уваги */
@@ -322,9 +414,21 @@ var TOUR = [
   },
   {
     ic: 'doc',
+    t: 'Документи завжди з собою',
+    p: 'Знімок техпаспорта і страховки лежить у застосунку. Забули вдома — відкрили тут. ' +
+       'Видно тільки вам.',
+  },
+  {
+    ic: 'search',
+    t: 'Перевірка авто по VIN',
+    p: 'Перед купівлею видно, що це за машина насправді: рік, кузов, двигун, паливо. ' +
+       'П’ять перевірок безкоштовно.',
+  },
+  {
+    ic: 'chart',
     t: 'Історія, яка додає ціни',
-    p: 'Кожен запис лишається в сервісній книжці. При продажу це підтверджені докази догляду — ' +
-       'і сильний аргумент у торгу.',
+    p: 'Кожен запис лишається в сервісній книжці, а при продажу збирається в PDF-звіт для покупця. ' +
+       'Це сильний аргумент у торгу.',
   },
 ];
 
@@ -350,6 +454,11 @@ function drawTour() {
 /* ---------- ГАРАЖ ---------- */
 function drawHome() {
   var el = $('#s-home');
+  var ac = activeCar();
+  if (ac && ac.photo && !PH_REQ[ac.id]) {
+    PH_REQ[ac.id] = 1;                    // щоб не смикати сервер повторно
+    loadPhoto(ac.id).then(function (d) { if (d) drawHome(); });
+  }
   if (!S.cars.length) {
     el.innerHTML =
       '<div class="card" style="margin-top:14px">' +
@@ -377,10 +486,15 @@ function drawHome() {
     }).join('') + '</div>';
   }
 
-  h += '<div class="carcard' + (isEV ? ' ev' : '') + '">' +
-    '<svg class="sil" viewBox="0 0 200 80" aria-hidden="true">' +
+  var ph = PHOTOS[car.id];
+  h += '<div class="carcard' + (isEV ? ' ev' : '') + (ph ? ' hasph' : '') + '"' +
+    (ph ? ' style="background-image:url(' + ph + ')"' : '') + '>' +
+    (ph ? '<div class="shade"></div>' : '') +
+    (ph ? '' :
+      '<svg class="sil" viewBox="0 0 200 80" aria-hidden="true">' +
       '<path d="M12 58 L20 40 Q32 22 60 21 L118 21 Q150 23 168 42 L186 50 Q196 54 194 62 L12 62 Z" fill="#0E1207"/>' +
       '<circle cx="56" cy="62" r="12" fill="#0E1207"/><circle cx="152" cy="62" r="12" fill="#0E1207"/></svg>' +
+      '<button class="addph" data-do="photo">' + ic('plus', 15) + 'Додати фото</button>') +
     (car.plate ? '<span class="plate">' + esc(car.plate) + '</span>' : '') +
     '<h3>' + esc(carName(car)) + '</h3>' +
     '<div class="sub">' + [car.year, FUEL_UA[car.fuel],
@@ -405,7 +519,7 @@ function drawHome() {
   h += '<div class="h2">Швидко</div><div class="quick">' +
     '<button data-do="fuel">' + ic(isEV ? 'charge' : 'fuel', 21) + (isEV ? 'Зарядка' : 'Заправка') + '</button>' +
     '<button data-do="service">' + ic('wrench',21) + 'Ремонт</button>' +
-    '<button data-do="fine">' + ic('money',21) + 'Штраф</button>' +
+    '<button data-go="tab:s-vin">' + ic('search',21) + 'Перевірка</button>' +
     '<button data-do="expense">' + ic('plus',21) + 'Витрата</button>' +
     '</div>';
 
@@ -514,7 +628,7 @@ function drawService() {
 
     h += '<div class="promo" style="margin-top:12px"><b>Продаєте авто? <em>Це ваш козир.</em></b>' +
       '<p>Підтверджена історія обслуговування знімає половину питань покупця й тримає ціну.</p>' +
-      '<button class="btn" data-do="report">Зібрати звіт для покупця</button></div>';
+      '<button class="btn sec" data-go="tab:s-report">Звіт для покупця</button></div>';
   }
 
   el.innerHTML = h;
@@ -558,10 +672,16 @@ function drawMoney() {
   h += '<div class="card"><div class="kv"><span>За рік</span><b>' + money(m365.total) + '</b></div>' +
     '<div class="kv"><span>У середньому на місяць</span><b>' + money(m365.total / 12) + '</b></div>' +
     (cons ? '<div class="kv"><span>Витрата ' + (isEV ? 'енергії' : 'пального') + '</span><b>' +
-      cons.per100.toFixed(1) + ' ' + (isEV ? 'кВт·год' : 'л') + ' / 100 км</b></div>' : '') +
-    (cons && m365.fuel ? '<div class="kv"><span>Вартість кілометра</span><b>' +
-      (m365.fuel / Math.max(1, cons.dist)).toFixed(2) + ' ₴</b></div>' : '') +
+      cons.per100.toFixed(1) + ' ' + (isEV ? 'кВт·год' : 'л') + ' / 100 км</b></div>' +
+      (cons.tanks > 1 ? '<div class="kv"><span>Останній ' + (isEV ? 'заряд' : 'бак') + '</span><b>' +
+        cons.last.toFixed(1) + ' ' + (isEV ? 'кВт·год' : 'л') + ' / 100 км</b></div>' : '') : '') +
+    (cons && cons.perKm ? '<div class="kv"><span>' + (isEV ? 'Зарядка' : 'Паливо') +
+      ' на кілометр</span><b>' + cons.perKm.toFixed(2) + ' ₴</b></div>' : '') +
     '</div>';
+
+  if (!cons && (S.fuel || []).filter(function (r) { return r.carId === car.id; }).length)
+    h += '<div class="note">Витрату порахую, коли будуть дві заправки «' +
+         (isEV ? 'до 100%' : 'повний бак') + '» поспіль — між ними видно, скільки саме пішло.</div>';
 
   h += '<div class="grid2" style="margin-top:11px">' +
     '<button class="btn sec" data-do="fuel">' + (isEV ? 'Зарядка' : 'Заправка') + '</button>' +
@@ -585,7 +705,8 @@ function drawMoney() {
     h += '<div class="card list">' + fr.slice(0, 20).map(function (r) {
       return '<button class="it" data-do="delAsk" data-id="' + r.id + '"><div class="dt">' + ic(isEV ? 'charge' : 'fuel', 17) + '</div>' +
         '<div class="tx"><b>' + (r.qty ? r.qty + ' ' + (r.unit === 'kwh' ? 'кВт·год' : 'л') : 'Заправка') + '</b>' +
-        '<small>' + fmtDate(r.date) + (r.odo ? ' · ' + nfmt(r.odo) + ' км' : '') + '</small></div>' +
+        '<small>' + fmtDate(r.date) + (r.station ? ' · ' + esc(r.station) : '') +
+          (r.odo ? ' · ' + nfmt(r.odo) + ' км' : '') + (r.full === false ? ' · не повний' : '') + '</small></div>' +
         '<div class="vl">' + money(r.cost) + '</div></button>';
     }).join('') + '</div>';
   }
@@ -617,6 +738,8 @@ function drawMore() {
   h += '<div class="h2">Інструменти</div><div class="card list">' +
     itemBtn('search', 'Перевірка по VIN', 'Що це за авто насправді', 'tab:s-vin') +
     itemBtn('chat', 'Питання про авто', PRO ? 'Стукає, гріється, не заводиться' : 'У Преміумі', 'tab:s-ask') +
+    itemBtn('doc', 'Документи', 'Техпаспорт, страховка, права', 'tab:s-docs') +
+    itemBtn('doc', 'Звіт для покупця', 'PDF із сервісною книжкою', 'tab:s-report') +
     itemBtn('crash', 'Що робити при ДТП', 'Покроково, без паніки', 'tab:s-crash') +
     itemBtn('car', 'Мої авто', S.cars.length + ' ' + plural(S.cars.length, 'авто', 'авто', 'авто'), 'tab:s-cars') +
     '</div>';
@@ -643,7 +766,7 @@ function drawMore() {
        'Дати й суми ви вносите самі — я лише стежу, щоб нічого не забулось.</div>';
 
   el.innerHTML = h;
-  drawVin(); drawAsk(); drawCrash(); drawCars();
+  drawVin(); drawAsk(); drawReport(); drawDocs(); drawCrash(); drawCars();
 }
 function itemBtn(name, t, s, go) {
   return '<button class="it" data-go="' + go + '"><div class="dt">' + ic(name, 17) + '</div>' +
@@ -652,14 +775,33 @@ function itemBtn(name, t, s, go) {
 
 /* ---------- VIN ---------- */
 function drawVin() {
+  var left = CFG.vinLeft;
+  var unlimited = (left === null || left === undefined);
+
   $('#s-vin').innerHTML =
-    '<div class="card"><div style="font-family:var(--disp);font-weight:700;font-size:15px;margin-bottom:5px">Перевірка по VIN</div>' +
-    '<p style="margin:0 0 13px;font-size:12.5px;color:var(--mut);line-height:1.5">' +
-      'Покажу, що це за авто: марка, рік, тип кузова, двигун і паливо. Дані з державного декодера.</p>' +
-    '<div class="field"><input id="vinIn" type="text" placeholder="17 символів" maxlength="20" autocomplete="off"></div>' +
-    '<button class="btn" data-do="vinGo">Перевірити</button></div>' +
+    '<div class="card">' +
+      '<div class="chat-head" style="padding:0 0 12px">' +
+        '<div class="ic-box">' + ic('search', 20) + '</div>' +
+        '<div style="flex:1;min-width:0">' +
+          '<b style="display:block;font-size:15px;font-weight:700">Перевірка по VIN</b>' +
+          '<small style="color:var(--mut);font-size:12px">' +
+            (unlimited ? 'без обмежень' :
+              (left > 0 ? 'залишилось ' + left + ' ' + plural(left, 'безкоштовна', 'безкоштовні', 'безкоштовних') + ' ' +
+                          plural(left, 'перевірка', 'перевірки', 'перевірок')
+                        : 'безкоштовні вичерпані')) + '</small>' +
+        '</div></div>' +
+      '<p style="margin:0 0 13px;font-size:12.5px;color:var(--mut);line-height:1.5">' +
+        'Марка, рік, тип кузова, двигун і паливо — з державного декодера. ' +
+        'Корисно перед купівлею: видно, чи збігається реальність із оголошенням.</p>' +
+      '<div class="field"><input id="vinIn" type="text" placeholder="17 символів" maxlength="20" autocomplete="off"></div>' +
+      '<button class="btn" data-do="vinGo">Перевірити</button>' +
+    '</div>' +
     '<div id="vinOut"></div>' +
-    '<div class="note">Дані про власника — персональні, у відкритому доступі їх немає й бути не може. ' +
+    (unlimited || left > 0 ? '' :
+      '<div class="promo" style="margin-top:11px"><b>Потрібно більше <em>перевірок</em></b>' +
+      '<p>У Преміумі перевірок необмежено — плюс голосове внесення й помічник.</p>' +
+      '<button class="btn" data-go="tab:s-more">Дивитись Преміум</button></div>') +
+    '<div class="note">Дані про власника — персональні, у відкритому доступі їх немає. ' +
     'Перевірка показує саме авто.</div>';
 }
 
@@ -747,6 +889,426 @@ function autoGrow() {
   t.onkeydown = function (e) {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); DO.askGo(); }
   };
+}
+
+/* ------------------------------------------------------------------ */
+/* ЗВІТ ДЛЯ ПОКУПЦЯ                                                    */
+/* ------------------------------------------------------------------ */
+/* Малюємо сторінки А4 на canvas (щоб кирилиця виглядала як у книжці),
+   відправляємо на сервер, а він складає PDF і кидає файлом у чат бота. */
+
+var RP_W = 1240, RP_H = 1754, RP_M = 92;   // 150 dpi
+
+function rpStats(carId) {
+  var srv = (S.service || []).filter(function (r) { return r.carId === carId; })
+                             .sort(function (a, b) { return (b.date || '').localeCompare(a.date || ''); });
+  var fuel = (S.fuel || []).filter(function (r) { return r.carId === carId; });
+  var exp  = (S.exp  || []).filter(function (r) { return r.carId === carId; });
+
+  var spentSrv = srv.reduce(function (a, r) { return a + (r.cost || 0); }, 0);
+  var spentAll = spentSrv + fuel.reduce(function (a, r) { return a + (r.cost || 0); }, 0) +
+                            exp.reduce(function (a, r) { return a + (r.cost || 0); }, 0);
+
+  var dates = srv.map(function (r) { return r.date; })
+    .concat(fuel.map(function (r) { return r.date; }))
+    .concat(exp.map(function (r) { return r.date; }))
+    .filter(Boolean).sort();
+
+  var qty = fuel.reduce(function (a, r) { return a + (r.qty || 0); }, 0);
+  return { srv: srv, fuel: fuel, exp: exp, spentSrv: spentSrv, spentAll: spentAll,
+           since: dates[0] || null, qty: qty, cons: consumption(carId) };
+}
+
+function rpPages(car) {
+  var st = rpStats(car.id);
+  var isEV = car.fuel === 'electric';
+  var pages = [], cv = null, x = null, y = 0, pageNo = 0;
+
+  function newPage() {
+    cv = document.createElement('canvas');
+    cv.width = RP_W; cv.height = RP_H;
+    x = cv.getContext('2d');
+    x.fillStyle = '#FFFFFF'; x.fillRect(0, 0, RP_W, RP_H);
+    x.textBaseline = 'alphabetic';
+    pages.push(cv); pageNo++;
+
+    x.fillStyle = '#0F1310'; x.fillRect(0, 0, RP_W, 132);
+    x.fillStyle = '#D7FF3E'; x.font = '800 32px Unbounded, sans-serif';
+    x.fillText('БАРДАЧОК', RP_M, 80);
+    x.fillStyle = '#8A9382'; x.font = '600 22px "IBM Plex Sans", sans-serif';
+    var t = 'ЗВІТ ПРО ДОГЛЯД ЗА АВТО';
+    x.fillText(t, RP_W - RP_M - x.measureText(t).width, 78);
+    y = 132 + 78;
+  }
+
+  function room(need) { if (y + need > RP_H - 190) newPage(); }  // 190 — місце під підпис і колонтитул
+
+  function h1(t) {
+    room(90); x.fillStyle = '#0F1310'; x.font = '800 52px Unbounded, sans-serif';
+    x.fillText(t, RP_M, y); y += 22;
+  }
+  function h2(t) {
+    room(110); y += 26;
+    x.fillStyle = '#5B6455'; x.font = '700 21px "IBM Plex Sans", sans-serif';
+    x.fillText(t.toUpperCase(), RP_M, y); y += 16;
+    x.fillStyle = '#E4E8DE'; x.fillRect(RP_M, y, RP_W - RP_M * 2, 2); y += 40;
+  }
+  function para(t, size, color) {
+    x.fillStyle = color || '#3C443A';
+    x.font = '400 ' + (size || 24) + 'px "IBM Plex Sans", sans-serif';
+    var words = String(t).split(' '), line = '', max = RP_W - RP_M * 2;
+    words.forEach(function (w) {
+      var tryLine = line ? line + ' ' + w : w;
+      if (x.measureText(tryLine).width > max) { room(40); x.fillText(line, RP_M, y); y += (size || 24) + 12; line = w; }
+      else line = tryLine;
+    });
+    if (line) { room(40); x.fillText(line, RP_M, y); y += (size || 24) + 12; }
+  }
+  function clip(t, max) {
+    x.font = '400 24px "IBM Plex Sans", sans-serif';
+    t = String(t == null ? '' : t);
+    if (x.measureText(t).width <= max) return t;
+    while (t.length > 1 && x.measureText(t + '…').width > max) t = t.slice(0, -1);
+    return t + '…';
+  }
+  function rrect(a, b, w, hh, r) {
+    x.beginPath();
+    x.moveTo(a + r, b); x.arcTo(a + w, b, a + w, b + hh, r);
+    x.arcTo(a + w, b + hh, a, b + hh, r); x.arcTo(a, b + hh, a, b, r);
+    x.arcTo(a, b, a + w, b, r); x.closePath();
+  }
+  function rows(items) {
+    items.forEach(function (it) {
+      room(48);
+      x.fillStyle = '#5B6455'; x.font = '400 24px "IBM Plex Sans", sans-serif';
+      x.fillText(it[0], RP_M, y + 26);
+      x.fillStyle = '#0F1310'; x.font = '600 24px "IBM Plex Sans", sans-serif';
+      x.fillText(it[1], RP_W - RP_M - x.measureText(it[1]).width, y + 26);
+      x.fillStyle = '#EFF2EB'; x.fillRect(RP_M, y + 43, RP_W - RP_M * 2, 1);
+      y += 46;
+    });
+  }
+  function cells(items) {
+    var colW = (RP_W - RP_M * 2 - 20) / 2, cellH = 118;
+    for (var i = 0; i < items.length; i += 2) {
+      room(cellH + 16);
+      for (var j = 0; j < 2 && items[i + j]; j++) {
+        var it = items[i + j], cx = RP_M + j * (colW + 20);
+        x.fillStyle = '#F5F7F2'; rrect(cx, y, colW, cellH, 18); x.fill();
+        x.fillStyle = '#6B7464'; x.font = '600 20px "IBM Plex Sans", sans-serif';
+        x.fillText(it[0].toUpperCase(), cx + 26, y + 42);
+        x.fillStyle = '#0F1310'; x.font = '700 32px "IBM Plex Sans", sans-serif';
+        x.fillText(clip(it[1], colW - 52), cx + 26, y + 86);
+      }
+      y += cellH + 16;
+    }
+  }
+
+  newPage();
+
+  /* ---- шапка авто ---- */
+  h1([car.make, car.model].filter(Boolean).join(' ') || 'Автомобіль');
+  y += 46;
+  var sub = [car.year, FUEL_UA[car.fuel], car.plate].filter(Boolean).join('  ·  ');
+  x.fillStyle = '#5B6455'; x.font = '500 26px "IBM Plex Sans", sans-serif';
+  x.fillText(sub, RP_M, y); y += 20;
+  if (car.vin) {
+    y += 26; x.fillStyle = '#8A9382'; x.font = '500 22px "IBM Plex Sans", sans-serif';
+    x.fillText('VIN  ' + car.vin, RP_M, y);
+  }
+  y += 26;
+
+  /* ---- фото ---- */
+  var ph = PHOTOS[car.id];
+  if (ph && window.__rpImg) {
+    var img = window.__rpImg, boxW = RP_W - RP_M * 2, boxH = 420;
+    room(boxH + 30);
+    x.save(); rrect(RP_M, y, boxW, boxH, 22); x.clip();
+    var k = Math.max(boxW / img.width, boxH / img.height);
+    var iw = img.width * k, ih = img.height * k;
+    x.drawImage(img, RP_M + (boxW - iw) / 2, y + (boxH - ih) / 2, iw, ih);
+    x.restore();
+    y += boxH + 10;
+  }
+
+  /* ---- ключове ---- */
+  h2('Коротко');
+  var months = st.since ? Math.max(1, Math.round((Date.now() - new Date(st.since + 'T12:00:00Z')) / 2629800000)) : 0;
+  cells([
+    ['Пробіг', nfmt(car.odo) + ' км'],
+    [isEV ? 'Батарея' : 'Двигун',
+      isEV ? ((car.battery ? car.battery + ' кВт·год' : '—') + (car.soh ? ' · SOH ' + car.soh + '%' : ''))
+           : (car.engine ? (car.engine / 1000).toFixed(1) + ' л' : '—')],
+    ['Записів обслуговування', String(st.srv.length)],
+    ['Вкладено в обслуговування', money(st.spentSrv)],
+    [isEV ? 'Здоровʼя батареї' : 'Остання заміна масла',
+      isEV ? (car.soh ? car.soh + '%' : 'не вказано')
+           : (car.lastOilOdo ? nfmt(car.lastOilOdo) + ' км' : 'не вказано')],
+    ['Книжка ведеться', st.since ? fmtDateY(st.since) : 'з сьогодні'],
+  ]);
+
+  /* ---- сервісна книжка ---- */
+  h2('Сервісна книжка');
+  if (!st.srv.length) {
+    para('Записів поки немає.', 24, '#8A9382');
+  } else {
+    var cols = [RP_M, RP_M + 258, RP_M + 440, RP_W - RP_M];   // дата з роком широка
+    x.fillStyle = '#8A9382'; x.font = '600 19px "IBM Plex Sans", sans-serif';
+    x.fillText('ДАТА', cols[0], y); x.fillText('ПРОБІГ', cols[1], y); x.fillText('ЩО ЗРОБЛЕНО', cols[2], y);
+    var sc = 'СУМА'; x.fillText(sc, cols[3] - x.measureText(sc).width, y);
+    y += 22;
+
+    st.srv.slice(0, 90).forEach(function (r, i) {
+      room(64);
+      if (i % 2 === 0) { x.fillStyle = '#FAFBF8'; x.fillRect(RP_M - 14, y - 8, RP_W - RP_M * 2 + 28, 54); }
+      x.fillStyle = '#0F1310'; x.font = '400 24px "IBM Plex Sans", sans-serif';
+      x.fillText(fmtDateY(r.date), cols[0], y + 28);
+      x.fillStyle = '#3C443A';
+      x.fillText(r.odo ? nfmt(r.odo) : '—', cols[1], y + 28);
+      x.fillStyle = '#0F1310';
+      var what = r.title || KIND_UA[r.kind] || 'Обслуговування';
+      x.fillText(clip(what, cols[3] - cols[2] - 190), cols[2], y + 28);
+      var s = r.cost ? money(r.cost) : '—';
+      x.font = '600 24px "IBM Plex Sans", sans-serif';
+      x.fillText(s, cols[3] - x.measureText(s).width, y + 28);
+      y += 54;
+    });
+    if (st.srv.length > 90) para('…та ще ' + (st.srv.length - 90) + ' записів', 22, '#8A9382');
+  }
+
+  /* ---- паливо ---- */
+  if (st.fuel.length) {
+    h2(isEV ? 'Заряджання' : 'Заправки');
+    var unit = isEV ? 'кВт·год' : 'л';
+    rows([
+      [isEV ? 'Заряджань' : 'Заправок', String(st.fuel.length)],
+      ['Загалом ' + (isEV ? 'енергії' : 'пального'), nfmt(st.qty) + ' ' + unit],
+      ['Середня витрата', st.cons ? st.cons.per100.toFixed(1) + ' ' + unit + '/100 км' : 'даних поки мало'],
+      ['Витрачено на ' + (isEV ? 'зарядку' : 'паливо'),
+        money(st.fuel.reduce(function (a, r) { return a + (r.cost || 0); }, 0))],
+    ]);
+  }
+
+  /* ---- нижній колонтитул на кожній сторінці ---- */
+  pages.forEach(function (p, i) {
+    var c2 = p.getContext('2d');
+    var last = i === pages.length - 1;
+    if (last) {                              // підпис — на останній сторінці, окремий аркуш не потрібен
+      c2.fillStyle = '#8A9382'; c2.font = '400 21px "IBM Plex Sans", sans-serif';
+      c2.fillText('Записи вносив власник авто у застосунку Бардачок. Звіт показує, як за машиною', RP_M, RP_H - 148);
+      c2.fillText('доглядали: що і коли обслуговували, скільки в це вклали.', RP_M, RP_H - 118);
+    }
+    c2.fillStyle = '#E4E8DE'; c2.fillRect(RP_M, RP_H - 96, RP_W - RP_M * 2, 2);
+    c2.fillStyle = '#8A9382'; c2.font = '400 20px "IBM Plex Sans", sans-serif';
+    c2.fillText('Сформовано ' + fmtDateY(today()), RP_M, RP_H - 58);
+    var pn = 'Сторінка ' + (i + 1) + ' з ' + pages.length;
+    c2.fillText(pn, RP_W - RP_M - c2.measureText(pn).width, RP_H - 58);
+  });
+
+  return pages.map(function (p) { return p.toDataURL('image/jpeg', 0.86); });
+}
+
+function paywallHtml(what) {
+  return '<div class="msg inf">' + esc(what) + ' — у Преміумі.</div>' +
+    '<p style="margin:0 0 14px;font-size:13.5px;color:var(--ink2);line-height:1.6">' +
+      'Преміум відкриває голосове внесення, питання про авто, кілька машин, ' +
+      'необмежені перевірки по VIN і звіти для покупця.</p>' +
+    '<div class="card"><div class="kv"><span>Місяць</span><b>' + money(CFG.premiumMonth) + '</b></div>' +
+    '<div class="kv"><span>Рік</span><b>' + money(CFG.premiumYear) + '</b></div></div>' +
+    '<button class="btn" style="margin-top:12px" data-go="tab:s-more" data-close="1">Дивитись тарифи</button>';
+}
+
+function drawReport() {
+  var car = activeCar();
+  var el = $('#s-report');
+  if (!car) { el.innerHTML = '<div class="card"><p style="margin:0;color:var(--mut)">Спочатку додайте авто.</p></div>'; return; }
+  var st = rpStats(car.id);
+
+  el.innerHTML =
+    '<div class="card">' +
+      '<div class="chat-head" style="padding:0 0 12px">' +
+        '<div class="ic-box">' + ic('doc', 20) + '</div>' +
+        '<div style="flex:1;min-width:0"><b style="display:block;font-size:15px;font-weight:700">Звіт для покупця</b>' +
+        '<small style="color:var(--mut);font-size:12px">' + carName(car) + '</small></div></div>' +
+      '<p style="margin:0 0 14px;font-size:13px;color:var(--ink2);line-height:1.55">' +
+        'PDF-документ із сервісною книжкою: що робили, на якому пробігу, за скільки. ' +
+        'Покупець бачить, що авто доглянуте — і торгуватись йому важче.</p>' +
+      '<div class="kv"><span>Записів обслуговування</span><b>' + st.srv.length + '</b></div>' +
+      '<div class="kv"><span>Вкладено в обслуговування</span><b>' + money(st.spentSrv) + '</b></div>' +
+      '<div class="kv"><span>Книжка ведеться з</span><b>' + (st.since ? fmtDate(st.since) : 'сьогодні') + '</b></div>' +
+      '<button class="btn" data-do="report" style="margin-top:14px">' +
+        (PRO ? 'Створити PDF' : 'Створити PDF · Преміум') + '</button>' +
+      '<div class="note" style="margin-top:10px">Файл прийде у чат бота — звідти перешлете покупцю.</div>' +
+    '</div>' +
+    (st.srv.length ? '' :
+      '<div class="note">Поки що книжка порожня. Внесіть хоч кілька робіт — звіт стане переконливим.</div>');
+}
+
+function sendReport() {
+  var car = activeCar();
+  if (!car) return;
+  if (!PRO) { openSheet('Звіт для покупця', paywallHtml('Звіти для покупця')); return; }
+
+  toast('Готую звіт…');
+  var ready = document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve();
+
+  ready.then(function () {
+    var ph = PHOTOS[car.id];
+    if (!ph) return null;
+    return new Promise(function (res) {
+      var im = new Image();
+      im.onload = function () { window.__rpImg = im; res(im); };
+      im.onerror = function () { window.__rpImg = null; res(null); };
+      im.src = ph;
+    });
+  }).then(function () {
+    var pages;
+    try { pages = rpPages(car); }
+    catch (e) { toast('Не вдалося намалювати звіт'); return; }
+    window.__rpImg = null;
+    return api('/api/report', { pages: pages, plate: car.plate || carName(car) }).then(function (d) {
+      if (!d.ok) { toast(d.error || 'Не вдалося надіслати'); return; }
+      haptic('medium');
+      openSheet('Звіт готовий',
+        '<p style="margin:0 0 14px;font-size:14px;color:var(--ink2);line-height:1.6">' +
+        'PDF надіслано у чат бота. Відкрийте бота і перешліть файл покупцю.</p>' +
+        '<button class="btn" data-close="1">Зрозуміло</button>');
+    });
+  }).catch(function () { toast('Немає звʼязку з сервером'); });
+}
+
+/* ------------------------------------------------------------------ */
+/* ДОКУМЕНТИ                                                           */
+/* Те, що зазвичай лежить у справжньому бардачку — тільки не губиться. */
+/* ------------------------------------------------------------------ */
+var DOCS = null, DOC_LIMIT = 3, DOC_IMG = {};
+var DOC_UA = { techpass: 'Техпаспорт', insurance: 'Страховка', licence: 'Посвідчення',
+               greencard: 'Зелена карта', other: 'Інше' };
+var DOC_IC = { techpass: 'doc', insurance: 'shield', licence: 'idcard',
+               greencard: 'globe', other: 'doc' };
+
+function loadDocs(cb) {
+  api('/api/doc', { list: 1 }).then(function (d) {
+    if (d.ok) { DOCS = d.docs || []; DOC_LIMIT = d.limit || 3; }
+    else DOCS = [];
+    if (cb) cb();
+    drawDocs();
+  }).catch(function () { DOCS = []; drawDocs(); });
+}
+
+function drawDocs() {
+  var el = $('#s-docs');
+  if (!el) return;
+
+  if (DOCS === null) {
+    el.innerHTML = '<div class="card"><p style="margin:0;color:var(--mut);font-size:13px">Дивлюсь, що там…</p></div>';
+    loadDocs();
+    return;
+  }
+
+  var h = '<div class="card">' +
+    '<div class="chat-head" style="padding:0 0 12px">' +
+      '<div class="ic-box">' + ic('doc', 20) + '</div>' +
+      '<div style="flex:1;min-width:0"><b style="display:block;font-size:15px;font-weight:700">Документи</b>' +
+      '<small style="color:var(--mut);font-size:12px">' + DOCS.length + ' з ' + DOC_LIMIT + '</small></div></div>' +
+    '<p style="margin:0 0 13px;font-size:12.5px;color:var(--mut);line-height:1.5">' +
+      'Знімки техпаспорта, страховки, прав. Забули вдома — відкрили тут. ' +
+      'Видно тільки вам: вхід у застосунок підтверджує Telegram.</p>' +
+    '<button class="btn' + (DOCS.length >= DOC_LIMIT ? ' sec' : '') + '" data-do="docAdd">Додати документ</button>' +
+    '</div>';
+
+  if (DOCS.length) {
+    h += '<div class="h2">У бардачку</div><div class="card list">' +
+      DOCS.map(function (d) {
+        return '<button class="it" data-do="docOpen" data-id="' + d.id + '">' +
+          '<div class="dt">' + ic(DOC_IC[d.kind] || 'doc', 17) + '</div>' +
+          '<div class="tx"><b>' + esc(d.title || DOC_UA[d.kind] || 'Документ') + '</b>' +
+          '<small>' + (DOC_UA[d.kind] || 'Інше') + ' · ' + fmtDate(d.added) + '</small></div>' +
+          '<div class="vl">›</div></button>';
+      }).join('') + '</div>';
+  } else {
+    h += '<div class="empty">Поки що порожньо. Найкорисніше — техпаспорт і страховка.</div>';
+  }
+
+  h += '<div class="note">Знімки лежать на вашому сервері й прив’язані до вашого Telegram. ' +
+       'Не додавайте сюди те, чого не хочете зберігати онлайн.</div>';
+  el.innerHTML = h;
+}
+
+function docPick() {
+  if (DOCS && DOCS.length >= DOC_LIMIT && !PRO) {
+    openSheet('Документи', paywallHtml('Більше документів'));
+    return;
+  }
+  openSheet('Новий документ',
+    '<div class="field"><label>Що це</label><div class="seg" id="dKind" style="flex-wrap:wrap">' +
+      Object.keys(DOC_UA).map(function (k, i) {
+        return '<button type="button" data-v="' + k + '" class="' + (i === 0 ? 'on' : '') + '">' + DOC_UA[k] + '</button>';
+      }).join('') + '</div></div>' +
+    fld('dTitle', 'Підпис (не обов’язково)', { ph: 'напр. Техпаспорт Camry', max: 60 }) +
+    '<div id="dErr"></div>' +
+    '<button class="btn" data-do="docShoot">Зробити знімок або обрати</button>' +
+    '<div class="note" style="margin-bottom:0">Знімайте при доброму світлі, щоб текст читався.</div>');
+}
+
+function docShoot() {
+  var on = document.querySelector('#dKind button.on');
+  var kind = on ? on.dataset.v : 'other';
+  var title = val('dTitle');
+
+  var inp = document.createElement('input');
+  inp.type = 'file'; inp.accept = 'image/*';
+  inp.onchange = function () {
+    var f = inp.files && inp.files[0];
+    if (!f) return;
+    var fr = new FileReader();
+    fr.onload = function () {
+      var img = new Image();
+      img.onload = function () {
+        var W = 1400;                             // текст має лишитись читабельним
+        var k = Math.min(1, W / Math.max(img.width, img.height));
+        var c = document.createElement('canvas');
+        c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        var data = c.toDataURL('image/jpeg', 0.72);
+        if (data.length > 880000) data = c.toDataURL('image/jpeg', 0.55);
+        toast('Кладу в бардачок…');
+        api('/api/doc', { kind: kind, title: title, data: data }).then(function (d) {
+          if (!d.ok) { toast(d.message || d.error || 'Не вдалося зберегти'); return; }
+          DOCS = d.docs || [];
+          closeSheet(); drawDocs(); haptic('medium');
+        }).catch(function () { toast('Немає зв’язку'); });
+      };
+      img.onerror = function () { toast('Не вдалося прочитати знімок'); };
+      img.src = fr.result;
+    };
+    fr.readAsDataURL(f);
+  };
+  inp.click();
+}
+
+function docOpen(id) {
+  var d = (DOCS || []).filter(function (x) { return x.id === id; })[0];
+  if (!d) return;
+  var head = '<div class="kv"><span>' + (DOC_UA[d.kind] || 'Інше') + '</span><b>' + fmtDate(d.added) + '</b></div>';
+
+  function body(imgHtml) {
+    return head + imgHtml +
+      '<button class="btn sec" data-do="docDel" data-id="' + d.id + '">Прибрати з бардачка</button>';
+  }
+  openSheet(d.title || DOC_UA[d.kind] || 'Документ',
+    body('<div class="empty" style="padding:22px 0">Дістаю…</div>'));
+
+  var show = function (data) {
+    if (!data) { $('#sheetBody').innerHTML = body('<div class="msg er">Знімок не знайшовся</div>'); return; }
+    $('#sheetBody').innerHTML = body('<img src="' + data + '" alt="" ' +
+      'style="width:100%;border-radius:14px;margin:10px 0 12px;display:block">');
+  };
+  if (DOC_IMG[id]) { show(DOC_IMG[id]); return; }
+  api('/api/doc', { get: 1, id: id }).then(function (r) {
+    if (r.ok && r.data) DOC_IMG[id] = r.data;
+    show(r.ok ? r.data : null);
+  }).catch(function () { show(null); });
 }
 
 /* ---------- ДТП ---------- */
@@ -875,6 +1437,8 @@ function formCar(car) {
                           fld('cGreen', 'Зелена карта до', { type: 'date', val: c.greenEnd }) + '</div>' +
     (c.fuel !== 'electric' ? fld('cOil', 'Пробіг останньої заміни масла', { mode: 'numeric', ph: 'напр. 82000', val: c.lastOilOdo }) : '') +
     '<div id="carErr"></div>' +
+    (c.id ? '<button class="btn sec" data-do="' + (c.photo ? 'photoDel' : 'photo') + '" data-id="' + c.id + '">' +
+      (c.photo ? 'Прибрати фото' : 'Додати фото авто') + '</button>' : '') +
     '<button class="btn" data-do="saveCar">' + (c.id ? 'Зберегти' : 'Додати авто') + '</button>' +
     (c.id ? '<button class="btn dan" data-do="delCar" data-id="' + c.id + '">Видалити авто</button>' : '') +
     '</div>';
@@ -931,6 +1495,35 @@ var DO = {
 
   pickCar: function (t) { act({ action: 'setActive', id: t.dataset.id }); },
 
+  report: function () { sendReport(); },
+
+  docAdd:  function () { docPick(); },
+  docShoot: function () { docShoot(); },
+  docOpen: function (t) { docOpen(t.dataset.id); },
+  docDel:  function (t) {
+    var id = t.dataset.id;
+    if (!confirm('Прибрати документ?')) return;
+    api('/api/doc', { remove: 1, id: id }).then(function (d) {
+      if (d.ok) { DOCS = d.docs || []; delete DOC_IMG[id]; closeSheet(); drawDocs(); }
+      else toast(d.error || 'Не вдалося');
+    });
+  },
+
+  photo: function (t) {
+    var id = (t && t.dataset.id) || (activeCar() || {}).id;
+    if (id) pickPhoto(id);
+  },
+  photoDel: function (t) {
+    var id = t.dataset.id;
+    if (!confirm('Прибрати фото?')) return;
+    api('/api/photo', { carId: id, remove: 1 }).then(function () {
+      PHOTOS[id] = null; PH_REQ[id] = 0;
+      var c = S.cars.filter(function (x) { return x.id === id; })[0];
+      if (c) c.photo = false;
+      render();
+    });
+  },
+
   odo: function () {
     var car = activeCar(); if (!car) return;
     openSheet('Пробіг', fld('oOdo', 'Скільки зараз на одометрі, км', { mode: 'numeric', val: car.odo }) +
@@ -950,12 +1543,22 @@ var DO = {
         fld('fQty', ev ? 'кВт·год' : 'Літрів', { mode: 'decimal', ph: ev ? '32' : '40' }) +
         fld('fCost', 'Сума, ₴', { mode: 'decimal', ph: '1800' }) + '</div>' +
       fld('fOdo', 'Пробіг, км', { mode: 'numeric', val: car.odo }) +
-      fld('fDate', 'Дата', { type: 'date', val: today() }) +
+      '<div class="two">' + fld('fStation', ev ? 'Станція' : 'АЗС', { ph: ev ? 'YASNO' : 'OKKO', max: 40 }) +
+                            fld('fDate', 'Дата', { type: 'date', val: today() }) + '</div>' +
+      '<div class="field"><label>' + (ev ? 'Скільки зарядили' : 'Скільки залили') + '</label>' +
+        '<div class="seg" id="fFull">' +
+          '<button type="button" data-v="1" class="on">' + (ev ? 'До 100%' : 'Повний бак') + '</button>' +
+          '<button type="button" data-v="0">' + (ev ? 'Частково' : 'Не повний') + '</button>' +
+        '</div></div>' +
+      '<div class="note" style="margin:0 0 12px">Витрату можна порахувати тільки між ' +
+        (ev ? 'повними зарядами' : 'повними баками') + ' — тому цей вибір важливий.</div>' +
       '<button class="btn" data-do="saveFuel">Зберегти</button>');
   },
   saveFuel: function () {
+    var fullBtn = document.querySelector('#fFull button.on');
     act({ action: 'addFuel', qty: numv('fQty') || 0, cost: numv('fCost') || 0,
-          odo: numv('fOdo'), date: val('fDate') }, closeSheet);
+          odo: numv('fOdo'), date: val('fDate'), station: val('fStation'),
+          full: !fullBtn || fullBtn.dataset.v === '1' }, closeSheet);
   },
 
   service: function () {
@@ -1033,7 +1636,18 @@ var DO = {
     if (v.length !== 17) { out.innerHTML = '<div class="msg er">VIN має містити рівно 17 символів. Зараз ' + v.length + '.</div>'; return; }
     out.innerHTML = '<div class="msg inf">Перевіряю…</div>';
     api('/api/vin', { vin: v }).then(function (d) {
-      if (!d.ok) { out.innerHTML = '<div class="msg er">' + esc(d.error || 'Не знайдено') + '</div>'; return; }
+      if (!d.ok) {
+        if (d.error === 'limit') {
+          CFG.vinLeft = 0;
+          drawVin();                       // перемальовуємо — з блоком про Преміум
+          var box = document.getElementById('vinOut');
+          if (box) box.innerHTML = '<div class="msg er">' + esc(d.message) + '</div>';
+          return;
+        }
+        out.innerHTML = '<div class="msg er">' + esc(d.error || 'Не знайдено') + '</div>';
+        return;
+      }
+      if (d.left !== undefined && d.left !== null) CFG.vinLeft = d.left;
       var c = d.car;
       out.innerHTML = '<div class="card">' +
         kv('Авто', [c.year, c.make, c.model].filter(Boolean).join(' ')) +
@@ -1044,6 +1658,13 @@ var DO = {
         '</div><button class="btn sec" style="margin-top:10px" data-do="vinToCar">Додати це авто в гараж</button>';
       window.__vin = { vin: v, car: c };
       haptic('medium');
+      var badge = document.querySelector('#s-vin .chat-head small');
+      if (badge && CFG.vinLeft !== null && CFG.vinLeft !== undefined) {
+        badge.textContent = CFG.vinLeft > 0
+          ? 'залишилось ' + CFG.vinLeft + ' ' + plural(CFG.vinLeft, 'безкоштовна', 'безкоштовні', 'безкоштовних') + ' ' +
+            plural(CFG.vinLeft, 'перевірка', 'перевірки', 'перевірок')
+          : 'безкоштовні вичерпані';
+      }
     }).catch(function () { out.innerHTML = '<div class="msg er">Немає зв’язку. Спробуйте ще раз.</div>'; });
   },
   vinToCar: function () {
@@ -1097,20 +1718,6 @@ var DO = {
     toast('Дані скопійовано');
   },
 
-  report: function () {
-    var car = activeCar(); if (!car) return;
-    var recs = (S.service || []).filter(function (r) { return r.carId === car.id; });
-    var L = ['ІСТОРІЯ ОБСЛУГОВУВАННЯ', '', carName(car) + (car.year ? ', ' + car.year : ''),
-             car.plate ? 'Номер: ' + car.plate : '', car.vin ? 'VIN: ' + car.vin : '',
-             'Пробіг: ' + nfmt(car.odo) + ' км', ''];
-    recs.forEach(function (r) {
-      L.push(fmtDate(r.date) + ' · ' + nfmt(r.odo) + ' км — ' + r.title + (r.cost ? ' — ' + money(r.cost) : ''));
-    });
-    L.push('', 'Разом записів: ' + recs.length);
-    copy(L.filter(function (x) { return x !== ''; }).join('\n'));
-    toast('Звіт скопійовано — можна надіслати покупцю');
-  },
-
   voiceHelp: function () {
     openSheet('Голосове внесення',
       '<div class="msg inf">Найпростіше: відкрийте чат із ботом і надиктуйте голосове. Я розберу й запишу.</div>' +
@@ -1142,16 +1749,65 @@ var DO = {
   },
 
   buy: function (t) {
-    var p = t.dataset.plan;
+    var p = t.dataset.plan || 'month';
     var price = p === 'year' ? CFG.premiumYear : (p === 'half' ? CFG.premiumHalf : CFG.premiumMonth);
-    openSheet('Преміум',
-      '<div class="msg inf">Оплата ще не підключена. Напишіть — увімкнемо вручну.</div>' +
-      '<div class="card"><div class="kv"><span>Тариф</span><b>' +
-        (p === 'year' ? 'Рік' : p === 'half' ? 'Півроку' : 'Місяць') + '</b></div>' +
-      '<div class="kv"><span>Вартість</span><b>' + money(price) + '</b></div></div>' +
-      (CFG.contactTg ? '<a class="btn" style="margin-top:11px;text-decoration:none" target="_blank" rel="noopener" href="https://t.me/' +
-        esc(CFG.contactTg) + '">Написати менеджеру</a>'
-        : '<div class="note">Оплату скоро підключимо. Поки що напишіть у бот.</div>'));
+    var pay = CFG.pay || {};
+    var name = p === 'year' ? 'Рік' : p === 'half' ? 'Півроку' : 'Місяць';
+
+    var ways = '';
+    if (pay.card)   ways += '<button class="btn" data-do="payGo" data-plan="' + p + '" data-m="card">Карткою</button>';
+    if (pay.crypto) ways += '<button class="btn' + (pay.card ? ' sec' : '') + '" data-do="payGo" ' +
+                            'data-plan="' + p + '" data-m="crypto">Криптою через CryptoBot</button>';
+
+    openSheet('Преміум · ' + name,
+      '<div class="card"><div class="kv"><span>Тариф</span><b>' + name + '</b></div>' +
+      '<div class="kv"><span>Вартість</span><b>' + money(price) + '</b></div>' +
+      '<div class="kv"><span>Термін</span><b>' +
+        (p === 'year' ? '365 днів' : p === 'half' ? '182 дні' : '30 днів') + '</b></div></div>' +
+      '<div id="payErr"></div>' +
+      (ways
+        ? ways +
+          '<button class="btn sec" data-do="payCheck">Перевірити оплату</button>' +
+          '<div class="note" style="margin-bottom:0">Після оплати преміум вмикається сам. ' +
+          'Якщо за хвилину нічого не змінилось — натисніть «Перевірити оплату».</div>'
+        : '<div class="msg inf">Оплата ще не підключена.</div>' +
+          (CFG.contactTg ? '<a class="btn" style="text-decoration:none" target="_blank" rel="noopener" ' +
+            'href="https://t.me/' + esc(CFG.contactTg) + '">Написати менеджеру</a>' : '')));
+  },
+
+  payGo: function (t) {
+    var box = document.getElementById('payErr');
+    if (box) box.innerHTML = '<div class="msg inf">Створюю рахунок…</div>';
+    api('/api/pay', { plan: t.dataset.plan, method: t.dataset.m }).then(function (d) {
+      if (!d.ok || !d.url) {
+        if (box) box.innerHTML = '<div class="msg er">' + esc(d.error || 'Не вдалося створити рахунок') + '</div>';
+        return;
+      }
+      if (box) box.innerHTML = '<div class="msg inf">Відкриваю оплату. Після неї поверніться сюди.</div>';
+      try {
+        if (tg && /t\.me\//.test(d.url) && tg.openTelegramLink) tg.openTelegramLink(d.url);
+        else if (tg && tg.openLink) tg.openLink(d.url);
+        else window.open(d.url, '_blank');
+      } catch (e) { window.open(d.url, '_blank'); }
+    }).catch(function () {
+      if (box) box.innerHTML = '<div class="msg er">Немає звʼязку з сервером</div>';
+    });
+  },
+
+  payCheck: function () {
+    var box = document.getElementById('payErr');
+    if (box) box.innerHTML = '<div class="msg inf">Перевіряю…</div>';
+    api('/api/pay-check', {}).then(function (d) {
+      if (d.ok && d.premium) {
+        PRO = true; S.premiumUntil = d.until;
+        closeSheet(); render(); haptic('medium');
+        toast('Преміум активний до ' + fmtDate(d.until));
+        return;
+      }
+      if (box) box.innerHTML = '<div class="msg er">Оплата ще не дійшла. Платіжці інколи треба до хвилини.</div>';
+    }).catch(function () {
+      if (box) box.innerHTML = '<div class="msg er">Немає звʼязку</div>';
+    });
   },
 };
 function kv(k, v) { return v ? '<div class="kv"><span>' + esc(k) + '</span><b>' + esc(v) + '</b></div>' : ''; }
