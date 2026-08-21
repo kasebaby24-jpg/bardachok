@@ -60,6 +60,11 @@ function dayWord(n) { return plural(n, 'день', 'дні', 'днів'); }
 var FUEL_UA  = { petrol: 'Бензин', diesel: 'Дизель', hybrid: 'Гібрид', electric: 'Електро', gas: 'Газ' };
 var KIND_UA  = { oil: 'Заміна масла', brakes: 'Гальма', timing: 'Ремінь ГРМ', battery: 'Акумулятор',
                  tires: 'Шини', filter: 'Фільтри', diag: 'Діагностика', other: 'Інше' };
+var CAT_UA = { wash: 'Мийка', parking: 'Паркінг', toll: 'Платні дороги', insurance: 'Страхування',
+               tax: 'Податки і збори', tires: 'Шиномонтаж', parts: 'Запчастини', fine: 'Штраф', other: 'Інше' };
+var CAT_IC = { wash: 'filter', parking: 'car', toll: 'globe', insurance: 'shield',
+               tax: 'doc', tires: 'tires', parts: 'wrench', fine: 'money', other: 'plus' };
+
 var KIND_IC  = { oil: 'oil', brakes: 'brakes', timing: 'timing', battery: 'battery',
                  tires: 'tires', filter: 'filter', diag: 'diag', other: 'wrench' };
 
@@ -190,7 +195,14 @@ function spend(carId, days) {
   (S.service || []).forEach(function (r) { if (r.carId === carId && r.date >= since) s += r.cost || 0; });
   var fines = 0;
   (S.fines || []).forEach(function (r) { if (r.carId === carId && r.date >= since) fines += r.paid ? (r.half ? r.amount / 2 : r.amount) : 0; });
-  return { fuel: f, service: s, fines: fines, total: f + s + fines };
+  var other = 0, byCat = {};
+  (S.exp || []).forEach(function (r) {
+    if (r.carId !== carId || r.date < since) return;
+    other += r.cost || 0;
+    byCat[r.cat] = (byCat[r.cat] || 0) + (r.cost || 0);
+  });
+  return { fuel: f, service: s, fines: fines, other: other, byCat: byCat,
+           total: f + s + fines + other };
 }
 
 /* середня витрата пального між заправками */
@@ -394,7 +406,7 @@ function drawHome() {
     '<button data-do="fuel">' + ic(isEV ? 'charge' : 'fuel', 21) + (isEV ? 'Зарядка' : 'Заправка') + '</button>' +
     '<button data-do="service">' + ic('wrench',21) + 'Ремонт</button>' +
     '<button data-do="fine">' + ic('money',21) + 'Штраф</button>' +
-    '<button data-go="tab:s-vin">' + ic('search',21) + 'Перевірка</button>' +
+    '<button data-do="expense">' + ic('plus',21) + 'Витрата</button>' +
     '</div>';
 
   var pctFuel = sp.total > 0 ? sp.fuel / sp.total : 0;
@@ -527,7 +539,12 @@ function drawMoney() {
       [isEV ? 'Зарядка' : 'Паливо', m30.fuel],
       ['Сервіс і ремонт', m30.service],
       ['Штрафи', m30.fines],
-    ].filter(function (r) { return r[1] > 0; });
+    ];
+    Object.keys(m30.byCat || {}).forEach(function (c) {
+      rows.push([CAT_UA[c] || 'Інше', m30.byCat[c]]);
+    });
+    rows = rows.filter(function (r) { return r[1] > 0; })
+               .sort(function (a, b) { return b[1] - a[1]; });
     h += '<div class="bars">' + rows.map(function (r) {
       var p = Math.round(r[1] / m30.total * 100);
       return '<div class="bar"><div class="t"><b>' + r[0] + '</b><span>' + money(r[1]) + '</span></div>' +
@@ -546,9 +563,22 @@ function drawMoney() {
       (m365.fuel / Math.max(1, cons.dist)).toFixed(2) + ' ₴</b></div>' : '') +
     '</div>';
 
+  h += '<div class="grid2" style="margin-top:11px">' +
+    '<button class="btn sec" data-do="fuel">' + (isEV ? 'Зарядка' : 'Заправка') + '</button>' +
+    '<button class="btn sec" data-do="expense">Інша витрата</button></div>';
+
+  var ex = (S.exp || []).filter(function (r) { return r.carId === car.id; });
+  if (ex.length) {
+    h += '<div class="h2">Інші витрати</div><div class="card list">' + ex.slice(0, 15).map(function (r) {
+      return '<button class="it" data-do="delAsk" data-id="' + r.id + '">' +
+        '<div class="dt">' + ic(CAT_IC[r.cat] || 'plus', 17) + '</div>' +
+        '<div class="tx"><b>' + esc(r.title) + '</b><small>' + (CAT_UA[r.cat] || 'Інше') + ' · ' + fmtDate(r.date) + '</small></div>' +
+        '<div class="vl">' + money(r.cost) + '</div></button>';
+    }).join('') + '</div>';
+  }
+
   var fr = (S.fuel || []).filter(function (r) { return r.carId === car.id; });
-  h += '<div class="h2">' + (isEV ? 'Зарядки' : 'Заправки') +
-       '<span class="act" data-do="fuel">додати</span></div>';
+  h += '<div class="h2">' + (isEV ? 'Зарядки' : 'Заправки') + '</div>';
   if (!fr.length) {
     h += '<div class="empty">Ще нічого не внесено.</div>';
   } else {
@@ -633,19 +663,90 @@ function drawVin() {
     'Перевірка показує саме авто.</div>';
 }
 
-/* ---------- ПИТАННЯ ---------- */
+/* ---------- ПОМІЧНИК (чат) ---------- */
+var CHAT = [];          // {role:'u'|'a', text}
+var CHAT_BUSY = false;
+
+var CHAT_HINTS = [
+  'Що означає помилка P0420?',
+  'Стукає спереду на 80 км/год',
+  'Коли міняти ремінь ГРМ?',
+  'Скільки коштує заміна колодок?',
+  'Чи можна їхати з цим далі?',
+];
+
 function drawAsk() {
   var car = activeCar();
-  var h = '<div class="card"><div style="font-family:var(--disp);font-weight:700;font-size:15px;margin-bottom:5px">Питання про авто</div>' +
-    '<p style="margin:0 0 13px;font-size:12.5px;color:var(--mut);line-height:1.5">' +
-      'Опишіть, що не так — коли з’являється, на якій швидкості, який звук. ' +
-      (car ? 'Я вже знаю, що у вас ' + esc(carName(car)) + '.' : '') + '</p>' +
-    '<div class="field"><textarea id="askIn" placeholder="Наприклад: на 80 км/год щось стукає спереду справа, на менших швидкостях тихо"></textarea></div>' +
-    '<button class="btn" data-do="askGo"' + (PRO ? '' : ' disabled') + '>Запитати</button>' +
-    (PRO ? '' : '<div class="note">Доступно в Преміумі.</div>') +
-    '</div><div id="askOut"></div>' +
-    '<div class="note">Це підказка, а не діагноз. Механік бачить авто — я ні.</div>';
-  $('#s-ask').innerHTML = h;
+  var el = $('#s-ask');
+
+  var head =
+    '<div class="chat-head">' +
+      '<div class="ic-box">' + ic('chat', 20) + '</div>' +
+      '<div style="flex:1;min-width:0">' +
+        '<b style="display:block;font-size:15px;font-weight:700">Помічник</b>' +
+        '<small style="color:var(--mut);font-size:12px">' +
+          (car ? 'знає ваш ' + esc(carName(car)) + (car.odo ? ' · ' + nfmt(car.odo) + ' км' : '')
+               : 'додайте авто, щоб відповіді були точнішими') + '</small>' +
+      '</div>' +
+      (CHAT.length ? '<button class="chat-clear" data-do="chatClear">Очистити</button>' : '') +
+    '</div>';
+
+  var body;
+  if (!CHAT.length) {
+    body = '<div class="chat-empty">' +
+      '<p>Опишіть, що не так — коли зʼявляється, на якій швидкості, який звук. ' +
+      'Або спитайте про строки обслуговування чи код помилки.</p>' +
+      '<div class="hints">' + CHAT_HINTS.map(function (h) {
+        return '<button class="hint" data-do="chatHint" data-q="' + esc(h) + '">' + esc(h) + '</button>';
+      }).join('') + '</div></div>';
+  } else {
+    body = '<div class="chat" id="chatBox">' + CHAT.map(function (m) {
+      return '<div class="bub ' + (m.role === 'u' ? 'me' : 'ai') + '">' +
+        (m.role === 'a' ? mdLite(m.text) : esc(m.text)) + '</div>';
+    }).join('') +
+    (CHAT_BUSY ? '<div class="bub ai typing"><i></i><i></i><i></i></div>' : '') +
+    '</div>';
+  }
+
+  var bar =
+    '<div class="chat-bar">' +
+      '<textarea id="askIn" rows="1" placeholder="Напишіть питання…"' +
+        (PRO ? '' : ' disabled') + '></textarea>' +
+      '<button class="send" data-do="askGo"' + (PRO && !CHAT_BUSY ? '' : ' disabled') + '>' +
+        '<svg viewBox="0 0 24 24" width="20" height="20" class="icn"><path d="M4 12 20 4l-4 8 4 8-16-8Z"/></svg>' +
+      '</button>' +
+    '</div>';
+
+  el.innerHTML = head + body + bar +
+    (PRO ? '' : '<div class="note">Помічник доступний у Преміумі.</div>') +
+    '<div class="note">Це підказка, а не діагноз — механік бачить авто, я ні.</div>';
+
+  var box = document.getElementById('chatBox');
+  if (box) box.scrollTop = box.scrollHeight;
+  autoGrow();
+}
+
+/* Мінімальне форматування відповіді: списки, жирний, абзаци. */
+function mdLite(t) {
+  var out = esc(t);
+  out = out.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+  out = out.replace(/^\s*[-•]\s+/gm, '· ');
+  out = out.replace(/\n{2,}/g, '<br><br>').replace(/\n/g, '<br>');
+  return out;
+}
+
+function autoGrow() {
+  var t = document.getElementById('askIn');
+  if (!t) return;
+  t.style.height = 'auto';
+  t.style.height = Math.min(t.scrollHeight, 120) + 'px';
+  t.oninput = function () {
+    this.style.height = 'auto';
+    this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+  };
+  t.onkeydown = function (e) {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); DO.askGo(); }
+  };
 }
 
 /* ---------- ДТП ---------- */
@@ -878,6 +979,28 @@ var DO = {
           cost: numv('sCost') || 0, odo: numv('sOdo'), date: val('sDate') }, closeSheet);
   },
 
+  expense: function () {
+    var car = activeCar(); if (!car) { toast('Спочатку додайте авто'); return; }
+    var cats = Object.keys(CAT_UA).filter(function (c) { return c !== 'fine'; });
+    openSheet('Витрата',
+      '<div class="field"><label>Категорія</label><div class="seg" id="eCat">' +
+        cats.map(function (c, i) {
+          return '<button type="button" data-v="' + c + '" class="' + (i === 0 ? 'on' : '') + '">' + CAT_UA[c] + '</button>';
+        }).join('') + '</div></div>' +
+      fld('eTitle', 'Опис', { ph: 'Мийка з хімчисткою' }) +
+      '<div class="two">' + fld('eCost', 'Сума, ₴', { mode: 'decimal', ph: '350' }) +
+                            fld('eDate', 'Дата', { type: 'date', val: today() }) + '</div>' +
+      '<button class="btn" data-do="saveExpense">Зберегти</button>');
+  },
+  saveExpense: function () {
+    var on = document.querySelector('#eCat button.on');
+    var cat = on ? on.dataset.v : 'other';
+    var c = numv('eCost');
+    if (c == null) { toast('Вкажіть суму'); return; }
+    act({ action: 'addExpense', cat: cat, title: val('eTitle') || CAT_UA[cat],
+          cost: c, date: val('eDate') }, closeSheet);
+  },
+
   fine: function () {
     var car = activeCar(); if (!car) { toast('Спочатку додайте авто'); return; }
     openSheet('Штраф',
@@ -933,16 +1056,36 @@ var DO = {
   },
 
   askGo: function () {
-    if (!PRO) { toast('Питання про авто доступні в Преміумі'); return; }
-    var q = val('askIn');
-    var out = document.getElementById('askOut');
-    if (q.length < 5) { out.innerHTML = '<div class="msg er">Опишіть проблему хоча б одним реченням.</div>'; return; }
-    out.innerHTML = '<div class="msg inf">Думаю…</div>';
-    api('/api/ask', { q: q, carId: S.activeCar }).then(function (d) {
-      if (!d.ok) { out.innerHTML = '<div class="msg er">' + esc(d.message || d.error) + '</div>'; return; }
-      out.innerHTML = '<div class="card" style="white-space:pre-wrap;font-size:14px;line-height:1.6">' + esc(d.answer) + '</div>';
-    }).catch(function () { out.innerHTML = '<div class="msg er">Немає зв’язку.</div>'; });
+    if (!PRO) { toast('Помічник доступний у Преміумі'); return; }
+    if (CHAT_BUSY) return;
+    var t = document.getElementById('askIn');
+    var q = t ? t.value.trim() : '';
+    if (q.length < 2) return;
+
+    CHAT.push({ role: 'u', text: q });
+    CHAT_BUSY = true;
+    drawAsk();
+
+    api('/api/ask', {
+      q: q, carId: S.activeCar,
+      history: CHAT.slice(0, -1).slice(-8),
+    }).then(function (d) {
+      CHAT_BUSY = false;
+      CHAT.push({ role: 'a', text: d.ok ? d.answer : (d.message || d.error || 'Не вдалося відповісти') });
+      drawAsk();
+      haptic('light');
+    }).catch(function () {
+      CHAT_BUSY = false;
+      CHAT.push({ role: 'a', text: 'Немає звʼязку з сервером. Спробуйте ще раз.' });
+      drawAsk();
+    });
   },
+  chatHint: function (t) {
+    var el = document.getElementById('askIn');
+    if (el) { el.value = t.dataset.q; }
+    DO.askGo();
+  },
+  chatClear: function () { CHAT = []; drawAsk(); },
 
   copyCar: function () {
     var c = activeCar(); if (!c) return;
