@@ -112,7 +112,10 @@ input,select,textarea{-webkit-appearance:none;appearance:none}
 .carcard .odo{margin-top:15px;display:flex;align-items:flex-end;justify-content:space-between;gap:10px}
 .carcard .odo small{display:block;font-size:10.5px;opacity:.66;font-weight:700;letter-spacing:.08em;margin-bottom:2px}
 .carcard .odo b{font-family:var(--disp);font-weight:800;font-size:26px;letter-spacing:-.03em;line-height:1;font-variant-numeric:tabular-nums}
-.carcard .sil{position:absolute;right:-16px;top:8px;width:140px;opacity:.15;pointer-events:none}
+.carcard .sil{
+  position:absolute;right:-34px;bottom:-18px;width:230px;opacity:.13;pointer-events:none;
+}
+.carcard.ev .sil{opacity:.2}
 
 /* фото авто на картці */
 .carcard.hasph{background-size:cover;background-position:center;color:#fff}
@@ -124,12 +127,15 @@ input,select,textarea{-webkit-appearance:none;appearance:none}
 .carcard.hasph .odo small{opacity:.8}
 .carcard.hasph .chip{background:rgba(255,255,255,.2)!important;color:#fff!important}
 .addph{
-  position:absolute;right:13px;top:13px;z-index:2;display:flex;align-items:center;gap:5px;
-  padding:7px 11px;border-radius:11px;background:rgba(14,18,7,.14);color:#0E1207;
-  font-size:11px;font-weight:700;letter-spacing:.01em;
+  position:absolute;right:13px;top:13px;z-index:2;display:flex;align-items:center;gap:4px;
+  padding:6px 10px;border-radius:10px;background:rgba(14,18,7,.12);color:#0E1207;
+  font-size:10.5px;font-weight:700;letter-spacing:.01em;opacity:.72;
 }
 .addph:active{background:rgba(14,18,7,.24)}
 .addph .icn{color:#0E1207;stroke-width:2.2}
+
+.seg.wrap{flex-wrap:wrap}
+.seg.wrap button{flex:0 0 auto;padding:9px 13px}
 
 .carswitch{display:flex;gap:7px;overflow-x:auto;padding:2px 0 0;margin-bottom:10px}
 .carswitch::-webkit-scrollbar{height:0}
@@ -352,3 +358,84 @@ input,select,textarea{-webkit-appearance:none;appearance:none}
 .boot p{color:var(--mut);font-size:13px;margin:10px 0 0;line-height:1.55;max-width:300px}
 .spin{width:26px;height:26px;border-radius:50%;border:2.5px solid var(--surf3);border-top-color:var(--lime);animation:sp .8s linear infinite;margin:18px auto 0}
 @keyframes sp{to{transform:rotate(360deg)}}
+
+/* ---------------- знайомство: сторіз ---------------- */
+.st-wrap{display:flex;flex-direction:column;min-height:calc(100vh - 190px);padding-top:4px}
+.st-bars{display:flex;gap:5px;margin-bottom:16px}
+.st-bars i{flex:1;height:3px;border-radius:2px;background:var(--surf2);transition:.3s}
+.st-bars i.on{background:var(--lime)}
+.st-bars i.done{background:var(--lime);opacity:.4}
+.st-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.st-tag{
+  font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--lime);background:rgba(215,255,62,.1);padding:6px 11px;border-radius:9px;
+}
+.st-skip{font-size:12.5px;color:var(--mut);padding:6px 2px}
+.st-body{flex:1}
+.st-body h2{
+  font-family:var(--disp);font-weight:800;font-size:30px;line-height:1.12;letter-spacing:-.03em;
+  margin:0 0 12px;
+}
+.st-body p{margin:0 0 18px;font-size:14.5px;line-height:1.55;color:var(--ink2)}
+.st-art{background:var(--surf);border-radius:22px;padding:16px;display:grid;gap:9px}
+.st-art.hero{background:var(--lime);padding:26px 20px 14px}
+.st-art.hero .sil{position:static;width:100%;height:auto;opacity:1}
+.st-row{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  background:var(--surf2);border-radius:14px;padding:12px 14px;font-size:13.5px;
+}
+.st-row span{display:flex;align-items:center;gap:9px;color:var(--ink2)}
+.st-row span .icn{color:var(--mut)}
+.st-row b{font-weight:700;font-size:13.5px}
+.st-row.hot{background:rgba(255,107,74,.12)}
+.st-row.hot b,.st-row.hot span .icn{color:var(--hot)}
+.st-row.done b,.st-row.done span .icn{color:var(--lime)}
+.st-say{
+  background:var(--lime);color:#10130E;border-radius:16px 16px 16px 5px;padding:12px 15px;
+  font-size:13.5px;font-weight:600;line-height:1.45;
+}
+.st-bub{border-radius:16px;padding:12px 15px;font-size:13.5px;line-height:1.5;max-width:92%}
+.st-bub.me{background:var(--lime);color:#10130E;font-weight:600;margin-left:auto;border-bottom-right-radius:5px}
+.st-bub.ai{background:var(--surf2);color:var(--ink2);border-bottom-left-radius:5px}
+.st-doc{background:#F5F7F2;color:#0F1310;border-radius:16px;padding:15px}
+.st-doc>b{display:block;font-family:var(--disp);font-weight:800;font-size:15px;margin-bottom:10px}
+.st-doc .st-row{background:#fff}
+.st-doc .st-row span{color:#5B6455}
+.st-doc .st-row b{color:#0F1310}
+.st-fact{
+  margin-top:12px;font-size:12.5px;line-height:1.5;color:var(--mut);
+  border-left:2px solid var(--lime);padding-left:12px;
+}
+.st-foot{display:flex;gap:9px;align-items:center;margin-top:20px}
+.st-foot .btn{margin:0;flex:1}
+.st-back{
+  width:50px;height:50px;flex:0 0 50px;border-radius:16px;background:var(--surf);
+  display:grid;place-items:center;
+}
+.st-back .icn{color:var(--ink2)}
+
+/* ---------------- результат перевірки VIN ---------------- */
+.h3{font-family:var(--disp);font-weight:700;font-size:13px;letter-spacing:.02em;
+    color:var(--mut);text-transform:uppercase;margin:0 0 8px}
+.vin-shots{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;margin-bottom:11px;
+           scroll-snap-type:x mandatory}
+.vin-shots::-webkit-scrollbar{height:0}
+.vin-shots img{height:170px;border-radius:16px;flex:0 0 auto;object-fit:cover;scroll-snap-align:start;
+               background:var(--surf2)}
+.vin-model{height:180px;border-radius:20px;background-size:cover;background-position:center;
+           background-color:var(--surf2);margin-bottom:6px}
+.vin-credit{font-size:11.5px;color:var(--mut);margin:0 2px 12px}
+
+/* ---------------- вартість володіння і чек-листи ---------------- */
+.two-num{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+.two-num>div{background:var(--surf2);border-radius:16px;padding:13px 15px}
+.two-num small{display:block;color:var(--mut);font-size:11.5px;margin-bottom:3px}
+.two-num b{font-family:var(--disp);font-weight:800;font-size:21px;letter-spacing:-.02em}
+.checks{margin:0;padding:0;list-style:none;display:grid;gap:10px}
+.checks li{
+  position:relative;padding-left:26px;font-size:13.5px;line-height:1.5;color:var(--ink2);
+}
+.checks li::before{
+  content:'';position:absolute;left:0;top:6px;width:14px;height:14px;border-radius:5px;
+  border:1.5px solid var(--lime);opacity:.7;
+}

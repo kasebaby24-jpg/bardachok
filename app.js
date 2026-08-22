@@ -123,6 +123,7 @@ var ICONS = {
   globe:  '<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.5 2.6 2.5 14.4 0 17M12 3.5c-2.5 2.6-2.5 14.4 0 17"/>',
   plus:   '<path d="M12 5v14M5 12h14"/>',
   star:   '<path d="m12 4 2.4 5 5.6.8-4 3.9 1 5.5-5-2.7-5 2.7 1-5.5-4-3.9 5.6-.8L12 4Z"/>',
+  back:   '<path d="M15 5 8 12l7 7"/>',
   idcard: '<rect x="3" y="5.5" width="18" height="13" rx="2.5"/><circle cx="8.5" cy="11" r="2"/>' +
           '<path d="M5.5 16c.6-1.4 1.7-2 3-2s2.4.6 3 2M14 10h4.5M14 13.5h3"/>',
   gift:   '<rect x="3.5" y="9" width="17" height="11" rx="1.5"/><path d="M3.5 13h17M12 9v11"/><path d="M12 9c-3.5 0-4.5-1-4.5-2.5S9 4 10 5s2 4 2 4Zm0 0c3.5 0 4.5-1 4.5-2.5S15 4 14 5s-2 4-2 4Z"/>',
@@ -199,6 +200,184 @@ function closeSheet() {
 document.addEventListener('click', function (e) {
   if (e.target.closest('[data-close]')) closeSheet();
 });
+
+document.addEventListener('input', function (e) {
+  if (e.target.id === 'cMake' || e.target.id === 'cModel') applyGuess();
+});
+
+/* ------------------------------------------------------------------ */
+/* СИЛУЕТИ ЗА ТИПОМ КУЗОВА                                             */
+/* Малюємо самі: жодних чужих картинок, миттєво і завжди доречно.      */
+/* ------------------------------------------------------------------ */
+var SIL = {
+  sedan: {
+    body:'M8 62 L8 47 Q8 41 15 40 L44 37 L64 22 Q69 18 78 18 L124 18 Q134 18 141 23 L163 37 L186 41 Q194 43 194 51 L194 62 Z',
+    win:'M70 25 L86 25 L86 36 L58 37 Z M92 25 L122 25 Q129 25 133 29 L142 36 L92 36 Z',
+    w:[54,152], r:12
+  },
+  hatch: {
+    body:'M22 62 L20 44 Q20 34 28 27 L40 20 Q45 17 54 17 L116 17 Q127 17 134 22 L158 37 L186 41 Q194 43 194 51 L194 62 Z',
+    win:'M46 24 L74 24 L74 35 L30 35 Q31 30 36 26 Z M80 24 L114 24 Q121 24 125 28 L135 35 L80 35 Z',
+    w:[56,152], r:12
+  },
+  wagon: {
+    body:'M8 62 L8 40 Q8 22 20 20 L124 18 Q135 18 142 23 L164 37 L186 41 Q194 43 194 51 L194 62 Z',
+    win:'M22 26 L74 25 L74 36 L18 36 Z M80 25 L122 25 Q129 25 133 29 L142 36 L80 36 Z',
+    w:[52,152], r:12
+  },
+  suv: {
+    body:'M10 56 L10 30 Q10 14 26 12 L128 11 Q141 11 148 18 L170 30 L188 34 Q194 36 194 44 L194 56 Q194 58 190 58 L14 58 Q10 58 10 56 Z',
+    win:'M26 19 L78 18 L78 30 L22 30 Q22 21 26 19 Z M84 18 L124 18 Q133 18 138 23 L147 30 L84 30 Z',
+    w:[52,154], r:16
+  },
+  coupe: {
+    body:'M8 62 L8 49 Q8 43 16 42 L46 39 L72 23 Q79 19 90 19 L120 20 Q132 22 140 29 L166 41 L187 45 Q194 47 194 54 L194 62 Z',
+    win:'M78 26 L96 26 L96 37 L64 38 Z M102 26 L118 27 Q127 29 133 34 L138 38 L102 37 Z',
+    w:[54,152], r:12
+  },
+  pickup: {
+    body:'M8 62 L8 38 L86 38 L86 24 Q86 18 94 18 L134 18 Q143 18 149 24 L169 37 L187 41 Q194 43 194 51 L194 62 Z',
+    win:'M94 25 L110 25 L110 36 L94 36 Z M116 25 L132 25 Q139 25 143 29 L149 36 L116 36 Z',
+    w:[46,156], r:13
+  },
+  van: {
+    body:'M8 60 L8 32 Q8 18 24 17 L112 16 Q133 16 150 29 L173 39 L188 43 Q194 45 194 52 L194 60 Z',
+    win:'M24 23 L74 22 L74 35 L18 35 Z M80 22 L110 22 Q126 23 139 33 L142 35 L80 35 Z',
+    w:[52,152], r:13
+  },
+  truck: {
+    body:'M8 60 L8 14 L120 14 L120 28 Q120 22 130 22 L150 22 Q159 22 165 28 L182 40 L189 43 Q194 45 194 52 L194 60 Z',
+    win:'M130 28 L146 28 Q153 28 157 32 L162 38 L130 38 Z',
+    w:[46,158], r:14
+  },
+};
+
+function silSvg(body, ink, back) {
+  var d = SIL[body] || SIL.sedan;
+  var cy = d.body.indexOf('L194 60') > -1 || d.body.indexOf('L194 56') > -1 ? 58 : 62;
+  var wheels = d.w.map(function (x) {
+    return '<circle cx="' + x + '" cy="' + cy + '" r="' + d.r + '" fill="' + ink + '"/>' +
+           '<circle cx="' + x + '" cy="' + cy + '" r="' + (d.r - 5) + '" fill="' + back + '" opacity=".5"/>';
+  }).join('');
+  return '<svg class="sil" viewBox="0 0 200 80" aria-hidden="true">' +
+    '<path d="' + d.body + '" fill="' + ink + '"/>' +
+    '<path d="' + d.win + '" fill="' + back + '" opacity=".26"/>' + wheels + '</svg>';
+}
+
+/* ------------------------------------------------------------------ */
+/* ДОВІДНИК МОДЕЛЕЙ                                                    */
+/* Щоб застосунок сам знав тип кузова й не дозволяв «Tesla на бензині».*/
+/* Список — під український ринок, тому тут і Ланос, і Пріус.          */
+/* ------------------------------------------------------------------ */
+var BODY_UA = { sedan: 'Седан', hatch: 'Хетчбек', wagon: 'Універсал', suv: 'Кросовер',
+                coupe: 'Купе', pickup: 'Пікап', van: 'Мінівен', truck: 'Фургон' };
+
+/* модель -> [кузов, паливо або null якщо буває різне] */
+var MODELS = {
+  /* електричні — тут паливо задане жорстко */
+  'tesla model 3': ['sedan','electric'], 'tesla model s': ['sedan','electric'],
+  'tesla model y': ['suv','electric'],   'tesla model x': ['suv','electric'],
+  'nissan leaf': ['hatch','electric'],   'nissan ariya': ['suv','electric'],
+  'chevrolet bolt': ['hatch','electric'],'chevrolet volt': ['hatch','hybrid'],
+  'renault zoe': ['hatch','electric'],   'renault kangoo': ['van',null],
+  'volkswagen id.3': ['hatch','electric'],'volkswagen id.4': ['suv','electric'],
+  'volkswagen e-golf': ['hatch','electric'],
+  'hyundai kona': ['suv',null], 'hyundai ioniq': ['hatch',null], 'hyundai ioniq 5': ['suv','electric'],
+  'kia niro': ['suv',null], 'kia ev6': ['suv','electric'], 'kia soul': ['suv',null],
+  'bmw i3': ['hatch','electric'], 'bmw i4': ['sedan','electric'], 'bmw ix': ['suv','electric'],
+  'audi e-tron': ['suv','electric'], 'porsche taycan': ['sedan','electric'],
+  'ford mustang mach-e': ['suv','electric'], 'jaguar i-pace': ['suv','electric'],
+  'mercedes-benz eqc': ['suv','electric'], 'mercedes eqc': ['suv','electric'],
+  'byd song': ['suv','electric'], 'byd yuan': ['suv','electric'], 'byd han': ['sedan','electric'],
+  'mg zs': ['suv',null], 'nio es8': ['suv','electric'], 'zeekr 001': ['wagon','electric'],
+
+  /* гібриди */
+  'toyota prius': ['hatch','hybrid'], 'toyota chr': ['suv',null], 'toyota c-hr': ['suv',null],
+
+  /* найпоширеніші в Україні */
+  'toyota camry': ['sedan',null], 'toyota corolla': ['sedan',null], 'toyota rav4': ['suv',null],
+  'toyota land cruiser': ['suv',null], 'toyota highlander': ['suv',null], 'toyota avensis': ['sedan',null],
+  'volkswagen golf': ['hatch',null], 'volkswagen passat': ['sedan',null], 'volkswagen tiguan': ['suv',null],
+  'volkswagen polo': ['hatch',null], 'volkswagen touareg': ['suv',null], 'volkswagen caddy': ['van',null],
+  'volkswagen transporter': ['van',null], 'volkswagen jetta': ['sedan',null],
+  'skoda octavia': ['sedan',null], 'skoda superb': ['sedan',null], 'skoda fabia': ['hatch',null],
+  'skoda kodiaq': ['suv',null], 'skoda karoq': ['suv',null],
+  'renault megane': ['hatch',null], 'renault duster': ['suv',null], 'renault logan': ['sedan',null],
+  'renault trafic': ['van',null], 'dacia duster': ['suv',null], 'dacia logan': ['sedan',null],
+  'nissan qashqai': ['suv',null], 'nissan x-trail': ['suv',null], 'nissan juke': ['suv',null],
+  'nissan rogue': ['suv',null], 'nissan altima': ['sedan',null], 'nissan micra': ['hatch',null],
+  'hyundai tucson': ['suv',null], 'hyundai santa fe': ['suv',null], 'hyundai elantra': ['sedan',null],
+  'hyundai accent': ['sedan',null], 'hyundai i30': ['hatch',null], 'hyundai sonata': ['sedan',null],
+  'kia sportage': ['suv',null], 'kia sorento': ['suv',null], 'kia ceed': ['hatch',null],
+  'kia rio': ['sedan',null], 'kia optima': ['sedan',null],
+  'ford focus': ['hatch',null], 'ford fiesta': ['hatch',null], 'ford kuga': ['suv',null],
+  'ford escape': ['suv',null], 'ford transit': ['truck',null], 'ford mondeo': ['sedan',null],
+  'ford explorer': ['suv',null], 'ford f-150': ['pickup',null], 'ford ranger': ['pickup',null],
+  'bmw 3 series': ['sedan',null], 'bmw 5 series': ['sedan',null], 'bmw x5': ['suv',null],
+  'bmw x3': ['suv',null], 'bmw x1': ['suv',null], 'bmw 7 series': ['sedan',null],
+  'mercedes-benz c-class': ['sedan',null], 'mercedes-benz e-class': ['sedan',null],
+  'mercedes-benz s-class': ['sedan',null], 'mercedes-benz gle': ['suv',null],
+  'mercedes-benz sprinter': ['truck',null], 'mercedes-benz vito': ['van',null],
+  'audi a4': ['sedan',null], 'audi a6': ['sedan',null], 'audi q5': ['suv',null],
+  'audi q7': ['suv',null], 'audi a3': ['hatch',null],
+  'mazda 3': ['sedan',null], 'mazda 6': ['sedan',null], 'mazda cx-5': ['suv',null],
+  'honda civic': ['sedan',null], 'honda accord': ['sedan',null], 'honda cr-v': ['suv',null],
+  'mitsubishi outlander': ['suv',null], 'mitsubishi lancer': ['sedan',null],
+  'mitsubishi pajero': ['suv',null], 'mitsubishi asx': ['suv',null],
+  'opel astra': ['hatch',null], 'opel insignia': ['sedan',null], 'opel vivaro': ['van',null],
+  'opel zafira': ['van',null], 'opel corsa': ['hatch',null],
+  'peugeot 308': ['hatch',null], 'peugeot 3008': ['suv',null], 'peugeot partner': ['van',null],
+  'peugeot 208': ['hatch',null], 'citroen berlingo': ['van',null], 'citroen c4': ['hatch',null],
+  'chevrolet aveo': ['sedan',null], 'chevrolet lacetti': ['sedan',null], 'chevrolet cruze': ['sedan',null],
+  'daewoo lanos': ['sedan',null], 'daewoo sens': ['sedan',null], 'daewoo nexia': ['sedan',null],
+  'zaz lanos': ['sedan',null], 'zaz sens': ['sedan',null],
+  'jeep grand cherokee': ['suv',null], 'jeep wrangler': ['suv',null], 'jeep cherokee': ['suv',null],
+  'subaru forester': ['suv',null], 'subaru outback': ['wagon',null],
+  'volvo xc60': ['suv',null], 'volvo xc90': ['suv',null], 'volvo s60': ['sedan',null],
+  'lexus rx': ['suv',null], 'lexus nx': ['suv',null], 'lexus es': ['sedan',null],
+  'infiniti qx60': ['suv',null], 'seat leon': ['hatch',null], 'seat ibiza': ['hatch',null],
+  'fiat doblo': ['van',null], 'fiat ducato': ['truck',null], 'fiat 500': ['hatch',null],
+  'lada niva': ['suv',null], 'lada priora': ['sedan',null], 'lada granta': ['sedan',null],
+  'ram 1500': ['pickup',null], 'toyota tundra': ['pickup',null], 'toyota tacoma': ['pickup',null],
+  'chevrolet silverado': ['pickup',null], 'gmc sierra': ['pickup',null],
+};
+
+/* марки, у яких усе електричне */
+var EV_MAKES = ['tesla', 'nio', 'zeekr', 'polestar', 'lucid', 'rivian', 'xpeng'];
+
+function carKey(make, model) {
+  return String((make || '') + ' ' + (model || '')).toLowerCase()
+    .replace(/[іi]/g, 'i').replace(/\s+/g, ' ').trim();
+}
+
+/* Що ми знаємо про це авто за маркою й моделлю */
+function guessCar(make, model) {
+  var k = carKey(make, model);
+  if (MODELS[k]) return { body: MODELS[k][0], fuel: MODELS[k][1], sure: true };
+
+  /* часткове співпадіння: «Model 3» без марки, «Octavia A7» з приміткою */
+  var keys = Object.keys(MODELS);
+  for (var i = 0; i < keys.length; i++) {
+    if (k && (k.indexOf(keys[i]) === 0 || keys[i].indexOf(k) === 0))
+      return { body: MODELS[keys[i]][0], fuel: MODELS[keys[i]][1], sure: false };
+  }
+  var mk = String(make || '').toLowerCase().trim();
+  if (EV_MAKES.indexOf(mk) > -1) return { body: null, fuel: 'electric', sure: true };
+  return { body: null, fuel: null, sure: false };
+}
+
+/* Тип кузова з відповіді державного декодера */
+function bodyFromVin(bodyClass) {
+  var b = String(bodyClass || '').toLowerCase();
+  if (/pickup|truck-tractor/.test(b)) return 'pickup';
+  if (/sport utility|suv|crossover|multi-purpose/.test(b)) return 'suv';
+  if (/wagon|estate/.test(b)) return 'wagon';
+  if (/hatchback|liftback/.test(b)) return 'hatch';
+  if (/coupe|convertible|roadster/.test(b)) return 'coupe';
+  if (/van|minivan/.test(b)) return b.indexOf('mini') > -1 ? 'van' : 'truck';
+  if (/sedan|saloon/.test(b)) return 'sedan';
+  return null;
+}
 
 /* ------------------------------------------------------------------ */
 /* ФОТО АВТО                                                           */
@@ -312,6 +491,19 @@ function consumption(carId) {
 
 /* список того, що потребує уваги */
 function attention() {
+  var extra = [];
+  var ac0 = activeCar();
+  if (ac0) {
+    remList(ac0.id).forEach(function (r) {
+      var w = remWhen(r, ac0);
+      if (w.hot) extra.push({ lvl: w.sort <= 0 ? 'hot' : '', ic: 'alert', t: r.title,
+                              p: 'Ваше нагадування', d: w.txt, go: 'tab:s-rem' });
+    });
+  }
+  return attentionBase().concat(extra);
+}
+
+function attentionBase() {
   var out = [];
   (S.cars || []).forEach(function (c) {
     var nm = carName(c);
@@ -378,7 +570,25 @@ function render() {
   if (unpaid && !dot) { var el = document.createElement('span'); el.className = 'dot'; fbtn.appendChild(el); }
   if (!unpaid && dot) dot.remove();
 
-  drawHome(); drawFines(); drawService(); drawMoney(); drawMore();
+  DIRTY = {};                       // усе застаріло
+  paint(TAB);                       // малюємо тільки те, що видно
+}
+
+/* Перемальовуємо екран лише коли на нього дивляться.
+   Раніше кожна дія перебудовувала всі одинадцять — звідси й гальма. */
+var DIRTY = {};
+var PAINT = {
+  's-tour': drawTour, 's-home': drawHome, 's-fines': drawFines, 's-service': drawService,
+  's-money': drawMoney, 's-more': drawMore, 's-vin': drawVin, 's-ask': drawAsk,
+  's-docs': drawDocs, 's-report': drawReport, 's-crash': drawCrash, 's-cars': drawCars,
+  's-rem': drawRem,
+};
+function paint(id) {
+  var f = PAINT[id];
+  if (!f) return;
+  if (DIRTY[id]) return;            // вже намальовано з останніми даними
+  f();
+  DIRTY[id] = 1;
 }
 
 function ringSvg(pct, color) {
@@ -393,65 +603,105 @@ function ringSvg(pct, color) {
 /* ------------------------------------------------------------------ */
 /* ЗНАЙОМСТВО ПРИ ПЕРШОМУ ЗАПУСКУ                                      */
 /* ------------------------------------------------------------------ */
-var TOUR = [
+/* ------------------------------------------------------------------ */
+/* ЗНАЙОМСТВО — сторіз                                                 */
+/* Перше, що бачить нова людина. За пʼять екранів має стати зрозуміло, */
+/* навіщо це і чому варто лишитись.                                    */
+/* ------------------------------------------------------------------ */
+var STORY = 0;
+var STORIES = [
   {
-    ic: 'shield',
-    t: 'Не пропустите жодного строку',
-    p: 'Страховка, техобслуговування, зелена карта. Попереджу заздалегідь — у застосунку і в боті, ' +
-       'навіть якщо ви сюди місяць не заходили.',
+    tag: 'Бардачок',
+    t: 'Усе про авто —\nв одному місці',
+    p: 'Строки, витрати, ремонти, документи. Без папок, зошитів і «десь було в чаті».',
+    art: 'hero',
   },
   {
-    ic: 'money',
-    t: 'Штраф зі знижкою 50%',
-    p: 'На штрафи з камер діє знижка, але лише 10 банківських днів. Пропустили — платите вдвічі більше. ' +
-       'Я рахую цей строк і нагадаю, поки він не вийшов.',
+    tag: 'Строки',
+    t: 'Не пропустите\nжодного строку',
+    p: 'Страховка, техобслуговування, зелена карта. Попереджу заздалегідь — у застосунку і в боті.',
+    art: 'dates',
+    fact: 'Штраф з камери зі знижкою — 425 ₴. Без знижки — 850 ₴. Знижка діє лише 10 банківських днів.',
   },
   {
-    ic: 'chat',
-    t: 'Записуйте голосом',
-    p: 'Заправились — надиктуйте боту «залив 40 літрів на 1800». Він сам розкладе і запише. ' +
-       'Нічого не треба відкривати й заповнювати.',
+    tag: 'Голос',
+    t: 'Кажіть —\nя запишу',
+    p: 'Надиктуйте боту «заправився на 500 і поміняв масло за 2400» — обидва записи зʼявляться самі.',
+    art: 'voice',
+    fact: 'На iPhone це можна повісити на кнопку «Дія» або постукування по кришці.',
   },
   {
-    ic: 'doc',
-    t: 'Документи завжди з собою',
-    p: 'Знімок техпаспорта і страховки лежить у застосунку. Забули вдома — відкрили тут. ' +
-       'Видно тільки вам.',
+    tag: 'Помічник',
+    t: 'Знає саме\nваше авто',
+    p: 'Питаєте — відповідає з вашою книжкою перед очима: коли міняли, скільки вклали, що вже пора.',
+    art: 'brain',
+    fact: 'Плюс перевірка по VIN: що це за машина насправді, ще до купівлі.',
   },
   {
-    ic: 'search',
-    t: 'Перевірка авто по VIN',
-    p: 'Перед купівлею видно, що це за машина насправді: рік, кузов, двигун, паливо. ' +
-       'П’ять перевірок безкоштовно.',
-  },
-  {
-    ic: 'chart',
-    t: 'Історія, яка додає ціни',
-    p: 'Кожен запис лишається в сервісній книжці, а при продажу збирається в PDF-звіт для покупця. ' +
-       'Це сильний аргумент у торгу.',
+    tag: 'Продаж',
+    t: 'Історія,\nяка додає ціни',
+    p: 'При продажу все зібране перетворюється на PDF-звіт для покупця. Доглянуте авто торгується інакше.',
+    art: 'sell',
+    last: true,
   },
 ];
 
-function drawTour() {
-  var el = $('#s-tour');
-  el.innerHTML =
-    '<div style="text-align:center;padding:8px 4px 4px">' +
-      '<div style="font-family:var(--disp);font-weight:800;font-size:27px;letter-spacing:-.03em">Бардачок</div>' +
-      '<div style="color:var(--mut);font-size:13.5px;margin-top:5px">Усе про ваше авто в одному місці</div>' +
-    '</div>' +
-    '<div style="margin-top:18px">' + TOUR.map(function (x) {
-      return '<div class="card" style="display:flex;gap:14px;align-items:flex-start">' +
-        '<div class="ic-box">' + ic(x.ic, 20) + '</div>' +
-        '<div style="flex:1;min-width:0">' +
-          '<b style="display:block;font-size:14.5px;font-weight:700;margin-bottom:4px">' + x.t + '</b>' +
-          '<p style="margin:0;font-size:12.5px;color:var(--mut);line-height:1.5">' + x.p + '</p>' +
-        '</div></div>';
-    }).join('') + '</div>' +
-    '<button class="btn" style="margin-top:16px" data-do="tourDone">Додати авто</button>' +
-    '<div class="note" style="text-align:center">Займе хвилину. VIN не обовʼязковий.</div>';
+function storyArt(kind) {
+  if (kind === 'hero')
+    return '<div class="st-art hero">' + silSvg('suv', '#0E1207', '#D7FF3E') + '</div>';
+  if (kind === 'dates')
+    return '<div class="st-art">' +
+      '<div class="st-row"><span>' + ic('shield', 18) + 'ОСЦПВ</span><b>12 днів</b></div>' +
+      '<div class="st-row hot"><span>' + ic('money', 18) + 'Штраф зі знижкою</span><b>4 дні</b></div>' +
+      '<div class="st-row"><span>' + ic('oil', 18) + 'Заміна масла</span><b>800 км</b></div></div>';
+  if (kind === 'voice')
+    return '<div class="st-art">' +
+      '<div class="st-say">«заправився на 500 і поміняв масло за 2400»</div>' +
+      '<div class="st-row done"><span>' + ic('fuel', 18) + 'Заправка</span><b>500 ₴</b></div>' +
+      '<div class="st-row done"><span>' + ic('oil', 18) + 'Заміна масла</span><b>2 400 ₴</b></div></div>';
+  if (kind === 'brain')
+    return '<div class="st-art">' +
+      '<div class="st-bub me">Коли міняти ремінь ГРМ?</div>' +
+      '<div class="st-bub ai">У вас 142 000 км, ГРМ міняли на 126 000. Ресурс — 90–120 тис.,' +
+      ' тобто ще рано. Наступна черга — близько 216 000 км.</div></div>';
+  return '<div class="st-art">' +
+    '<div class="st-doc"><b>Звіт про догляд</b>' +
+    '<div class="st-row"><span>Записів обслуговування</span><b>12</b></div>' +
+    '<div class="st-row"><span>Вкладено</span><b>38 400 ₴</b></div>' +
+    '<div class="st-row"><span>Книжка ведеться з</span><b>2024</b></div></div></div>';
 }
 
-/* ---------- ГАРАЖ ---------- */
+function drawTour() {
+  var el = $('#s-tour');
+  var i = Math.min(STORY, STORIES.length - 1);
+  var s = STORIES[i];
+
+  el.innerHTML =
+    '<div class="st-wrap">' +
+      '<div class="st-bars">' + STORIES.map(function (_, n) {
+        return '<i class="' + (n < i ? 'done' : n === i ? 'on' : '') + '"></i>';
+      }).join('') + '</div>' +
+
+      '<div class="st-top"><span class="st-tag">' + esc(s.tag) + '</span>' +
+        (s.last ? '' : '<button class="st-skip" data-do="tourDone">Пропустити</button>') + '</div>' +
+
+      '<div class="st-body">' +
+        '<h2>' + esc(s.t).replace(/\n/g, '<br>') + '</h2>' +
+        '<p>' + esc(s.p) + '</p>' +
+        storyArt(s.art) +
+        (s.fact ? '<div class="st-fact">' + esc(s.fact) + '</div>' : '') +
+      '</div>' +
+
+      '<div class="st-foot">' +
+        (i > 0 ? '<button class="st-back" data-do="storyBack">' + ic('back', 18) + '</button>' : '') +
+        '<button class="btn" data-do="' + (s.last ? 'tourDone' : 'storyNext') + '">' +
+          (s.last ? 'Додати своє авто' : 'Далі') + '</button>' +
+      '</div>' +
+      (s.last ? '<div class="note" style="text-align:center;margin-top:8px">' +
+                'Займе хвилину. VIN не обовʼязковий.</div>' : '') +
+    '</div>';
+}
+
 function drawHome() {
   var el = $('#s-home');
   var ac = activeCar();
@@ -487,14 +737,13 @@ function drawHome() {
   }
 
   var ph = PHOTOS[car.id];
+  var bodyKind = car.body || (guessCar(car.make, car.model).body) || 'sedan';
   h += '<div class="carcard' + (isEV ? ' ev' : '') + (ph ? ' hasph' : '') + '"' +
     (ph ? ' style="background-image:url(' + ph + ')"' : '') + '>' +
     (ph ? '<div class="shade"></div>' : '') +
     (ph ? '' :
-      '<svg class="sil" viewBox="0 0 200 80" aria-hidden="true">' +
-      '<path d="M12 58 L20 40 Q32 22 60 21 L118 21 Q150 23 168 42 L186 50 Q196 54 194 62 L12 62 Z" fill="#0E1207"/>' +
-      '<circle cx="56" cy="62" r="12" fill="#0E1207"/><circle cx="152" cy="62" r="12" fill="#0E1207"/></svg>' +
-      '<button class="addph" data-do="photo">' + ic('plus', 15) + 'Додати фото</button>') +
+      silSvg(bodyKind, '#0E1207', isEV ? '#9BE7C4' : '#D7FF3E') +
+      '<button class="addph" data-do="photo">' + ic('plus', 15) + 'Своє фото</button>') +
     (car.plate ? '<span class="plate">' + esc(car.plate) + '</span>' : '') +
     '<h3>' + esc(carName(car)) + '</h3>' +
     '<div class="sub">' + [car.year, FUEL_UA[car.fuel],
@@ -616,6 +865,8 @@ function drawService() {
     '<button class="btn" data-do="service">Додати запис</button></div>';
 
   var recs = (S.service || []).filter(function (r) { return r.carId === car.id; });
+  h += seasonCard(car);
+
   h += '<div class="h2">Сервісна книжка' + (recs.length ? '<span class="act">' + recs.length + '</span>' : '') + '</div>';
   if (!recs.length) {
     h += '<div class="empty">Порожньо. Кожен запис — це плюс до ціни при продажу: покупець бачить, що авто доглядали.</div>';
@@ -640,6 +891,9 @@ function drawMoney() {
   if (!S.cars.length) { el.innerHTML = '<div class="empty">Спочатку додайте авто в Гаражі.</div>'; return; }
 
   var car = activeCar();
+  loadBench(car, function () {                 // прийде — перемалюємо з порівнянням
+    if (TAB === 's-money' && BENCH) { DIRTY['s-money'] = 0; drawMoney(); }
+  });
   var isEV = car.fuel === 'electric';
   var m30 = spend(car.id, 30), m365 = spend(car.id, 365);
   var cons = consumption(car.id);
@@ -682,6 +936,34 @@ function drawMoney() {
   if (!cons && (S.fuel || []).filter(function (r) { return r.carId === car.id; }).length)
     h += '<div class="note">Витрату порахую, коли будуть дві заправки «' +
          (isEV ? 'до 100%' : 'повний бак') + '» поспіль — між ними видно, скільки саме пішло.</div>';
+
+  var own = ownership(car.id);
+  if (own) {
+    h += '<div class="h2">Скільки коштує це авто</div><div class="card">' +
+      '<div class="two-num">' +
+        '<div><small>на місяць</small><b>' + money(own.perMonth) + '</b></div>' +
+        '<div><small>' + (own.perKm ? 'кілометр' : 'усього') + '</small><b>' +
+          (own.perKm ? own.perKm.toFixed(2) + ' ₴' : money(own.total)) + '</b></div>' +
+      '</div>' +
+      (own.kmPerMonth ? '<div class="kv"><span>Пробіг за місяць</span><b>' +
+        nfmt(own.kmPerMonth) + ' км</b></div>' : '') +
+      '<div class="kv"><span>Рахую від</span><b>' + fmtDate(own.since) + '</b></div>' +
+      '<div class="note" style="margin:10px 0 0">Сюди входить усе: паливо, ремонти, ' +
+      'страховка, мийки й сплачені штрафи.</div></div>';
+  }
+
+  var fc = forecast(car.id);
+  if (fc.length) {
+    h += '<div class="h2">Найближчим часом</div><div class="card list">' + fc.map(function (f) {
+      return '<div class="it" style="cursor:default"><div class="dt">' +
+        ic(f.d <= 14 ? 'alert' : 'check', 17) + '</div>' +
+        '<div class="tx"><b>' + esc(f.t) + '</b><small>' + esc(f.when) + '</small></div>' +
+        (f.cost ? '<div class="vl">≈ ' + money(f.cost) + '</div>' : '') + '</div>';
+    }).join('') + '</div>' +
+    '<div class="note">Суми приблизні — за середніми цінами в Україні.</div>';
+  }
+
+  h += benchCard(car);
 
   h += '<div class="grid2" style="margin-top:11px">' +
     '<button class="btn sec" data-do="fuel">' + (isEV ? 'Зарядка' : 'Заправка') + '</button>' +
@@ -738,6 +1020,7 @@ function drawMore() {
   h += '<div class="h2">Інструменти</div><div class="card list">' +
     itemBtn('search', 'Перевірка по VIN', 'Що це за авто насправді', 'tab:s-vin') +
     itemBtn('chat', 'Питання про авто', PRO ? 'Стукає, гріється, не заводиться' : 'У Преміумі', 'tab:s-ask') +
+    itemBtn('alert', 'Нагадування', 'ГРМ, техогляд, що завгодно', 'tab:s-rem') +
     itemBtn('doc', 'Документи', 'Техпаспорт, страховка, права', 'tab:s-docs') +
     itemBtn('doc', 'Звіт для покупця', 'PDF із сервісною книжкою', 'tab:s-report') +
     itemBtn('crash', 'Що робити при ДТП', 'Покроково, без паніки', 'tab:s-crash') +
@@ -766,7 +1049,6 @@ function drawMore() {
        'Дати й суми ви вносите самі — я лише стежу, щоб нічого не забулось.</div>';
 
   el.innerHTML = h;
-  drawVin(); drawAsk(); drawReport(); drawDocs(); drawCrash(); drawCars();
 }
 function itemBtn(name, t, s, go) {
   return '<button class="it" data-go="' + go + '"><div class="dt">' + ic(name, 17) + '</div>' +
@@ -774,6 +1056,72 @@ function itemBtn(name, t, s, go) {
 }
 
 /* ---------- VIN ---------- */
+/* Розкладаємо все, що віддав декодер, по зрозумілих групах.
+   Раніше показували чотири рядки з шістдесяти — тепер видно все. */
+function vinCard(c, vin) {
+  var isEV = c.fuel === 'electric';
+  var h = '';
+
+  /* аукціонні знімки — головне, заради чого дивляться VIN битого авто */
+  if (c.auction && c.auction.photos && c.auction.photos.length) {
+    var a = c.auction;
+    h += '<div class="vin-shots">' + a.photos.slice(0, 10).map(function (u, i) {
+      return '<img src="' + esc(u) + '" alt="Фото з аукціону ' + (i + 1) + '" loading="lazy">';
+    }).join('') + '</div>' +
+    '<div class="card"><div class="h3">На аукціоні</div>' +
+      kv('Пошкодження', [a.damage, a.damage2].filter(Boolean).join(' + ')) +
+      kv('Документ', a.title) +
+      kv('Пробіг на торгах', a.odo ? nfmt(a.odo) + ' миль' : '') +
+      kv('Ціна продажу', a.price ? '$' + nfmt(a.price) : '') +
+      kv('Аукціон', [a.site, a.loc].filter(Boolean).join(', ')) +
+      kv('Лот', a.lot) + kv('Дата', a.date) +
+    '</div>';
+  } else if (c.pic && c.pic.url) {
+    h += '<div class="vin-model" style="background-image:url(' + esc(c.pic.url) + ')"></div>' +
+         '<div class="vin-credit">Так виглядає ця модель · фото з Вікіпедії</div>';
+  }
+
+  h += '<div class="card"><div class="h3">Авто</div>' +
+    kv('Модель', [c.year, c.make, c.model].filter(Boolean).join(' ')) +
+    kv('Комплектація', c.trim) +
+    kv('Кузов', (c.bodyCode ? BODY_UA[c.bodyCode] + ' · ' : '') + (c.body || '')) +
+    kv('Дверей', c.doors) + kv('Місць', c.seats) +
+    kv('Кермо', /right/i.test(c.wheel || '') ? 'Праве' : (c.wheel ? 'Ліве' : '')) +
+    '</div>';
+
+  h += '<div class="card"><div class="h3">' + (isEV ? 'Силова установка' : 'Двигун і трансмісія') + '</div>' +
+    kv('Паливо', [FUEL_UA[c.fuel] || c.fuelText, c.fuel2].filter(Boolean).join(' + ')) +
+    kv('Обʼєм', c.engine ? (c.engine / 1000).toFixed(1) + ' л' : '') +
+    kv('Батарея', c.battery ? c.battery + ' кВт·год' : '') +
+    kv('Потужність', c.hp ? Math.round(parseFloat(c.hp)) + ' к.с.' : '') +
+    kv('Циліндрів', [c.cyl, c.engCfg].filter(Boolean).join(', ')) +
+    kv('Індекс двигуна', c.engModel) +
+    kv('Коробка', c.trans) + kv('Привід', c.drive) +
+    '</div>';
+
+  var extra = [];
+  if (c.safety && c.safety.length) extra.push(kv('Системи', c.safety.join(', ')));
+  if (c.airbags && c.airbags.length) extra.push(kv('Подушки', c.airbags.join(', ')));
+  if (extra.filter(Boolean).length)
+    h += '<div class="card"><div class="h3">Безпека</div>' + extra.join('') + '</div>';
+
+  h += '<div class="card"><div class="h3">Походження</div>' +
+    kv('Виробник', c.maker) +
+    kv('Завод', [c.plant, c.country].filter(Boolean).join(' · ')) +
+    kv('Клас маси', c.gvwr) +
+    '</div>';
+
+  if (c.note) h += '<div class="note">Увага: ' + esc(c.note) + '. Перевірте, чи правильно переписаний VIN.</div>';
+  if (!PRO)
+    h += '<div class="promo"><b>У Преміумі — <em>більше</em></b>' +
+         '<p>Фото з американського аукціону, характер пошкоджень, пробіг і ціна на торгах — ' +
+         'якщо авто приїхало звідти.</p>' +
+         '<button class="btn" data-go="tab:s-more">Дивитись Преміум</button></div>';
+
+  h += '<button class="btn sec" style="margin-top:10px" data-do="vinToCar">Додати це авто в гараж</button>';
+  return h;
+}
+
 function drawVin() {
   var left = CFG.vinLeft;
   var unlimited = (left === null || left === undefined);
@@ -947,8 +1295,8 @@ function rpPages(car) {
     room(90); x.fillStyle = '#0F1310'; x.font = '800 52px Unbounded, sans-serif';
     x.fillText(t, RP_M, y); y += 22;
   }
-  function h2(t) {
-    room(110); y += 26;
+  function h2(t, need) {
+    room((need || 110) + 26); y += 26;
     x.fillStyle = '#5B6455'; x.font = '700 21px "IBM Plex Sans", sans-serif';
     x.fillText(t.toUpperCase(), RP_M, y); y += 16;
     x.fillStyle = '#E4E8DE'; x.fillRect(RP_M, y, RP_W - RP_M * 2, 2); y += 40;
@@ -1018,8 +1366,22 @@ function rpPages(car) {
   }
   y += 26;
 
-  /* ---- фото ---- */
+  /* ---- фото або силует ---- */
   var ph = PHOTOS[car.id];
+  if (!ph) {
+    var bw = RP_W - RP_M * 2, bh = 250;
+    room(bh + 24);
+    x.fillStyle = '#F5F7F2'; rrect(RP_M, y, bw, bh, 22); x.fill();
+    var sv = silSvg(car.body || guessCar(car.make, car.model).body || 'sedan', '#0F1310', '#F5F7F2');
+    var img2 = new Image();
+    var blob = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(
+      sv.replace('<svg class="sil"', '<svg xmlns="http://www.w3.org/2000/svg"'));
+    if (window.__silImg && window.__silImg.src === blob) {
+      var iw2 = bw * 0.72, ih2 = iw2 * 80 / 200;
+      x.drawImage(window.__silImg, RP_M + (bw - iw2) / 2, y + (bh - ih2) / 2, iw2, ih2);
+    }
+    y += bh + 14;
+  }
   if (ph && window.__rpImg) {
     var img = window.__rpImg, boxW = RP_W - RP_M * 2, boxH = 420;
     room(boxH + 30);
@@ -1047,8 +1409,20 @@ function rpPages(car) {
     ['Книжка ведеться', st.since ? fmtDateY(st.since) : 'з сьогодні'],
   ]);
 
+  /* ---- скільки коштувало ---- */
+  var own = ownership(car.id);
+  if (own) {
+    h2('Скільки коштувало', 200);
+    rows([
+      ['У середньому на місяць', money(own.perMonth)],
+      own.perKm ? ['Вартість кілометра', own.perKm.toFixed(2) + ' ₴'] : null,
+      own.kmPerMonth ? ['Пробіг за місяць', nfmt(own.kmPerMonth) + ' км'] : null,
+      ['Разом за весь облік', money(own.total)],
+    ].filter(Boolean));
+  }
+
   /* ---- сервісна книжка ---- */
-  h2('Сервісна книжка');
+  h2('Сервісна книжка', 240);   // щоб заголовок не лишився сам унизу
   if (!st.srv.length) {
     para('Записів поки немає.', 24, '#8A9382');
   } else {
@@ -1078,7 +1452,7 @@ function rpPages(car) {
 
   /* ---- паливо ---- */
   if (st.fuel.length) {
-    h2(isEV ? 'Заряджання' : 'Заправки');
+    h2(isEV ? 'Заряджання' : 'Заправки', 210);
     var unit = isEV ? 'кВт·год' : 'л';
     rows([
       [isEV ? 'Заряджань' : 'Заправок', String(st.fuel.length)],
@@ -1154,7 +1528,17 @@ function sendReport() {
 
   ready.then(function () {
     var ph = PHOTOS[car.id];
-    if (!ph) return null;
+    if (!ph) {                                  // намалюємо силует — його теж треба «проявити»
+      return new Promise(function (res) {
+        var sv = silSvg(car.body || guessCar(car.make, car.model).body || 'sedan', '#0F1310', '#F5F7F2');
+        var src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(
+          sv.replace('<svg class="sil"', '<svg xmlns="http://www.w3.org/2000/svg"'));
+        var im = new Image();
+        im.onload = function () { window.__silImg = im; res(null); };
+        im.onerror = function () { window.__silImg = null; res(null); };
+        im.src = src;
+      });
+    }
     return new Promise(function (res) {
       var im = new Image();
       im.onload = function () { window.__rpImg = im; res(im); };
@@ -1311,6 +1695,261 @@ function docOpen(id) {
   }).catch(function () { show(null); });
 }
 
+/* ------------------------------------------------------------------ */
+/* НАГАДУВАННЯ                                                         */
+/* Усе, чого немає в стандартних строках: ТО, ГРМ, кредит, техогляд.   */
+/* ------------------------------------------------------------------ */
+var REM_PRESETS = [
+  { t: 'Заміна ременя ГРМ', every: 90000 },
+  { t: 'Заміна гальмівної рідини', every: 40000 },
+  { t: 'Заміна антифризу', every: 60000 },
+  { t: 'Заміна свічок', every: 30000 },
+  { t: 'Заміна повітряного фільтра', every: 15000 },
+  { t: 'Технічний огляд', every: null },
+  { t: 'Оплата кредиту', every: null },
+  { t: 'Сезонна зміна гуми', every: null },
+];
+
+function remList(carId) {
+  return (S.rem || []).filter(function (r) { return r.carId === carId && !r.done; });
+}
+
+function remWhen(r, car) {
+  if (r.odo && car) {
+    var left = r.odo - car.odo;
+    return { txt: left <= 0 ? 'вже пора' : 'через ' + nfmt(left) + ' км', hot: left <= 500, sort: left };
+  }
+  if (r.date) {
+    var d = daysLeft(r.date);
+    return { txt: d < 0 ? 'прострочено на ' + (-d) + ' ' + dayWord(-d)
+                        : d === 0 ? 'сьогодні' : 'через ' + d + ' ' + dayWord(d),
+             hot: d <= 7, sort: d * 30 };
+  }
+  return { txt: '', hot: false, sort: 99999 };
+}
+
+function drawRem() {
+  var el = $('#s-rem');
+  var car = activeCar();
+  if (!car) { el.innerHTML = '<div class="empty">Спочатку додайте авто.</div>'; return; }
+
+  var list = remList(car.id).slice().sort(function (a, b) {
+    return remWhen(a, car).sort - remWhen(b, car).sort;
+  });
+
+  var h = '<div class="card">' +
+    '<div class="chat-head" style="padding:0 0 12px">' +
+      '<div class="ic-box">' + ic('alert', 20) + '</div>' +
+      '<div style="flex:1;min-width:0"><b style="display:block;font-size:15px;font-weight:700">Нагадування</b>' +
+      '<small style="color:var(--mut);font-size:12px">' + carName(car) + ' · ' + nfmt(car.odo) + ' км</small></div></div>' +
+    '<p style="margin:0 0 13px;font-size:12.5px;color:var(--mut);line-height:1.5">' +
+      'Що завгодно — за датою або за пробігом. Я нагадаю в боті, навіть якщо ви сюди не заходите.</p>' +
+    '<button class="btn" data-do="remAdd">Додати нагадування</button></div>';
+
+  if (list.length) {
+    h += '<div class="h2">Чекають</div><div class="card list">' + list.map(function (r) {
+      var w = remWhen(r, car);
+      return '<div class="it" style="cursor:default">' +
+        '<div class="dt">' + ic(w.hot ? 'alert' : 'check', 17) + '</div>' +
+        '<div class="tx"><b>' + esc(r.title) + '</b><small' + (w.hot ? ' style="color:var(--hot)"' : '') + '>' +
+          esc(w.txt) + (r.every ? ' · кожні ' + nfmt(r.every) + ' км' : '') + '</small></div>' +
+        '<button class="chip gh" data-do="remDone" data-id="' + r.id + '">Зроблено</button>' +
+        '<button class="chip gh" data-do="remDel" data-id="' + r.id + '" ' +
+          'style="margin-left:6px;color:var(--mut)">×</button>' +
+      '</div>';
+    }).join('') + '</div>';
+  } else {
+    h += '<div class="empty">Поки порожньо. Найчастіше додають ГРМ, антифриз і техогляд.</div>';
+  }
+
+  el.innerHTML = h;
+}
+
+function remForm() {
+  var car = activeCar(); if (!car) return;
+  openSheet('Нове нагадування',
+    '<div class="field"><label>Що саме</label>' +
+      '<div class="seg wrap" id="rPreset">' + REM_PRESETS.map(function (p, i) {
+        return '<button type="button" data-v="' + i + '">' + esc(p.t) + '</button>';
+      }).join('') + '</div></div>' +
+    fld('rTitle', 'Назва', { ph: 'напр. Заміна ременя ГРМ', max: 60 }) +
+    '<div class="field"><label>Коли нагадати</label>' +
+      '<div class="seg" id="rMode">' +
+        '<button type="button" data-v="odo" class="on">За пробігом</button>' +
+        '<button type="button" data-v="date">За датою</button>' +
+      '</div></div>' +
+    '<div id="rOdoBox">' +
+      fld('rOdo', 'На пробігу, км', { mode: 'numeric', val: car.odo + 10000 }) +
+      fld('rEvery', 'Повторювати кожні, км (не обовʼязково)', { mode: 'numeric', ph: '90000' }) +
+    '</div>' +
+    '<div id="rDateBox" class="hidden">' + fld('rDate', 'Дата', { type: 'date' }) + '</div>' +
+    '<div id="rErr"></div>' +
+    '<button class="btn" data-do="remSave">Зберегти</button>');
+}
+
+/* ------------------------------------------------------------------ */
+/* ВАРТІСТЬ ВОЛОДІННЯ                                                  */
+/* Скільки авто справді зʼїдає — з паливом, ремонтами і страховкою.    */
+/* ------------------------------------------------------------------ */
+function ownership(carId) {
+  var car = (S.cars || []).filter(function (c) { return c.id === carId; })[0];
+  if (!car) return null;
+
+  var all = [];
+  ['fuel', 'service', 'exp'].forEach(function (k) {
+    (S[k] || []).forEach(function (r) { if (r.carId === carId) all.push(r); });
+  });
+  (S.fines || []).forEach(function (f) {
+    if (f.carId === carId && f.paid) all.push({ date: f.date, cost: f.half ? f.amount / 2 : f.amount });
+  });
+  if (!all.length) return null;
+
+  var dates = all.map(function (r) { return r.date; }).filter(Boolean).sort();
+  var first = dates[0], days = Math.max(30, daysBetween(first, today()));
+  var total = all.reduce(function (a, r) { return a + (r.cost || 0); }, 0);
+
+  /* скільки їздить: від найранішого запису з пробігом до теперішнього */
+  var withOdo = [];
+  ['fuel', 'service'].forEach(function (k) {
+    (S[k] || []).forEach(function (r) { if (r.carId === carId && r.odo > 0) withOdo.push(r); });
+  });
+  withOdo.sort(function (a, b) { return a.odo - b.odo; });
+  var km = withOdo.length ? Math.max(0, car.odo - withOdo[0].odo) : 0;
+
+  return {
+    total: total,
+    perMonth: total / days * 30,
+    perKm: km > 500 ? total / km : null,
+    kmPerMonth: km > 500 ? km / days * 30 : null,
+    days: days, km: km, since: first,
+  };
+}
+
+function daysBetween(a, b) {
+  if (!a || !b) return 0;
+  return Math.round((new Date(b + 'T12:00:00Z') - new Date(a + 'T12:00:00Z')) / 86400000);
+}
+
+/* Що чекає найближчі три місяці — щоб витрати не падали як сніг на голову */
+function forecast(carId) {
+  var car = (S.cars || []).filter(function (c) { return c.id === carId; })[0];
+  if (!car) return [];
+  var own = ownership(carId);
+  var kpm = own && own.kmPerMonth ? own.kmPerMonth : null;
+  var out = [];
+
+  var di = daysLeft(car.insuranceEnd);
+  if (di !== null && di <= 95) out.push({ t: 'Продовжити ОСЦПВ', when: fmtDate(car.insuranceEnd), d: di, cost: 2200 });
+
+  var dg = daysLeft(car.greenEnd);
+  if (dg !== null && dg <= 95) out.push({ t: 'Зелена карта', when: fmtDate(car.greenEnd), d: dg, cost: 1500 });
+
+  if (car.fuel !== 'electric') {
+    var oil = nextOil(car);
+    if (oil && oil.next) {
+      var leftKm = oil.next - car.odo;
+      var months = kpm ? leftKm / kpm : null;
+      if (months !== null && months <= 3)
+        out.push({ t: 'Заміна масла', when: 'через ' + nfmt(Math.max(0, leftKm)) + ' км',
+                   d: Math.round(months * 30), cost: 2500 });
+    }
+  }
+
+  remList(carId).forEach(function (r) {
+    if (r.date) {
+      var d = daysLeft(r.date);
+      if (d !== null && d <= 95) out.push({ t: r.title, when: fmtDate(r.date), d: d, cost: 0 });
+    } else if (r.odo && kpm) {
+      var lk = r.odo - car.odo, m = lk / kpm;
+      if (m <= 3) out.push({ t: r.title, when: 'через ' + nfmt(Math.max(0, lk)) + ' км',
+                             d: Math.round(m * 30), cost: 0 });
+    }
+  });
+
+  return out.sort(function (a, b) { return a.d - b.d; }).slice(0, 5);
+}
+
+/* ------------------------------------------------------------------ */
+/* ЯК У ІНШИХ                                                          */
+/* ------------------------------------------------------------------ */
+var BENCH = null, BENCH_FOR = '';
+function loadBench(car, cb) {
+  var key = ((car.make || '') + ' ' + (car.model || '')).toLowerCase().trim();
+  if (BENCH_FOR === key) return;          // вже питали — другий раз не треба
+  BENCH_FOR = key; BENCH = null;
+  api('/api/bench', { make: car.make, model: car.model }).then(function (d) {
+    BENCH = d.ok ? d.bench : null;
+    cb();
+  }).catch(function () { cb(); });
+}
+
+function benchCard(car) {
+  if (!BENCH) return '';
+  var isEV = car.fuel === 'electric';
+  var mine = consumption(car.id);
+  var own = ownership(car.id);
+  var rows = '';
+
+  if (BENCH.cons) {
+    var d = mine ? mine.per100 - BENCH.cons : null;
+    rows += '<div class="kv"><span>Витрата у таких же</span><b>' + BENCH.cons.toFixed(1) +
+      ' ' + (isEV ? 'кВт·год' : 'л') + '</b></div>' +
+      (mine ? '<div class="kv"><span>У вас</span><b style="color:' +
+        (d > 0.4 ? 'var(--hot)' : 'var(--lime)') + '">' + mine.per100.toFixed(1) +
+        ' · ' + (d > 0 ? '+' : '') + d.toFixed(1) + '</b></div>' : '');
+  }
+  if (BENCH.year) {
+    var my = own ? own.perMonth * 12 : null;
+    rows += '<div class="kv"><span>Витрати за рік у таких же</span><b>' + money(BENCH.year) + '</b></div>' +
+      (my ? '<div class="kv"><span>У вас</span><b>' + money(my) + '</b></div>' : '');
+  }
+  if (BENCH.km) rows += '<div class="kv"><span>Типовий пробіг</span><b>' + nfmt(BENCH.km) + ' км</b></div>';
+  if (!rows) return '';
+
+  return '<div class="h2">Як у інших власників</div><div class="card">' + rows +
+    '<div class="note" style="margin:10px 0 0">Знеособлені дані ' + BENCH.n + ' таких авто в Бардачку. ' +
+    'Ваші записи ніхто не бачить.</div></div>';
+}
+
+/* ------------------------------------------------------------------ */
+/* СЕЗОННИЙ ЧЕК-ЛИСТ                                                   */
+/* ------------------------------------------------------------------ */
+function seasonCard(car) {
+  var m = new Date().getMonth() + 1;
+  var isEV = car.fuel === 'electric';
+  var title, list;
+
+  if (m >= 10 || m <= 2) {
+    title = 'Готовність до зими';
+    list = ['Зимова гума — від +7 °C гальмівний шлях на літній довший на третину',
+            isEV ? 'Батарея на морозі втрачає до 30% запасу — плануйте зарядку'
+                 : 'Акумулятор: на холоді слабкий помирає першим',
+            'Незамерзайка і щітки склоочисника',
+            'Антифриз — перевірити температуру замерзання',
+            'Скребок, трос і рукавички в багажник'];
+  } else if (m >= 3 && m <= 5) {
+    title = 'Після зими';
+    list = ['Літня гума — після стабільних +7 °C',
+            'Кондиціонер: заправка й салонний фільтр',
+            'Мийка днища від реагентів',
+            'Гальмівні колодки після зими',
+            isEV ? 'Перевірити стан батареї після морозів' : 'Рівень масла після зимових пусків'];
+  } else {
+    title = 'Літня спека і дорога';
+    list = ['Тиск у шинах — на гарячому асфальті він росте',
+            isEV ? 'На спеці зарядка повільніша — закладайте час у маршрут'
+                 : 'Рівень антифризу й стан радіатора',
+            'Кондиціонер: якщо дує тепле — не тягніть до липня',
+            'Аптечка, вогнегасник і знак — перед довгою поїздкою',
+            'Щітки після зими зазвичай уже дубові'];
+  }
+
+  return '<div class="h2">' + title + '</div>' +
+    '<div class="card"><ul class="checks">' + list.map(function (x) {
+      return '<li>' + esc(x) + '</li>';
+    }).join('') + '</ul></div>';
+}
+
 /* ---------- ДТП ---------- */
 function drawCrash() {
   var car = activeCar();
@@ -1416,6 +2055,7 @@ function val(id) { var e = document.getElementById(id); return e ? e.value.trim(
 function numv(id) { var v = val(id).replace(',', '.').replace(/\s/g, ''); return v === '' ? null : parseFloat(v); }
 
 function formCar(car) {
+  FUEL_AUTO = false;
   var c = car || {};
   var fuels = ['petrol', 'diesel', 'hybrid', 'electric', 'gas'];
   return '<div id="carForm" data-id="' + (c.id || '') + '">' +
@@ -1427,6 +2067,12 @@ function formCar(car) {
       fuels.map(function (f) {
         return '<button type="button" data-v="' + f + '" class="' + ((c.fuel || 'petrol') === f ? 'on' : '') + '">' + FUEL_UA[f] + '</button>';
       }).join('') + '</div></div>' +
+    '<div class="field"><label>Кузов<small style="color:var(--mut);font-weight:500"> — щоб намалювати ваше авто</small></label>' +
+      '<div class="seg wrap" id="cBody">' +
+        Object.keys(BODY_UA).map(function (b) {
+          return '<button type="button" data-v="' + b + '" class="' + (c.body === b ? 'on' : '') + '">' + BODY_UA[b] + '</button>';
+        }).join('') + '</div></div>' +
+    '<div id="cGuess"></div>' +
     '<div id="cEngineBox">' + fld('cEngine', 'Об’єм двигуна, л', { mode: 'decimal', ph: '2.0', val: c.engine ? (c.engine / 1000).toFixed(1) : '' }) + '</div>' +
     '<div id="cEvBox" class="hidden"><div class="two">' +
       fld('cBattery', 'Батарея, кВт·год', { mode: 'decimal', ph: '64', val: c.battery }) +
@@ -1435,7 +2081,8 @@ function formCar(car) {
     fld('cVin', 'VIN (не обов’язково)', { ph: '17 символів', val: c.vin, max: 20 }) +
     '<div class="two">' + fld('cIns', 'ОСЦПВ діє до', { type: 'date', val: c.insuranceEnd }) +
                           fld('cGreen', 'Зелена карта до', { type: 'date', val: c.greenEnd }) + '</div>' +
-    (c.fuel !== 'electric' ? fld('cOil', 'Пробіг останньої заміни масла', { mode: 'numeric', ph: 'напр. 82000', val: c.lastOilOdo }) : '') +
+    '<div id="cOilBox"' + (c.fuel === 'electric' ? ' class="hidden"' : '') + '>' +
+      fld('cOil', 'Пробіг останньої заміни масла', { mode: 'numeric', ph: 'напр. 82000', val: c.lastOilOdo }) + '</div>' +
     '<div id="carErr"></div>' +
     (c.id ? '<button class="btn sec" data-do="' + (c.photo ? 'photoDel' : 'photo') + '" data-id="' + c.id + '">' +
       (c.photo ? 'Прибрати фото' : 'Додати фото авто') + '</button>' : '') +
@@ -1444,12 +2091,59 @@ function formCar(car) {
     '</div>';
 }
 
+/* Щойно вписали марку й модель — підставляємо кузов і паливо самі.
+   Саме тут ловиться «Tesla на бензині»: марка без ДВЗ не може бути бензиновою. */
+var FUEL_AUTO = false;   // паливо поставив застосунок, а не людина
+
+function applyGuess() {
+  var mk = val('cMake'), md = val('cModel');
+  var box = document.getElementById('cGuess');
+  if (!box) return;
+  if (!mk && !md) { box.innerHTML = ''; return; }
+
+  var g = guessCar(mk, md);
+  var msg = '';
+
+  if (g.body) {
+    var b = document.querySelector('#cBody button[data-v="' + g.body + '"]');
+    var chosen = document.querySelector('#cBody button.on');
+    if (b && (!chosen || !chosen.dataset.userSet)) {
+      Array.prototype.forEach.call(document.querySelectorAll('#cBody button'),
+        function (x) { x.classList.remove('on'); });
+      b.classList.add('on');
+      msg += 'Кузов: ' + BODY_UA[g.body] + '. ';
+    }
+  }
+
+  var cur = document.querySelector('#cFuel button.on');
+  var userChose = cur && cur.dataset.userSet;
+  if (!userChose) {
+    /* якщо модель відома — беремо її паливо; якщо модель буває різна,
+       а ми раніше самі поставили електро — повертаємо бензин */
+    var target = g.fuel || (FUEL_AUTO ? 'petrol' : null);
+    var want = target ? document.querySelector('#cFuel button[data-v="' + target + '"]') : null;
+    if (want && cur && cur.dataset.v !== target) {
+      Array.prototype.forEach.call(document.querySelectorAll('#cFuel button'),
+        function (x) { x.classList.remove('on'); });
+      want.classList.add('on');
+      FUEL_AUTO = !!g.fuel;
+      syncFuelBoxes();
+      if (g.fuel) msg += (g.fuel === 'electric' ? 'Це електромобіль — переставив паливо.'
+                                                : 'Паливо: ' + FUEL_UA[g.fuel] + '.');
+    }
+  }
+
+  box.innerHTML = msg ? '<div class="msg inf" style="margin:0 0 12px">' + esc(msg) + '</div>' : '';
+}
+
 function syncFuelBoxes() {
   var on = document.querySelector('#cFuel button.on');
   var ev = on && on.dataset.v === 'electric';
   var eb = document.getElementById('cEngineBox'), vb = document.getElementById('cEvBox');
   if (eb) eb.classList.toggle('hidden', !!ev);
   if (vb) vb.classList.toggle('hidden', !ev);
+  var ob = document.getElementById('cOilBox');
+  if (ob) ob.classList.toggle('hidden', !!ev);      // електрокару масло не міняють
 }
 
 /* ------------------------------------------------------------------ */
@@ -1480,6 +2174,8 @@ var DO = {
       insuranceEnd: val('cIns') || null,
       greenEnd: val('cGreen') || null,
       lastOilOdo: fuel === 'electric' ? null : numv('cOil'),
+      body: (document.querySelector('#cBody button.on') || {}).dataset
+              ? document.querySelector('#cBody button.on').dataset.v : null,
     };
     if (!car.make && !car.model && !car.plate) {
       document.getElementById('carErr').innerHTML = '<div class="msg er">Вкажіть хоча б марку або номер.</div>';
@@ -1494,6 +2190,25 @@ var DO = {
   },
 
   pickCar: function (t) { act({ action: 'setActive', id: t.dataset.id }); },
+
+  remAdd:  function () { remForm(); },
+  remSave: function () {
+    var pre = document.querySelector('#rPreset button.on');
+    var mode = (document.querySelector('#rMode button.on') || {}).dataset;
+    var byOdo = !mode || mode.v === 'odo';
+    var title = val('rTitle') || (pre ? REM_PRESETS[+pre.dataset.v].t : '');
+    if (!title) { document.getElementById('rErr').innerHTML =
+      '<div class="msg er">Вкажіть, про що нагадати.</div>'; return; }
+    act({ action: 'addRem', title: title,
+          odo: byOdo ? numv('rOdo') : null,
+          every: byOdo ? numv('rEvery') : null,
+          date: byOdo ? null : val('rDate') }, closeSheet);
+  },
+  remDone: function (t) { act({ action: 'doneRem', id: t.dataset.id }); },
+  remDel:  function (t) { act({ action: 'delRem', id: t.dataset.id }); },
+
+  storyNext: function () { STORY = Math.min(STORY + 1, STORIES.length - 1); drawTour(); haptic('light'); },
+  storyBack: function () { STORY = Math.max(0, STORY - 1); drawTour(); },
 
   report: function () { sendReport(); },
 
@@ -1649,13 +2364,7 @@ var DO = {
       }
       if (d.left !== undefined && d.left !== null) CFG.vinLeft = d.left;
       var c = d.car;
-      out.innerHTML = '<div class="card">' +
-        kv('Авто', [c.year, c.make, c.model].filter(Boolean).join(' ')) +
-        kv('Кузов', c.body) + kv('Паливо', FUEL_UA[c.fuel] || c.fuelText) +
-        kv('Двигун', c.engine ? (c.engine / 1000).toFixed(1) + ' л' : '') +
-        kv('Батарея', c.battery ? c.battery + ' кВт·год' : '') +
-        kv('Країна випуску', c.country) +
-        '</div><button class="btn sec" style="margin-top:10px" data-do="vinToCar">Додати це авто в гараж</button>';
+      out.innerHTML = vinCard(c, v);
       window.__vin = { vin: v, car: c };
       haptic('medium');
       var badge = document.querySelector('#s-vin .chat-head small');
@@ -1672,6 +2381,7 @@ var DO = {
     openSheet('Нове авто', formCar({
       make: d.car.make, model: d.car.model, year: parseInt(d.car.year, 10) || null,
       fuel: d.car.fuel, engine: d.car.engine, battery: d.car.battery, vin: d.vin,
+      body: d.car.bodyCode || null,
     }));
     syncFuelBoxes();
   },
@@ -1832,6 +2542,7 @@ var PARENT = { 's-vin': 's-more', 's-ask': 's-more', 's-crash': 's-more', 's-car
 
 function show(id) {
   TAB = id;
+  paint(id);
   $$('.screen').forEach(function (s) { s.classList.toggle('on', s.id === id); });
   var tab = PARENT[id] || id;
   $$('.nav button').forEach(function (b) { b.classList.toggle('on', b.dataset.tab === tab); });
@@ -1847,7 +2558,22 @@ document.addEventListener('click', function (e) {
   if (seg) {
     Array.prototype.slice.call(seg.parentNode.children).forEach(function (b) { b.classList.remove('on'); });
     seg.classList.add('on');
+    seg.dataset.userSet = '1';            // вибір людини важливіший за здогад
     if (seg.parentNode.id === 'cFuel') syncFuelBoxes();
+    if (seg.parentNode.id === 'rMode') {
+      var byOdo = seg.dataset.v === 'odo';
+      var a = document.getElementById('rOdoBox'), b = document.getElementById('rDateBox');
+      if (a) a.classList.toggle('hidden', !byOdo);
+      if (b) b.classList.toggle('hidden', byOdo);
+    }
+    if (seg.parentNode.id === 'rPreset') {
+      var pr = REM_PRESETS[+seg.dataset.v];
+      var ti = document.getElementById('rTitle'); if (ti) ti.value = pr.t;
+      var ev = document.getElementById('rEvery'); if (ev && pr.every) ev.value = pr.every;
+      var od = document.getElementById('rOdo');
+      var ac = activeCar();
+      if (od && pr.every && ac) od.value = ac.odo + pr.every;
+    }
     return;
   }
 
