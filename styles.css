@@ -174,6 +174,7 @@ input,select,textarea{-webkit-appearance:none;appearance:none}
 .btn.sec{background:var(--surf2);color:var(--ink)}
 .btn.dan{background:rgba(255,90,74,.14);color:#FFA79B}
 .btn+.btn{margin-top:9px}
+.grid2 .btn+.btn,.two .btn+.btn{margin-top:0}   /* поруч — значить однакові */
 .chip{
   display:inline-block;margin-top:9px;padding:7px 13px;border-radius:11px;
   background:var(--lime);color:#10130E;font-weight:700;font-size:12.5px;
@@ -439,3 +440,75 @@ input,select,textarea{-webkit-appearance:none;appearance:none}
   content:'';position:absolute;left:0;top:6px;width:14px;height:14px;border-radius:5px;
   border:1.5px solid var(--lime);opacity:.7;
 }
+
+/* ---------------- панель приладів: плитки, фільтр, графік ---------------- */
+.pills{
+  display:flex;gap:6px;padding:5px;border-radius:18px;background:var(--surf);
+  margin-bottom:12px;overflow-x:auto;
+}
+.pills::-webkit-scrollbar{height:0}
+.pills button{
+  flex:1;white-space:nowrap;padding:10px 14px;border-radius:14px;
+  font-size:12.5px;font-weight:600;color:var(--mut);transition:.16s;
+}
+.pills button.on{background:var(--ink);color:var(--ground)}
+
+.hero{
+  position:relative;overflow:hidden;border-radius:26px;padding:18px 19px 20px;margin-bottom:10px;
+  background:linear-gradient(145deg,#D7FF3E,#BCEE22 55%,#93CC00);color:#10130E;
+}
+.hero::after{
+  content:'';position:absolute;right:-60px;top:-70px;width:190px;height:190px;border-radius:50%;
+  background:rgba(255,255,255,.22);
+}
+.hero-top{
+  position:relative;z-index:1;display:flex;align-items:center;justify-content:space-between;
+  font-size:12.5px;font-weight:600;opacity:.72;margin-bottom:8px;
+}
+.hero-top .icn{color:#10130E;opacity:.8}
+.hero b{
+  position:relative;z-index:1;display:block;font-family:var(--disp);font-weight:800;
+  font-size:38px;letter-spacing:-.035em;line-height:1;font-variant-numeric:tabular-nums;
+}
+.hero small{position:relative;z-index:1;display:block;margin-top:8px;font-size:12.5px;opacity:.68;font-weight:500}
+
+.card-h{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:13px}
+.card-h b{font-family:var(--disp);font-weight:700;font-size:14px;letter-spacing:-.01em}
+.card-h span{font-size:11.5px;color:var(--mut)}
+
+.chart{display:flex;gap:7px;align-items:flex-end}
+.chart .col{flex:1;display:flex;flex-direction:column;align-items:center;gap:8px}
+.chart .colv{width:100%;height:96px;display:flex;align-items:flex-end}
+.chart .colv i{
+  display:block;width:100%;border-radius:8px;background:var(--surf3);transition:height .3s;
+}
+.chart .col.on .colv i{background:var(--lime)}
+.chart .col span{font-size:10.5px;color:var(--mut);font-weight:600}
+.chart .col.on span{color:var(--lime)}
+
+.tiles{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:10px}
+.tile{
+  position:relative;background:var(--surf);border-radius:20px;padding:15px 16px 13px;
+}
+.tile.acc{background:var(--lime);color:#10130E}
+.tile small{display:block;font-size:11.5px;color:var(--mut);margin-bottom:5px;font-weight:600}
+.tile.acc small{color:rgba(16,19,14,.6)}
+.tile b{
+  display:block;font-family:var(--disp);font-weight:800;font-size:19px;
+  letter-spacing:-.025em;font-variant-numeric:tabular-nums;
+}
+.tile i{
+  position:absolute;right:14px;top:14px;font-style:normal;font-size:10.5px;font-weight:700;
+  color:var(--mut);
+}
+.tile.acc i{color:rgba(16,19,14,.55)}
+
+/* ---------------- підказки «щоб рахувало точніше» ---------------- */
+.nudge{
+  display:flex;align-items:center;gap:12px;background:var(--surf);border-radius:18px;
+  padding:14px 15px;margin-bottom:9px;border-left:2px solid var(--lime);
+}
+.nudge .tx{flex:1;min-width:0}
+.nudge .tx b{display:block;font-size:13.5px;font-weight:600;margin-bottom:3px}
+.nudge .tx p{margin:0;font-size:12px;color:var(--mut);line-height:1.42}
+.nudge .chip{margin:0;flex:0 0 auto}

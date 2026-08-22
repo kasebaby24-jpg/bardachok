@@ -31,6 +31,11 @@ function esc(s) {
 }
 function nfmt(n) { return Math.round(n || 0).toLocaleString('uk-UA').replace(/ /g, ' '); }
 function money(n) { return nfmt(n) + ' ₴'; }
+function usd(n) { return '$' + (Math.round(n * 100) / 100).toFixed(2).replace(/\.00$/, ''); }
+function uahOf(n) {                       // скільки це в гривнях за курсом НБУ
+  var r = parseFloat(CFG.usd) || 0;
+  return r ? nfmt(n * r) + ' ₴' : '';
+}
 function today() {
   var d = new Date();                       // місцева дата, не гринвіцька:
   return new Date(d.getTime() - d.getTimezoneOffset() * 60000)
@@ -490,6 +495,43 @@ function consumption(carId) {
 }
 
 /* список того, що потребує уваги */
+/* Підказки, без яких цифри будуть неправдиві.
+   Не тривоги, а прохання: «онови пробіг», «познач повний бак». */
+function nudges(car) {
+  if (!car) return [];
+  var out = [];
+  var isEV = car.fuel === 'electric';
+
+  var stale = car.odoDate ? daysBetween(car.odoDate, today()) : 999;
+  if (stale >= 21)
+    out.push({ t: 'Оновіть пробіг', p: 'Востаннє ' + (car.odoDate ? fmtDate(car.odoDate) : 'невідомо') +
+      '. Від нього рахується витрата й строк заміни масла.', do: 'odo', btn: 'Оновити' });
+
+  var fr = (S.fuel || []).filter(function (r) { return r.carId === car.id; });
+  if (!fr.length)
+    out.push({ t: (isEV ? 'Додайте першу зарядку' : 'Додайте першу заправку'),
+      p: 'З двох заправок я порахую реальну витрату — і скільки коштує кілометр.',
+      do: 'fuel', btn: 'Додати' });
+  else if (!consumption(car.id))
+    out.push({ t: 'Позначте «' + (isEV ? 'до 100%' : 'повний бак') + '»',
+      p: 'Витрату видно тільки між двома повними ' + (isEV ? 'зарядами' : 'баками') + '.',
+      do: 'fuel', btn: 'Заправка' });
+
+  if (!isEV && car.lastOilOdo == null)
+    out.push({ t: 'Коли міняли масло?', p: 'Впишіть пробіг заміни — і я нагадаю про наступну.',
+      do: 'editThis', btn: 'Вписати' });
+
+  if (!car.insuranceEnd)
+    out.push({ t: 'Додайте дату ОСЦПВ', p: 'Попереджу за два тижні, щоб не купувати нашвидкуруч.',
+      do: 'editThis', btn: 'Додати' });
+
+  if (!(S.rem || []).filter(function (r) { return r.carId === car.id; }).length && fr.length)
+    out.push({ t: 'Додайте нагадування', p: 'ГРМ, антифриз, техогляд — усе, що легко забути.',
+      go: 'tab:s-rem', btn: 'Створити' });
+
+  return out.slice(0, 2);                 // більше двох — уже настирливо
+}
+
 function attention() {
   var extra = [];
   var ac0 = activeCar();
@@ -765,6 +807,16 @@ function drawHome() {
     }).join('');
   }
 
+  var nd = nudges(car);
+  if (nd.length) {
+    h += '<div class="h2">Щоб рахувало точніше</div>' + nd.map(function (n) {
+      return '<div class="nudge">' +
+        '<div class="tx"><b>' + esc(n.t) + '</b><p>' + esc(n.p) + '</p></div>' +
+        '<button class="chip gh"' + (n.do ? ' data-do="' + n.do + '"' : ' data-go="' + n.go + '"') + '>' +
+        esc(n.btn) + '</button></div>';
+    }).join('');
+  }
+
   h += '<div class="h2">Швидко</div><div class="quick">' +
     '<button data-do="fuel">' + ic(isEV ? 'charge' : 'fuel', 21) + (isEV ? 'Зарядка' : 'Заправка') + '</button>' +
     '<button data-do="service">' + ic('wrench',21) + 'Ремонт</button>' +
@@ -886,60 +938,129 @@ function drawService() {
 }
 
 /* ---------- ВИТРАТИ ---------- */
+var PERIOD = 30;
+var PERIODS = [[7, 'Тиждень'], [30, 'Місяць'], [365, 'Рік'], [0, 'Усе']];
+
+/* Скільки виходило щомісяця — для стовпчиків */
+function spendMonths(carId, n) {
+  var out = [], now = new Date();
+  for (var i = n - 1; i >= 0; i--) {
+    var d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    var from = d.toISOString().slice(0, 7);
+    out.push({ key: from, label: MONTHS_SHORT[d.getMonth()], total: 0, fuel: 0 });
+  }
+  var idx = {};
+  out.forEach(function (r) { idx[r.key] = r; });
+
+  function add(arr, field) {
+    (arr || []).forEach(function (r) {
+      if (r.carId !== carId || !r.date) return;
+      var k = String(r.date).slice(0, 7);
+      if (!idx[k]) return;
+      idx[k].total += r.cost || 0;
+      if (field) idx[k][field] += r.cost || 0;
+    });
+  }
+  add(S.fuel, 'fuel'); add(S.service, null); add(S.exp, null);
+  (S.fines || []).forEach(function (f) {
+    if (f.carId !== carId || !f.paid || !f.date) return;
+    var k = String(f.date).slice(0, 7);
+    if (idx[k]) idx[k].total += f.half ? f.amount / 2 : f.amount;
+  });
+  return out;
+}
+
+var MONTHS_SHORT = ['січ','лют','бер','кві','тра','чер','лип','сер','вер','жов','лис','гру'];
+
+function chartBars(rows) {
+  var max = Math.max.apply(null, rows.map(function (r) { return r.total; }).concat([1]));
+  return '<div class="chart">' + rows.map(function (r, i) {
+    var pct = Math.max(2, Math.round(r.total / max * 100));
+    var last = i === rows.length - 1;
+    return '<div class="col' + (last ? ' on' : '') + '">' +
+      '<div class="colv"><i style="height:' + pct + '%"></i></div>' +
+      '<span>' + r.label + '</span></div>';
+  }).join('') + '</div>';
+}
+
 function drawMoney() {
   var el = $('#s-money');
   if (!S.cars.length) { el.innerHTML = '<div class="empty">Спочатку додайте авто в Гаражі.</div>'; return; }
 
   var car = activeCar();
-  loadBench(car, function () {                 // прийде — перемалюємо з порівнянням
+  var isEV = car.fuel === 'electric';
+  loadBench(car, function () {
     if (TAB === 's-money' && BENCH) { DIRTY['s-money'] = 0; drawMoney(); }
   });
-  var isEV = car.fuel === 'electric';
-  var m30 = spend(car.id, 30), m365 = spend(car.id, 365);
-  var cons = consumption(car.id);
 
-  var h = '<div class="card">' +
-    '<div style="font-size:12.5px;color:var(--mut)">За 30 днів</div>' +
-    '<div class="num" style="font-size:36px;margin:4px 0 14px">' + money(m30.total) + '</div>';
+  var days = PERIOD || 100000;
+  var cur = spend(car.id, days);
+  var prev = PERIOD ? spend2(car.id, days, days) : null;
+  var diff = prev && prev.total > 0 ? (cur.total - prev.total) / prev.total * 100 : null;
 
-  if (m30.total > 0) {
-    var rows = [
-      [isEV ? 'Зарядка' : 'Паливо', m30.fuel],
-      ['Сервіс і ремонт', m30.service],
-      ['Штрафи', m30.fines],
-    ];
-    Object.keys(m30.byCat || {}).forEach(function (c) {
-      rows.push([CAT_UA[c] || 'Інше', m30.byCat[c]]);
-    });
-    rows = rows.filter(function (r) { return r[1] > 0; })
-               .sort(function (a, b) { return b[1] - a[1]; });
-    h += '<div class="bars">' + rows.map(function (r) {
-      var p = Math.round(r[1] / m30.total * 100);
-      return '<div class="bar"><div class="t"><b>' + r[0] + '</b><span>' + money(r[1]) + '</span></div>' +
-        '<div class="track"><div class="fill" style="width:' + p + '%"></div></div></div>';
-    }).join('') + '</div>';
-  } else {
-    h += '<div class="empty" style="padding:8px 0">Записів за місяць немає. Додайте заправку чи ремонт — і тут з’явиться картина.</div>';
-  }
-  h += '</div>';
+  var h = '<div class="pills">' + PERIODS.map(function (p) {
+    return '<button data-do="period" data-v="' + p[0] + '"' +
+      (PERIOD === p[0] ? ' class="on"' : '') + '>' + p[1] + '</button>';
+  }).join('') + '</div>';
 
-  h += '<div class="card"><div class="kv"><span>За рік</span><b>' + money(m365.total) + '</b></div>' +
-    '<div class="kv"><span>У середньому на місяць</span><b>' + money(m365.total / 12) + '</b></div>' +
-    (cons ? '<div class="kv"><span>Витрата ' + (isEV ? 'енергії' : 'пального') + '</span><b>' +
-      cons.per100.toFixed(1) + ' ' + (isEV ? 'кВт·год' : 'л') + ' / 100 км</b></div>' +
-      (cons.tanks > 1 ? '<div class="kv"><span>Останній ' + (isEV ? 'заряд' : 'бак') + '</span><b>' +
-        cons.last.toFixed(1) + ' ' + (isEV ? 'кВт·год' : 'л') + ' / 100 км</b></div>' : '') : '') +
-    (cons && cons.perKm ? '<div class="kv"><span>' + (isEV ? 'Зарядка' : 'Паливо') +
-      ' на кілометр</span><b>' + cons.perKm.toFixed(2) + ' ₴</b></div>' : '') +
+  /* головна плитка */
+  h += '<div class="hero">' +
+    '<div class="hero-top"><span>' +
+      (PERIOD === 7 ? 'За тиждень' : PERIOD === 30 ? 'За місяць' : PERIOD === 365 ? 'За рік' : 'За весь час') +
+    '</span>' + (isEV ? ic('charge', 18) : ic('fuel', 18)) + '</div>' +
+    '<b>' + money(cur.total) + '</b>' +
+    (diff !== null
+      ? '<small>' + (diff > 0 ? '+' : '') + Math.round(diff) + '% до попереднього ' +
+        (PERIOD === 7 ? 'тижня' : PERIOD === 30 ? 'місяця' : 'року') + '</small>'
+      : '<small>' + (cur.total ? 'усе, що внесено' : 'поки що записів немає') + '</small>') +
     '</div>';
 
-  if (!cons && (S.fuel || []).filter(function (r) { return r.carId === car.id; }).length)
+  /* стовпчики за пів року */
+  var mm = spendMonths(car.id, 6);
+  if (mm.some(function (r) { return r.total > 0; })) {
+    h += '<div class="card"><div class="card-h"><b>Помісячно</b>' +
+      '<span>' + money(mm.reduce(function (a, r) { return a + r.total; }, 0) / 6) + ' у середньому</span></div>' +
+      chartBars(mm) + '</div>';
+  }
+
+  /* плитки */
+  var tiles = [
+    [isEV ? 'Зарядка' : 'Паливо', cur.fuel],
+    ['Сервіс', cur.service],
+    ['Штрафи', cur.fines],
+    ['Інше', cur.other],
+  ].filter(function (t) { return t[1] > 0; })
+   .sort(function (a, b) { return b[1] - a[1]; });      // найбільша стаття — першою
+
+  if (tiles.length) {
+    h += '<div class="tiles">' + tiles.map(function (t, i) {
+      return '<div class="tile' + (i === 0 ? ' acc' : '') + '"><small>' + t[0] + '</small>' +
+        '<b>' + money(t[1]) + '</b>' +
+        '<i>' + Math.round(t[1] / cur.total * 100) + '%</i></div>';
+    }).join('') + '</div>';
+  }
+
+  /* витрата пального */
+  var cons = consumption(car.id);
+  if (cons) {
+    h += '<div class="card"><div class="card-h"><b>Витрата</b>' +
+      '<span>за ' + nfmt(cons.dist) + ' км</span></div>' +
+      '<div class="two-num">' +
+        '<div><small>у середньому</small><b>' + cons.per100.toFixed(1) + '</b></div>' +
+        '<div><small>останній ' + (isEV ? 'заряд' : 'бак') + '</small><b>' + cons.last.toFixed(1) + '</b></div>' +
+      '</div>' +
+      (cons.perKm ? '<div class="kv"><span>' + (isEV ? 'Зарядка' : 'Паливо') +
+        ' на кілометр</span><b>' + cons.perKm.toFixed(2) + ' ₴</b></div>' : '') +
+      '</div>';
+  } else if ((S.fuel || []).filter(function (r) { return r.carId === car.id; }).length) {
     h += '<div class="note">Витрату порахую, коли будуть дві заправки «' +
          (isEV ? 'до 100%' : 'повний бак') + '» поспіль — між ними видно, скільки саме пішло.</div>';
+  }
 
+  /* вартість володіння */
   var own = ownership(car.id);
   if (own) {
-    h += '<div class="h2">Скільки коштує це авто</div><div class="card">' +
+    h += '<div class="card"><div class="card-h"><b>Скільки коштує це авто</b></div>' +
       '<div class="two-num">' +
         '<div><small>на місяць</small><b>' + money(own.perMonth) + '</b></div>' +
         '<div><small>' + (own.perKm ? 'кілометр' : 'усього') + '</small><b>' +
@@ -974,7 +1095,8 @@ function drawMoney() {
     h += '<div class="h2">Інші витрати</div><div class="card list">' + ex.slice(0, 15).map(function (r) {
       return '<button class="it" data-do="delAsk" data-id="' + r.id + '">' +
         '<div class="dt">' + ic(CAT_IC[r.cat] || 'plus', 17) + '</div>' +
-        '<div class="tx"><b>' + esc(r.title) + '</b><small>' + (CAT_UA[r.cat] || 'Інше') + ' · ' + fmtDate(r.date) + '</small></div>' +
+        '<div class="tx"><b>' + esc(r.title) + '</b><small>' + (CAT_UA[r.cat] || 'Інше') +
+          ' · ' + fmtDate(r.date) + '</small></div>' +
         '<div class="vl">' + money(r.cost) + '</div></button>';
     }).join('') + '</div>';
   }
@@ -985,7 +1107,8 @@ function drawMoney() {
     h += '<div class="empty">Ще нічого не внесено.</div>';
   } else {
     h += '<div class="card list">' + fr.slice(0, 20).map(function (r) {
-      return '<button class="it" data-do="delAsk" data-id="' + r.id + '"><div class="dt">' + ic(isEV ? 'charge' : 'fuel', 17) + '</div>' +
+      return '<button class="it" data-do="delAsk" data-id="' + r.id + '">' +
+        '<div class="dt">' + ic(isEV ? 'charge' : 'fuel', 17) + '</div>' +
         '<div class="tx"><b>' + (r.qty ? r.qty + ' ' + (r.unit === 'kwh' ? 'кВт·год' : 'л') : 'Заправка') + '</b>' +
         '<small>' + fmtDate(r.date) + (r.station ? ' · ' + esc(r.station) : '') +
           (r.odo ? ' · ' + nfmt(r.odo) + ' км' : '') + (r.full === false ? ' · не повний' : '') + '</small></div>' +
@@ -994,6 +1117,23 @@ function drawMoney() {
   }
 
   el.innerHTML = h;
+}
+
+/* витрати за попередній такий самий відрізок — щоб було з чим порівняти */
+function spend2(carId, days, back) {
+  var to = new Date(Date.now() - back * 86400000).toISOString().slice(0, 10);
+  var from = new Date(Date.now() - (back + days) * 86400000).toISOString().slice(0, 10);
+  var t = 0;
+  ['fuel', 'service', 'exp'].forEach(function (k) {
+    (S[k] || []).forEach(function (r) {
+      if (r.carId === carId && r.date >= from && r.date < to) t += r.cost || 0;
+    });
+  });
+  (S.fines || []).forEach(function (f) {
+    if (f.carId === carId && f.paid && f.date >= from && f.date < to)
+      t += f.half ? f.amount / 2 : f.amount;
+  });
+  return { total: t };
 }
 
 /* ---------- ЩЕ ---------- */
@@ -1006,11 +1146,12 @@ function drawMore() {
       '<p>Голосове внесення, питання про своє авто, кілька машин, звіти для покупця та перевірки. ' +
       'Один вчасно спійманий штраф уже окупає місяць.</p>' +
       '<div class="plans">' +
-        '<button data-do="buy" data-plan="month"><small>Місяць</small><b>' + nfmt(CFG.premiumMonth) + '</b></button>' +
-        '<button data-do="buy" data-plan="half"><small>Півроку</small><b>' + nfmt(CFG.premiumHalf) + '</b>' +
-          '<em>' + nfmt(CFG.premiumHalf / 6) + ' ₴/міс</em></button>' +
-        '<button class="best" data-do="buy" data-plan="year"><small>Рік</small><b>' + nfmt(CFG.premiumYear) + '</b>' +
-          '<em>' + nfmt(CFG.premiumYear / 12) + ' ₴/міс</em></button>' +
+        '<button data-do="buy" data-plan="month"><small>Місяць</small><b>' + usd(CFG.premiumMonth) + '</b>' +
+          '<em>' + uahOf(CFG.premiumMonth) + '</em></button>' +
+        '<button data-do="buy" data-plan="half"><small>Півроку</small><b>' + usd(CFG.premiumHalf) + '</b>' +
+          '<em>' + usd(CFG.premiumHalf / 6) + '/міс</em></button>' +
+        '<button class="best" data-do="buy" data-plan="year"><small>Рік</small><b>' + usd(CFG.premiumYear) + '</b>' +
+          '<em>' + usd(CFG.premiumYear / 12) + '/міс</em></button>' +
       '</div></div>';
   } else {
     h += '<div class="promo"><b>Преміум <em>активний</em></b>' +
@@ -1080,6 +1221,11 @@ function vinCard(c, vin) {
     h += '<div class="vin-model" style="background-image:url(' + esc(c.pic.url) + ')"></div>' +
          '<div class="vin-credit">Так виглядає ця модель · фото з Вікіпедії</div>';
   }
+
+  if (c.thin)
+    h += '<div class="note" style="margin:0 0 10px">Це європейське або азійське авто. ' +
+         'Державний реєстр США його не знає, тому марку, країну й рік я визначив ' +
+         'за структурою самого VIN. Точні характеристики дивіться в техпаспорті.</div>';
 
   h += '<div class="card"><div class="h3">Авто</div>' +
     kv('Модель', [c.year, c.make, c.model].filter(Boolean).join(' ')) +
@@ -1480,6 +1626,59 @@ function rpPages(car) {
   });
 
   return pages.map(function (p) { return p.toDataURL('image/jpeg', 0.86); });
+}
+
+/* Після відкриття рахунку самі перевіряємо, чи гроші дійшли.
+   Спершу часто, потім рідше — щоб не гатити сервер. */
+var PAY_TIMER = null;
+function watchPayment() {
+  if (PAY_TIMER) clearTimeout(PAY_TIMER);
+  var tries = 0;
+  var delays = [4000, 4000, 5000, 6000, 8000, 10000, 15000, 20000, 30000, 30000, 60000, 60000];
+
+  function tick() {
+    api('/api/pay-check', {}).then(function (d) {
+      if (d.ok && d.premium) {
+        PRO = true;
+        S.premiumUntil = d.until;
+        DIRTY = {}; render();
+        haptic('medium');
+        premiumWelcome(d.until);
+        return;
+      }
+      if (tries < delays.length) PAY_TIMER = setTimeout(tick, delays[tries++]);
+      else {
+        var box = document.getElementById('payErr');
+        if (box) box.innerHTML = '<div class="msg er">Оплата ще не дійшла. ' +
+          'Натисніть «Перевірити оплату» — або напишіть нам, розберемось.</div>' +
+          '<button class="btn sec" data-do="payCheck">Перевірити оплату</button>';
+      }
+    }).catch(function () {
+      if (tries < delays.length) PAY_TIMER = setTimeout(tick, delays[tries++]);
+    });
+  }
+  PAY_TIMER = setTimeout(tick, 4000);
+}
+
+/* Що саме людина щойно купила — коротко і по ділу */
+function premiumWelcome(until) {
+  var got = [
+    ['chat', 'Голосове внесення', 'Надиктували боту — запис зʼявився сам'],
+    ['search', 'Перевірки по VIN', 'Без обмежень, з фото з аукціону'],
+    ['crash', 'Помічник', 'Відповідає з вашою книжкою перед очима'],
+    ['car', 'Кілька авто', 'До дванадцяти в одному гаражі'],
+    ['doc', 'PDF-звіт для покупця', 'І двадцять документів замість трьох'],
+  ];
+  openSheet('Преміум увімкнено',
+    '<div class="hero" style="margin-bottom:14px">' +
+      '<div class="hero-top"><span>Діє до</span>' + ic('check', 18) + '</div>' +
+      '<b style="font-size:26px">' + fmtDateY(until) + '</b>' +
+      '<small>дякуємо — тепер відкрито все</small></div>' +
+    '<div class="card list">' + got.map(function (g) {
+      return '<div class="it" style="cursor:default"><div class="dt">' + ic(g[0], 17) + '</div>' +
+        '<div class="tx"><b>' + g[1] + '</b><small>' + g[2] + '</small></div></div>';
+    }).join('') + '</div>' +
+    '<button class="btn" style="margin-top:12px" data-close="1">Почати користуватись</button>');
 }
 
 function paywallHtml(what) {
@@ -2191,6 +2390,16 @@ var DO = {
 
   pickCar: function (t) { act({ action: 'setActive', id: t.dataset.id }); },
 
+  editThis: function () {
+    var c = activeCar(); if (!c) return;
+    openSheet(carName(c), formCar(c)); syncFuelBoxes();
+  },
+
+  period: function (t) {
+    PERIOD = parseInt(t.dataset.v, 10);
+    DIRTY['s-money'] = 0; drawMoney(); haptic('light');
+  },
+
   remAdd:  function () { remForm(); },
   remSave: function () {
     var pre = document.querySelector('#rPreset button.on');
@@ -2463,23 +2672,23 @@ var DO = {
     var price = p === 'year' ? CFG.premiumYear : (p === 'half' ? CFG.premiumHalf : CFG.premiumMonth);
     var pay = CFG.pay || {};
     var name = p === 'year' ? 'Рік' : p === 'half' ? 'Півроку' : 'Місяць';
-
-    var ways = '';
-    if (pay.card)   ways += '<button class="btn" data-do="payGo" data-plan="' + p + '" data-m="card">Карткою</button>';
-    if (pay.crypto) ways += '<button class="btn' + (pay.card ? ' sec' : '') + '" data-do="payGo" ' +
-                            'data-plan="' + p + '" data-m="crypto">Криптою через CryptoBot</button>';
+    var uah = uahOf(price);
 
     openSheet('Преміум · ' + name,
+      '<div class="hero" style="margin-bottom:12px">' +
+        '<div class="hero-top"><span>До сплати</span>' + ic('star', 18) + '</div>' +
+        '<b>' + usd(price) + '</b>' +
+        '<small>' + (uah ? '≈ ' + uah + ' за курсом НБУ' : 'оплата в USDT') + '</small></div>' +
       '<div class="card"><div class="kv"><span>Тариф</span><b>' + name + '</b></div>' +
-      '<div class="kv"><span>Вартість</span><b>' + money(price) + '</b></div>' +
       '<div class="kv"><span>Термін</span><b>' +
-        (p === 'year' ? '365 днів' : p === 'half' ? '182 дні' : '30 днів') + '</b></div></div>' +
+        (p === 'year' ? '365 днів' : p === 'half' ? '182 дні' : '30 днів') + '</b></div>' +
+      '<div class="kv"><span>Валюта</span><b>USDT</b></div></div>' +
       '<div id="payErr"></div>' +
-      (ways
-        ? ways +
-          '<button class="btn sec" data-do="payCheck">Перевірити оплату</button>' +
-          '<div class="note" style="margin-bottom:0">Після оплати преміум вмикається сам. ' +
-          'Якщо за хвилину нічого не змінилось — натисніть «Перевірити оплату».</div>'
+      (pay.crypto
+        ? '<button class="btn" data-do="payGo" data-plan="' + p + '" data-m="crypto">Оплатити в USDT</button>' +
+          (pay.card ? '<button class="btn sec" data-do="payGo" data-plan="' + p + '" data-m="card">Карткою</button>' : '') +
+          '<div class="note" style="margin-bottom:0">Відкриється @CryptoBot. Після оплати поверніться сюди — ' +
+          'преміум увімкнеться сам.</div>'
         : '<div class="msg inf">Оплата ще не підключена.</div>' +
           (CFG.contactTg ? '<a class="btn" style="text-decoration:none" target="_blank" rel="noopener" ' +
             'href="https://t.me/' + esc(CFG.contactTg) + '">Написати менеджеру</a>' : '')));
@@ -2493,12 +2702,13 @@ var DO = {
         if (box) box.innerHTML = '<div class="msg er">' + esc(d.error || 'Не вдалося створити рахунок') + '</div>';
         return;
       }
-      if (box) box.innerHTML = '<div class="msg inf">Відкриваю оплату. Після неї поверніться сюди.</div>';
+      if (box) box.innerHTML = '<div class="msg inf">Чекаю на оплату…</div>';
       try {
         if (tg && /t\.me\//.test(d.url) && tg.openTelegramLink) tg.openTelegramLink(d.url);
         else if (tg && tg.openLink) tg.openLink(d.url);
         else window.open(d.url, '_blank');
       } catch (e) { window.open(d.url, '_blank'); }
+      watchPayment();                       // самі стежимо, поки не зарахується
     }).catch(function () {
       if (box) box.innerHTML = '<div class="msg er">Немає звʼязку з сервером</div>';
     });
@@ -2510,8 +2720,8 @@ var DO = {
     api('/api/pay-check', {}).then(function (d) {
       if (d.ok && d.premium) {
         PRO = true; S.premiumUntil = d.until;
-        closeSheet(); render(); haptic('medium');
-        toast('Преміум активний до ' + fmtDate(d.until));
+        DIRTY = {}; render(); haptic('medium');
+        premiumWelcome(d.until);
         return;
       }
       if (box) box.innerHTML = '<div class="msg er">Оплата ще не дійшла. Платіжці інколи треба до хвилини.</div>';

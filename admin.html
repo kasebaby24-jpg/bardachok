@@ -73,9 +73,10 @@
 
   <div class="card">
     <div class="sect">Ціни преміуму, ₴</div>
-    <div class="rw"><div class="lb">Місяць</div><input type="number" id="premiumMonth"></div>
-    <div class="rw"><div class="lb">Півроку</div><input type="number" id="premiumHalf"></div>
-    <div class="rw"><div class="lb">Рік</div><input type="number" id="premiumYear"></div>
+    <div class="rw"><div class="lb">Місяць<small>у доларах — платять USDT</small></div>
+      <input type="number" step="0.5" id="premiumMonth"></div>
+    <div class="rw"><div class="lb">Півроку</div><input type="number" step="0.5" id="premiumHalf"></div>
+    <div class="rw"><div class="lb">Рік</div><input type="number" step="0.5" id="premiumYear"></div>
   </div>
 
   <div class="card">
@@ -94,6 +95,32 @@
     <div class="sect">Контакт для клієнтів</div>
     <div class="rw"><div class="lb">Telegram<small>Без «@». Сюди пишуть щодо оплати</small></div>
       <input type="text" id="contactTg" style="text-align:left"></div>
+  </div>
+
+  <div class="card">
+    <div class="sect">Повідомлення користувачам</div>
+    <div class="rw" style="display:block">
+      <div class="lb" style="margin-bottom:8px">Текст<small>Можна жирний &lt;b&gt;так&lt;/b&gt; і посилання &lt;a href="…"&gt;текст&lt;/a&gt;</small></div>
+      <textarea id="bcText" rows="5" placeholder="Що нового або що важливо знати"
+        style="width:100%;padding:12px 14px;border-radius:14px;background:#171B19;border:1px solid #2A3235;color:#EEF2EC;font:inherit;resize:vertical"></textarea>
+    </div>
+    <div class="rw"><div class="lb">Кому</div>
+      <select id="bcWho" style="text-align:left">
+        <option value="all">Усім</option>
+        <option value="pro">Тільки з преміумом</option>
+        <option value="free">Тільки без преміуму</option>
+      </select></div>
+    <div class="rw"><div class="lb">Ваш Telegram ID<small>Для проби — надішлемо лише вам</small></div>
+      <input type="text" id="bcMe" placeholder="123456789" style="text-align:left"></div>
+    <div style="display:flex;gap:9px;margin-top:12px">
+      <button class="btn sec" id="bcTest">Спершу собі</button>
+      <button class="btn" id="bcSend">Надіслати всім</button>
+    </div>
+    <div class="msg ok hidden" id="bcOk" style="margin-top:10px"></div>
+    <div class="msg er hidden" id="bcEr" style="margin-top:10px"></div>
+    <div class="note">Розсилка йде пачками з паузою — на тисячу людей піде близько
+      хвилини. Не закривайте сторінку, поки не побачите звіт.</div>
+    <div id="bcLog" style="margin-top:12px"></div>
   </div>
 
   <div class="card">
@@ -192,7 +219,16 @@ function stats() {
     if (!d.ok) return;
     $('#stU').textContent = d.users; $('#stP').textContent = d.pro;
     $('#stC').textContent = d.cars;  $('#stD').textContent = d.withData;
-    if ($('#hPN')) $('#hPN').textContent = (d.paid || 0) + (d.revenue ? ' · ' + d.revenue + ' ₴' : '');
+    if ($('#hPN')) $('#hPN').textContent = (d.paid || 0) + (d.revenue ? ' · $' + d.revenue : '');
+    var lg = $('#bcLog');
+    if (lg && d.sendlog && d.sendlog.length) {
+      lg.innerHTML = '<div class="lb" style="margin-bottom:6px">Останні розсилки</div>' +
+        d.sendlog.slice(0, 5).map(function (r) {
+          return '<div class="rw"><div class="lb">' + r.date + ' · ' +
+            (r.who === 'pro' ? 'преміум' : r.who === 'free' ? 'без преміуму' : 'усім') +
+            '</div><b>' + r.sent + '</b></div>';
+        }).join('');
+    }
   }).catch(function () {});
 }
 
@@ -210,6 +246,33 @@ $('#save').addEventListener('click', function () {
     else show('sEr', d.error || 'Не вдалося зберегти.', true);
   }).catch(function () { b.disabled = false; show('sEr', 'Сервер не відповідає.', true); });
 });
+
+function broadcast(test) {
+  var text = $('#bcText').value.trim();
+  show('bcOk', '', false); show('bcEr', '', false);
+  if (text.length < 3) { show('bcEr', 'Напишіть текст.', true); return; }
+  if (!test && !confirm('Надіслати це повідомлення всім обраним користувачам?')) return;
+
+  var b1 = $('#bcTest'), b2 = $('#bcSend');
+  b1.disabled = b2.disabled = true;
+  show('bcOk', test ? 'Надсилаю вам…' : 'Розсилаю…', true);
+
+  post('/admin/send', { text: text, who: $('#bcWho').value, test: !!test, tgId: $('#bcMe').value })
+    .then(function (d) {
+      b1.disabled = b2.disabled = false;
+      if (!d.ok) { show('bcOk', '', false); show('bcEr', d.error || 'Не вдалося.', true); return; }
+      show('bcOk', d.test ? 'Надіслано вам. Подивіться в боті.'
+                          : 'Готово: доставлено ' + d.sent + ' із ' + d.total +
+                            (d.failed ? ', не дійшло ' + d.failed : ''), true);
+      if (!d.test) stats();
+    })
+    .catch(function () {
+      b1.disabled = b2.disabled = false;
+      show('bcOk', '', false); show('bcEr', 'Сервер не відповідає.', true);
+    });
+}
+$('#bcTest').addEventListener('click', function () { broadcast(true); });
+$('#bcSend').addEventListener('click', function () { broadcast(false); });
 
 $('#reload').addEventListener('click', function () { show('sOk', '', false); show('sEr', '', false); load(); });
 
