@@ -136,10 +136,17 @@ var ICONS = {
   snow:   '<path d="M12 2v20M4 7l16 10M20 7 4 17"/>',
   idcard: '<rect x="3" y="5.5" width="18" height="13" rx="2.5"/><circle cx="8.5" cy="11" r="2"/>' +
           '<path d="M5.5 16c.6-1.4 1.7-2 3-2s2.4.6 3 2M14 10h4.5M14 13.5h3"/>',
+  lock:   '<rect x="4.5" y="10.5" width="15" height="10.5" rx="2.6"/>' +
+          '<path d="M8 10.5V7.6a4 4 0 0 1 8 0v2.9"/>',
   gift:   '<rect x="3.5" y="9" width="17" height="11" rx="1.5"/><path d="M3.5 13h17M12 9v11"/><path d="M12 9c-3.5 0-4.5-1-4.5-2.5S9 4 10 5s2 4 2 4Zm0 0c3.5 0 4.5-1 4.5-2.5S15 4 14 5s-2 4-2 4Z"/>',
 };
 
 /* ic('fuel') -> готова іконка. size і колір керуються з CSS. */
+/* Золотий замочок біля всього, що відкриває Преміум */
+function lockIc() {
+  return '<span class="lock">' + ic('lock', 13) + '</span>';
+}
+
 function ic(name, size, cls) {
   var d = ICONS[name] || ICONS.car;
   return '<svg class="icn' + (cls ? ' ' + cls : '') + '" viewBox="0 0 24 24" width="' +
@@ -178,11 +185,22 @@ function act(payload, onOk) {
 function seen(k) { try { return localStorage.getItem('b_' + k) === '1'; } catch (e) { return false; } }
 function markSeen(k) { try { localStorage.setItem('b_' + k, '1'); } catch (e) {} }
 
-function toast(msg) {
-  try {
-    if (tg && tg.showPopup) { tg.showPopup({ message: String(msg).slice(0, 200) }); return; }
-  } catch (e) {}
-  alert(msg);
+/* Власна плашка замість системного вікна: те показувало адресу сайту
+   і виглядало як помилка браузера, а не як частина застосунку. */
+var TOAST_T = null;
+function toast(msg, kind) {
+  var el = document.getElementById('toast');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'toast';
+    document.body.appendChild(el);
+  }
+  el.className = 'toast' + (kind ? ' ' + kind : '');
+  el.textContent = String(msg).slice(0, 160);
+  void el.offsetWidth;                       // щоб анімація програлась ще раз
+  el.classList.add('on');
+  if (TOAST_T) clearTimeout(TOAST_T);
+  TOAST_T = setTimeout(function () { el.classList.remove('on'); }, 2600);
 }
 
 /* ------------------------------------------------------------------ */
@@ -775,15 +793,26 @@ function drawHome() {
   }
 
   var bodyKind = car.body || (guessCar(car.make, car.model).body) || 'sedan';
+  var specs = [car.year, FUEL_UA[car.fuel],
+      (isEV ? (car.battery ? car.battery + ' кВт·год' : '') : (car.engine ? (car.engine / 1000).toFixed(1) + ' л' : '')),
+      car.body ? BODY_UA[car.body] : ''].filter(Boolean);
+  var stale = car.odoDate ? daysBetween(car.odoDate, today()) : 999;
+
   h += '<div class="carcard' + (isEV ? ' ev' : '') + '">' +
     silSvg(bodyKind, '#0E1207', isEV ? '#9BE7C4' : '#D7FF3E') +
-    (car.plate ? '<span class="plate">' + esc(car.plate) + '</span>' : '') +
+    '<div class="cc-top">' +
+      (car.plate ? '<span class="plate">' + esc(car.plate) + '</span>' : '<span></span>') +
+      '<button class="cc-go" data-do="editThis" aria-label="Змінити авто">' + ic('wrench', 15) + '</button>' +
+    '</div>' +
     '<h3>' + esc(carName(car)) + '</h3>' +
-    '<div class="sub">' + [car.year, FUEL_UA[car.fuel],
-        (isEV ? (car.battery ? car.battery + ' кВт·год' : '') : (car.engine ? (car.engine / 1000).toFixed(1) + ' л' : ''))]
-        .filter(Boolean).join(' · ') + '</div>' +
-    '<div class="odo"><div><small>ПРОБІГ</small><b>' + nfmt(car.odo) + ' <span style="font-size:13px;opacity:.6">км</span></b></div>' +
-    '<button class="chip gh" style="background:rgba(14,18,7,.16);color:#0E1207;margin:0" data-do="odo">Оновити</button></div>' +
+    '<div class="cc-specs">' + specs.map(function (x) {
+      return '<span>' + esc(x) + '</span>';
+    }).join('') + '</div>' +
+    '<div class="odo">' +
+      '<div><small>ПРОБІГ' + (stale >= 21 ? ' · давно не оновлювали' : '') + '</small>' +
+      '<b>' + nfmt(car.odo) + ' <span style="font-size:13px;opacity:.6">км</span></b></div>' +
+      '<button class="cc-odo" data-do="odo">' + ic('plus', 16) + 'Оновити</button>' +
+    '</div>' +
     '</div>';
 
   h += '<div class="h2">Потребує уваги' + (att.length ? '<span class="act">' + att.length + '</span>' : '') + '</div>';
@@ -796,6 +825,20 @@ function drawHome() {
         '<div class="ic">' + ic(a.ic, 19) + '</div><div class="bd"><b>' + esc(a.t) + '</b><p>' + esc(a.p) + '</p></div>' +
         '<div class="dd">' + esc(a.d) + '</div></div>';
     }).join('');
+  }
+
+  h += '<div class="h2">Швидко</div><div class="quick">' +
+    '<button data-do="fuel">' + ic(isEV ? 'charge' : 'fuel', 21) + (isEV ? 'Зарядка' : 'Заправка') + '</button>' +
+    '<button data-do="service">' + ic('wrench',21) + 'Ремонт</button>' +
+    '<button data-go="tab:s-docs">' + ic('doc',21) + 'Документи</button>' +
+    '<button data-do="expense">' + ic('plus',21) + 'Витрата</button>' +
+    '</div>';
+
+  var nt = CFG.notice;
+  if (nt && !seen('nt_' + nt.id)) {
+    h += '<div class="notice ' + esc(nt.kind || 'info') + '" data-do="noticeClose" data-id="' + esc(nt.id) + '">' +
+      '<div class="tx">' + (nt.title ? '<b>' + esc(nt.title) + '</b>' : '') +
+      '<p>' + esc(nt.text) + '</p></div><span>×</span></div>';
   }
 
   var nd = nudges(car);
@@ -814,13 +857,6 @@ function drawHome() {
     '<p>' + (PRO ? 'Стукає, гріється, не заводиться — відповім з вашою книжкою перед очима'
                  : 'Помічник знає ваш ' + esc(carName(car)) + '. Відкрийте в Преміумі') + '</p></div>' +
     '<div class="go">' + ic('back', 16) + '</div></div>';
-
-  h += '<div class="h2">Швидко</div><div class="quick">' +
-    '<button data-do="fuel">' + ic(isEV ? 'charge' : 'fuel', 21) + (isEV ? 'Зарядка' : 'Заправка') + '</button>' +
-    '<button data-do="service">' + ic('wrench',21) + 'Ремонт</button>' +
-    '<button data-go="tab:s-vin">' + ic('search',21) + 'Перевірка</button>' +
-    '<button data-do="expense">' + ic('plus',21) + 'Витрата</button>' +
-    '</div>';
 
   var pctFuel = sp.total > 0 ? sp.fuel / sp.total : 0;
   h += '<div class="h2">Витрати за 30 днів<span class="act" data-go="tab:s-money">детально</span></div>' +
@@ -1172,37 +1208,49 @@ function drawMore() {
   h += '<div class="h2">Інструменти</div><div class="card list">' +
     itemBtn('search', 'Перевірка по VIN', 'Що це за авто насправді', 'tab:s-vin') +
     (CFG.plates ? itemBtn('idcard', 'Пошук за номером',
-        PRO ? 'Марка, рік, обʼєм за реєстром' : 'У Преміумі', 'tab:s-plate') : '') +
-    itemBtn('chat', 'Голосове внесення', PRO ? 'Кнопка «Дія», бот, постукування' : 'У Преміумі', 'tab:s-voice') +
-    itemBtn('chat', 'Питання про авто', PRO ? 'Стукає, гріється, не заводиться' : 'У Преміумі', 'tab:s-ask') +
+        'Марка, рік, обʼєм за реєстром', 'tab:s-plate', !PRO) : '') +
+    itemBtn('chat', 'Голосове внесення', 'Надиктували боту — записалось', 'tab:s-voice', !PRO) +
+    itemBtn('chat', 'Питання про авто', 'Стукає, гріється, не заводиться', 'tab:s-ask', !PRO) +
     itemBtn('alert', 'Нагадування', 'ГРМ, техогляд, що завгодно', 'tab:s-rem') +
     itemBtn('doc', 'Документи', 'Техпаспорт, страховка, права', 'tab:s-docs') +
-    itemBtn('doc', 'Звіт для покупця', 'PDF із сервісною книжкою', 'tab:s-report') +
+    itemBtn('doc', 'Звіт для покупця', 'PDF із сервісною книжкою', 'tab:s-report', !PRO) +
     itemBtn('crash', 'Що робити при ДТП', 'Покроково, без паніки', 'tab:s-crash') +
     itemBtn('car', 'Мої авто', S.cars.length + ' ' + plural(S.cars.length, 'авто', 'авто', 'авто'), 'tab:s-cars') +
     '</div>';
 
 
   h += '<div class="promo" style="margin-top:12px">' +
-    '<b>Приведіть друга — <em>отримайте місяць</em></b>' +
-    '<p>За кожного, хто приєднається за вашим посиланням, ви отримуєте 30 днів Преміуму. ' +
-    'Друг теж отримує місяць. Нарахування автоматичне.</p>' +
-    (REF.count ? '<div class="kv" style="border:0;padding:0 0 12px"><span>Уже привели</span><b>' +
-      REF.count + ' ' + plural(REF.count, 'людину', 'людей', 'людей') + ' · +' + (REF.count * 30) + ' днів</b></div>' : '') +
+    '<b>Передайте далі — <em>і місяць ваш</em></b>' +
+    '<p>За кожного, хто приєднається за вашим посиланням, вам +30 днів Преміуму. ' +
+    'Одразу, без умов. Друг отримає свій місяць так само — коли приведе когось сам.</p>' +
+    (REF.count
+      ? '<div class="kv" style="border:0;padding:0 0 12px"><span>Уже привели</span><b>' +
+        REF.count + ' ' + plural(REF.count, 'людину', 'людей', 'людей') + ' · +' +
+        (REF.count * 30) + ' днів</b></div>'
+      : '<div class="kv" style="border:0;padding:0 0 12px"><span>Приведено</span>' +
+        '<b>поки нікого</b></div>') +
     (REF.link
       ? '<button class="btn" data-do="share">Надіслати посилання</button>' +
         '<button class="btn sec" data-do="copyRef">Скопіювати</button>'
       : '<div class="note" style="margin:0">Посилання зʼявиться, щойно бота буде підключено.</div>') +
     '</div>';
 
+  h += '<div class="card" style="margin-top:12px"><div class="card-h"><b>Підтримати розробника</b>' +
+    '<span>за бажанням</span></div>' +
+    '<p style="margin:0 0 12px;font-size:12.5px;color:var(--mut);line-height:1.5">' +
+    'Бардачок робить одна людина. Якщо застосунок вам допоміг — можна закинути ' +
+    'скільки не шкода. Це не підписка й нічого не відкриває, просто дякую.</p>' +
+    '<button class="btn sec" data-do="tip">Закинути на каву</button></div>';
+
   h += '<div class="note">Бардачок не замінює механіка й не є юридичною консультацією. ' +
        'Дати й суми ви вносите самі — я лише стежу, щоб нічого не забулось.</div>';
 
   el.innerHTML = h;
 }
-function itemBtn(name, t, s, go) {
+function itemBtn(name, t, s, go, locked) {
   return '<button class="it" data-go="' + go + '"><div class="dt">' + ic(name, 17) + '</div>' +
-    '<div class="tx"><b>' + t + '</b><small>' + s + '</small></div><div class="ar">›</div></button>';
+    '<div class="tx"><b>' + t + (locked ? lockIc() : '') + '</b>' +
+    '<small>' + s + '</small></div><div class="ar">›</div></button>';
 }
 
 /* ---------- VIN ---------- */
@@ -1658,24 +1706,67 @@ function watchPayment() {
 }
 
 /* Що саме людина щойно купила — коротко і по ділу */
+var WEL = 0;
+var WEL_UNTIL = '';
+var WELCOME = [
+  { tag: 'Готово', t: 'Преміум\nувімкнено', p: 'Дякуємо. Ось що зʼявилось — за хвилину пройдемось.', art: 'ok' },
+  { tag: 'Голос', t: 'Просто\nнадиктуйте', p: 'Затисніть мікрофон у чаті з ботом і скажіть «залив 40 літрів на 1800». Запис зʼявиться сам.', art: 'voice' },
+  { tag: 'Помічник', t: 'Питайте\nпро своє авто', p: 'Відповідає з вашою сервісною книжкою перед очима: коли міняли, скільки вклали, що вже пора.', art: 'brain' },
+  { tag: 'Перевірки', t: 'VIN і номерний\nзнак', p: 'Без обмежень. По VIN — ще й фото з американського аукціону, якщо авто звідти.', art: 'vin' },
+  { tag: 'Документи', t: 'Усе під рукою', p: 'До двадцяти знімків, зашифрованих у телефоні. Плюс звіти для покупця й по витратах.', art: 'docs', last: true },
+];
+
+function welArt(kind) {
+  if (kind === 'ok')
+    return '<div class="st-art hero" style="text-align:center;padding:30px 20px">' +
+      '<div class="wel-check">' + ic('check', 34) + '</div></div>';
+  if (kind === 'voice')
+    return '<div class="st-art">' +
+      '<div class="st-say">«залив 40 літрів на 1800»</div>' +
+      '<div class="st-row done"><span>' + ic('fuel', 18) + 'Заправка</span><b>1 800 ₴</b></div></div>';
+  if (kind === 'brain')
+    return '<div class="st-art">' +
+      '<div class="st-bub me">Коли міняти колодки?</div>' +
+      '<div class="st-typing"><i></i><i></i><i></i></div>' +
+      '<div class="st-bub ai">Ви міняли передні на 135 200 км. Зараз 142 000 — ще рано, ' +
+      'типовий ресурс 40–60 тисяч.</div></div>';
+  if (kind === 'vin')
+    return '<div class="st-art">' +
+      '<div class="st-row"><span>' + ic('search', 18) + 'Перевірок по VIN</span><b>без ліміту</b></div>' +
+      '<div class="st-row"><span>' + ic('idcard', 18) + 'Пошук за номером</span><b>відкрито</b></div>' +
+      '<div class="st-row done"><span>' + ic('car', 18) + 'Фото з аукціону</span><b>так</b></div></div>';
+  return '<div class="st-art">' +
+    '<div class="st-row"><span>' + ic('doc', 18) + 'Документів</span><b>20</b></div>' +
+    '<div class="st-row"><span>' + ic('chart', 18) + 'Звіт про витрати</span><b>PDF</b></div>' +
+    '<div class="st-row done"><span>' + ic('star', 18) + 'Звіт для покупця</span><b>PDF</b></div></div>';
+}
+
 function premiumWelcome(until) {
-  var got = [
-    ['chat', 'Голосове внесення', 'Надиктували боту — запис зʼявився сам'],
-    ['search', 'Перевірки по VIN', 'Без обмежень, з фото з аукціону'],
-    ['crash', 'Помічник', 'Відповідає з вашою книжкою перед очима'],
-    ['car', 'Кілька авто', 'До дванадцяти в одному гаражі'],
-    ['doc', 'PDF-звіт для покупця', 'І двадцять документів замість трьох'],
-  ];
-  openSheet('Преміум увімкнено',
-    '<div class="hero" style="margin-bottom:14px">' +
-      '<div class="hero-top"><span>Діє до</span>' + ic('check', 18) + '</div>' +
-      '<b style="font-size:26px">' + fmtDateY(until) + '</b>' +
-      '<small>дякуємо — тепер відкрито все</small></div>' +
-    '<div class="card list">' + got.map(function (g) {
-      return '<div class="it" style="cursor:default"><div class="dt">' + ic(g[0], 17) + '</div>' +
-        '<div class="tx"><b>' + g[1] + '</b><small>' + g[2] + '</small></div></div>';
-    }).join('') + '</div>' +
-    '<button class="btn" style="margin-top:12px" data-close="1">Почати користуватись</button>');
+  WEL = 0; WEL_UNTIL = until || S.premiumUntil || '';
+  drawWelcome();
+}
+
+function drawWelcome() {
+  var i = Math.min(WEL, WELCOME.length - 1);
+  var w = WELCOME[i];
+  openSheet('',
+    '<div class="st-wrap" style="min-height:auto">' +
+      '<div class="st-bars">' + WELCOME.map(function (_, n) {
+        return '<i class="' + (n < i ? 'done' : n === i ? 'on' : '') + '"></i>';
+      }).join('') + '</div>' +
+      '<div class="st-top"><span class="st-tag">' + esc(w.tag) + '</span>' +
+        (w.last ? '' : '<button class="st-skip" data-close="1">Пропустити</button>') + '</div>' +
+      '<div class="st-body">' +
+        '<h2>' + esc(w.t).replace(/\n/g, '<br>') + '</h2>' +
+        '<p>' + esc(w.p) + '</p>' + welArt(w.art) +
+        (i === 0 && WEL_UNTIL ? '<div class="st-fact">Діє до ' + fmtDateY(WEL_UNTIL) + '</div>' : '') +
+      '</div>' +
+      '<div class="st-foot">' +
+        (i > 0 ? '<button class="st-back" data-do="welBack">' + ic('back', 18) + '</button>' : '') +
+        '<button class="btn" data-do="' + (w.last ? 'welDone' : 'welNext') + '">' +
+          (w.last ? 'Почати користуватись' : 'Далі') + '</button>' +
+      '</div>' +
+    '</div>');
 }
 
 function paywallHtml(what) {
@@ -1836,7 +1927,7 @@ function sendMoneyReport() {
     var pages;
     try { pages = rpMoneyPages(car); }
     catch (e) { toast('Не вдалося намалювати звіт'); return; }
-    return api('/api/report', { pages: pages, plate: 'витрати-' + (car.plate || '') }).then(function (d) {
+    return api('/api/report', { pages: pages, kind: 'money', plate: 'витрати-' + (car.plate || '') }).then(function (d) {
       if (!d.ok) {
         if (d.error === 'premium') { needPro('report'); return; }
         toast(d.message || d.error || 'Не вдалося надіслати');
@@ -1901,7 +1992,7 @@ function sendReport() {
     var pages;
     try { pages = rpPages(car); }
     catch (e) { toast('Не вдалося намалювати звіт'); return; }
-    return api('/api/report', { pages: pages, plate: car.plate || carName(car) }).then(function (d) {
+    return api('/api/report', { pages: pages, kind: 'sale', plate: car.plate || carName(car) }).then(function (d) {
       if (!d.ok) {
         if (d.error === 'premium') { needPro('report'); return; }
         toast(d.message || d.error || 'Не вдалося надіслати');
@@ -1974,15 +2065,24 @@ function syncKey() {
   return new Promise(function (res) {
     var local = lsGet(KEY_STORE);
     if (!CLOUD) { res(local); return; }
-    CLOUD.getItem(KEY_STORE, function (err, val) {
-      if (!err && val) {
-        if (!local) lsSet(KEY_STORE, val);           // впав із хмари
-        res(val);
-        return;
-      }
-      if (local) { try { CLOUD.setItem(KEY_STORE, local, function () {}); } catch (e) {} }
-      res(local);
-    });
+
+    /* Старі версії Telegram можуть не відповісти взагалі — тоді документ
+       мовчки не додавався. Чекаємо дві секунди й ідемо далі з тим, що є. */
+    var done = false;
+    var finish = function (v) { if (done) return; done = true; res(v); };
+    setTimeout(function () { finish(local); }, 2000);
+
+    try {
+      CLOUD.getItem(KEY_STORE, function (err, val) {
+        if (!err && val) {
+          if (!local) lsSet(KEY_STORE, val);         // впав із хмари
+          finish(val);
+          return;
+        }
+        if (local) { try { CLOUD.setItem(KEY_STORE, local, function () {}); } catch (e) {} }
+        finish(local);
+      });
+    } catch (e) { finish(local); }
   });
 }
 
@@ -2050,6 +2150,7 @@ function bioUnlock(cb) {
 function seal(text) {
   return loadKey().then(function (k) {
     if (!k) return null;
+    if (!(window.crypto && crypto.subtle)) return null;   // старий вебперегляд
     var iv = crypto.getRandomValues(new Uint8Array(12));
     var data = new TextEncoder().encode(text);
     return crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, k, data).then(function (buf) {
@@ -2110,6 +2211,15 @@ function loadDocs(cb) {
   }).catch(function () { DOCS = []; drawDocs(); });
 }
 
+/* Сіра заготовка замість порожнього екрана, поки йдуть дані */
+function skeleton(n) {
+  var one = '<div class="card sk"><div class="sk-l w60"></div><div class="sk-l w90"></div>' +
+            '<div class="sk-l w40"></div></div>';
+  var out = '';
+  for (var i = 0; i < (n || 2); i++) out += one;
+  return out;
+}
+
 function drawDocs() {
   var el = $('#s-docs');
   if (!el) return;
@@ -2126,7 +2236,7 @@ function drawDocs() {
   }
 
   if (DOCS === null) {
-    el.innerHTML = '<div class="card"><p style="margin:0;color:var(--mut);font-size:13px">Дивлюсь, що там…</p></div>';
+    el.innerHTML = skeleton(3);
     loadDocs();
     return;
   }
@@ -2138,8 +2248,14 @@ function drawDocs() {
       '<small style="color:var(--mut);font-size:12px">' + DOCS.length + ' з ' + DOC_LIMIT + '</small></div></div>' +
     '<p style="margin:0 0 13px;font-size:12.5px;color:var(--mut);line-height:1.5">' +
       'Знімки техпаспорта, страховки, прав. Забули вдома — відкрили тут.</p>' +
-    '<div class="kv"><span>Шифрування</span><b>у вашому телефоні</b></div>' +
-    '<div class="kv"><span>Хто може відкрити</span><b>тільки ви</b></div>' +
+    '<div class="safe">' +
+      '<div><i>' + ic('lock', 15) + '</i><span>Знімок шифрується <b>у вашому телефоні</b> — ' +
+        'ще до того, як полетить на сервер</span></div>' +
+      '<div><i>' + ic('shield', 15) + '</i><span>На сервері лежить набір байтів. ' +
+        'Ані ми, ані той, хто вкраде базу, його не прочитає</span></div>' +
+      '<div><i>' + ic('check', 15) + '</i><span>Ключ живе у вашому телефоні й у хмарі Telegram — ' +
+        'переживе чистку кешу і новий телефон</span></div>' +
+    '</div>' +
     '<button class="btn' + (DOCS.length >= DOC_LIMIT ? ' sec' : '') + '" data-do="docAdd">Додати документ</button>' +
     '</div>';
 
@@ -2220,7 +2336,11 @@ function docShoot() {
         }
         if (!data) { toast('Знімок завеликий навіть після стиснення'); return; }
         toast('Шифрую й кладу в бардачок…');
-        seal(data).then(function (payload) {
+        var guard = setTimeout(function () {
+          toast('Шифрування не відповідає — зберігаю як є');
+        }, 4000);
+        seal(data).catch(function () { return null; }).then(function (payload) {
+        clearTimeout(guard);
         api('/api/doc', { kind: kind, title: title, data: payload || data }).then(function (d) {
           if (!d.ok) {
             if (d.error === 'limit') { needPro('docs'); return; }
@@ -2673,79 +2793,102 @@ function plateCard(c) {
 /* ------------------------------------------------------------------ */
 var VTOKEN = null;
 
+/* ------------------------------------------------------------------ */
+/* ГОЛОСОМ                                                             */
+/* Головний шлях — просто надиктувати боту. Ярлик на iPhone — приємний */
+/* додаток, а не основа, тому він нижче й згорнутий.                   */
+/* ------------------------------------------------------------------ */
 function drawVoice() {
   var el = $('#s-voice');
   if (!el) return;
   if (PRO && !VTOKEN) loadToken();
 
-  if (!PRO) {
-    el.innerHTML = '<div class="card">' +
+  var head =
+    '<div class="card">' +
       '<div class="chat-head" style="padding:0 0 12px">' +
         '<div class="ic-box">' + ic('chat', 20) + '</div>' +
-        '<div style="flex:1;min-width:0"><b style="display:block;font-size:15px;font-weight:700">Голосом</b>' +
-        '<small style="color:var(--mut);font-size:12px">у Преміумі</small></div></div>' +
-      '<p style="margin:0 0 14px;font-size:13px;color:var(--ink2);line-height:1.55">' +
-        'Заправились — затиснули кнопку «Дія» на iPhone і сказали «залив 40 літрів на 1800». ' +
-        'Застосунок навіть не треба відкривати.</p>' +
-      '<button class="btn" data-do="needPro" data-w="voice">Що дає Преміум</button></div>';
-    return;
-  }
+        '<div style="flex:1;min-width:0"><b style="display:block;font-size:15px;font-weight:700">' +
+          'Записувати голосом' + (PRO ? '' : lockIc()) + '</b>' +
+        '<small style="color:var(--mut);font-size:12px">' +
+          (PRO ? 'працює в чаті з ботом' : 'у Преміумі') + '</small></div></div>' +
+      '<p style="margin:0 0 14px;font-size:13.5px;color:var(--ink2);line-height:1.6">' +
+        'Відкрийте чат із ботом, затисніть мікрофон і скажіть звичайними словами. ' +
+        'Я розберу й запишу — форму заповнювати не треба.</p>' +
+      '<div class="say">«Залив 42 літри на 1850»</div>' +
+      '<div class="say">«Поміняв масло, 2400»</div>' +
+      '<div class="say">«Заправився на 30 євро»</div>' +
+      '<div class="say">«Прийшов штраф 850»</div>' +
+      '<p style="margin:12px 0 0;font-size:12.5px;color:var(--mut);line-height:1.5">' +
+        'Розумію українську й російську. Можна сказати кілька справ одразу — ' +
+        'кожна ляже своїм записом. Валюту теж чую: євро, долари, злоті.</p>' +
+      (PRO ? '<button class="btn" style="margin-top:13px" data-do="openBot">Відкрити чат із ботом</button>'
+           : '<button class="btn" style="margin-top:13px" data-do="needPro" data-w="voice">Що дає Преміум</button>') +
+    '</div>';
+
+  if (!PRO) { el.innerHTML = head; return; }
 
   var t = VTOKEN;
-  el.innerHTML =
-    '<div class="card">' +
-      '<div class="chat-head" style="padding:0 0 12px">' +
-        '<div class="ic-box">' + ic('chat', 20) + '</div>' +
-        '<div style="flex:1;min-width:0"><b style="display:block;font-size:15px;font-weight:700">Голосом</b>' +
-        '<small style="color:var(--mut);font-size:12px">три способи, обирайте зручний</small></div></div>' +
-      '<p style="margin:0 0 6px;font-size:13px;color:var(--ink2);line-height:1.55">' +
-        '<b>Найпростіше:</b> відкрийте чат із ботом і надиктуйте голосове. Я розберу й запишу.</p>' +
-      '<div class="kv"><span>«Залив 42 літри на 1850»</span><b>заправка</b></div>' +
-      '<div class="kv"><span>«Поміняв масло, 2400»</span><b>сервіс</b></div>' +
-      '<div class="kv"><span>«Заправився на 30 євро»</span><b>у євро</b></div>' +
-      '<div class="kv"><span>«Прийшов штраф 850»</span><b>штраф</b></div>' +
-    '</div>' +
-
-    '<div class="h2">Бічна кнопка iPhone (Action Button)</div>' +
+  el.innerHTML = head +
+    '<div class="h2">Швидше: без відкривання чату</div>' +
     '<div class="card">' +
       '<p style="margin:0 0 12px;font-size:13px;color:var(--ink2);line-height:1.6">' +
-      'Разова настройка на пʼять хвилин — далі запис робиться, не розблоковуючи телефон. ' +
-      'Йдеться про <b>бічну кнопку</b> над гойдалкою гучності (iPhone 15 Pro і новіші), ' +
-      'а не про застосунок «Дія».</p>' +
-      '<div class="steps">' +
-        '<div><i>1</i><div><b>Скопіюйте свій ключ</b><p>Він унікальний і замінює вхід — нікому не показуйте.</p>' +
-          '<div class="tokenbox"><code id="vtok">' + esc(t ? t.token : '…') + '</code></div>' +
-          '<button class="btn sec" style="margin-top:9px" data-do="sendSelf" data-w="token">' +
-          'Надіслати собі в бот</button>' +
-          '<p style="margin-top:6px">У чаті бота текст копіюється одним дотиком — ' +
-          'це найзручніший шлях перенести його в «Команди».</p></div></div>' +
-        '<div><i>2</i><div><b>Відкрийте застосунок «Команди»</b>' +
-          '<p>Він уже стоїть на кожному iPhone. Плюс угорі → «Нова команда».</p></div></div>' +
-        '<div><i>3</i><div><b>Додайте дію «Диктувати текст»</b>' +
-          '<p>У пошуку дій напишіть «диктувати» — і оберіть «Диктувати текст». ' +
-          'Натисніть на неї та поставте мову «Українська».</p></div></div>' +
-        '<div><i>4</i><div><b>Додайте «Отримати вміст URL-адреси»</b>' +
-          '<p>У поле адреси вставте це:</p>' +
-          '<div class="tokenbox"><code>' + esc(t ? t.url : '') + '</code></div>' +
-          '<p style="margin-top:8px">Далі натисніть «Показати більше» під цією дією і виставте:<br>' +
-          '• <b>Спосіб</b> → POST<br>' +
-          '• <b>Тіло запиту</b> → JSON<br>' +
-          '• <b>Додати нове поле</b> → Текст → ключ <b>text</b><br>' +
-          '• значення поля → оберіть змінну <b>Диктований текст</b></p></div></div>' +
-        '<div><i>5</i><div><b>Назвіть команду «Бардачок»</b>' +
-          '<p>Налаштування → Дія (Action Button) → Команда → оберіть її.<br>' +
-          'Це та сама бічна кнопка над гойдалкою гучності на iPhone 15 Pro і новіших. ' +
-          'З державним застосунком «Дія» вона ніяк не повʼязана.</p></div></div>' +
+      'Разова настройка — і запис робиться, не розблоковуючи телефон. ' +
+      'Обирайте свій телефон.</p>' +
+      '<div class="seg" id="vTabs">' +
+        '<button type="button" class="on" data-v="ios">iPhone</button>' +
+        '<button type="button" data-v="android">Android</button>' +
       '</div>' +
-      '<div class="note" style="margin-bottom:0">Постукування по кришці: Налаштування → ' +
-      'Універсальний доступ → Дотик → Дотик до задньої панелі → Подвійний дотик → ця сама команда.</div>' +
+
+      '<div id="vIos" style="margin-top:14px">' +
+        '<div class="steps">' +
+          '<div><i>1</i><div><b>Візьміть свій ключ</b>' +
+            '<p>Він замінює вхід — нікому не пересилайте.</p>' +
+            '<div class="tokenbox"><code>' + esc(t ? t.token : '…') + '</code></div>' +
+            '<button class="chip gh" style="margin-top:8px" data-do="sendSelf" data-w="token">' +
+            'Надіслати собі в бот</button></div></div>' +
+          '<div><i>2</i><div><b>Застосунок «Команди»</b>' +
+            '<p>Він уже є на кожному iPhone. Плюс угорі → «Нова команда».</p></div></div>' +
+          '<div><i>3</i><div><b>Дія «Диктувати текст»</b>' +
+            '<p>У пошуку напишіть «диктувати». Мову поставте українську.</p></div></div>' +
+          '<div><i>4</i><div><b>Дія «Отримати вміст URL-адреси»</b>' +
+            '<p>Адреса:</p><div class="tokenbox"><code>' + esc(t ? t.url : '') + '</code></div>' +
+            '<p style="margin-top:8px">«Показати більше» → Спосіб <b>POST</b>, ' +
+            'Тіло запиту <b>JSON</b>, поле <b>text</b> зі значенням ' +
+            '<b>Диктований текст</b>.</p></div></div>' +
+          '<div><i>5</i><div><b>Повісьте на кнопку</b>' +
+            '<p>Налаштування → <b>Дія (Action Button)</b> → Команда — це бічна кнопка ' +
+            'на iPhone 15 Pro і новіших, із застосунком «Дія» вона не повʼязана.<br>' +
+            'Немає такої кнопки — Налаштування → Універсальний доступ → Дотик → ' +
+            'Дотик до задньої панелі → Подвійний дотик.</p></div></div>' +
+        '</div>' +
+      '</div>' +
+
+      '<div id="vAndroid" class="hidden" style="margin-top:14px">' +
+        '<div class="steps">' +
+          '<div><i>1</i><div><b>Візьміть свій ключ</b>' +
+            '<div class="tokenbox"><code>' + esc(t ? t.token : '…') + '</code></div>' +
+            '<button class="chip gh" style="margin-top:8px" data-do="sendSelf" data-w="token">' +
+            'Надіслати собі в бот</button></div></div>' +
+          '<div><i>2</i><div><b>Встановіть «HTTP Shortcuts»</b>' +
+            '<p>Безкоштовний застосунок у Google Play. Він робить те саме, ' +
+            'що «Команди» на iPhone.</p></div></div>' +
+          '<div><i>3</i><div><b>Створіть запит</b>' +
+            '<p>Спосіб <b>POST</b>, адреса:</p>' +
+            '<div class="tokenbox"><code>' + esc(t ? t.url : '') + '</code></div>' +
+            '<p style="margin-top:8px">Тіло — <b>JSON</b>: <code class="mini">' +
+            '{"text":"{{Питання}}"}</code>, де «Питання» — змінна з голосовим вводом.</p></div></div>' +
+          '<div><i>4</i><div><b>Винесіть на робочий стіл</b>' +
+            '<p>Довге натискання на запит → «Додати на головний екран». ' +
+            'Або повісьте на жест у налаштуваннях телефона.</p></div></div>' +
+        '</div>' +
+        '<div class="note" style="margin-bottom:0">Якщо возитись не хочеться — ' +
+        'просто диктуйте боту. Це той самий результат, лише на два дотики довше.</div>' +
+      '</div>' +
     '</div>' +
 
-    '<div class="card"><div class="card-h"><b>Ключ</b>' +
-      '<span>якщо кудись засвітився</span></div>' +
+    '<div class="card"><div class="card-h"><b>Ключ</b><span>якщо кудись засвітився</span></div>' +
       '<button class="btn sec" data-do="tokReset">Видати новий ключ</button>' +
-      '<div class="note" style="margin-bottom:0">Старий одразу перестане працювати — ' +
-      'не забудьте вписати новий у команду.</div></div>';
+      '<div class="note" style="margin-bottom:0">Старий одразу перестане працювати.</div></div>';
 }
 
 function loadToken(cb) {
@@ -3030,6 +3173,29 @@ var DO = {
 
   needPro: function (t) { needPro(t.dataset.w); },
 
+  noticeClose: function (t) {
+    markSeen('nt_' + t.dataset.id);
+    DIRTY['s-home'] = 0; drawHome();
+  },
+
+  tip: function () {
+    if (!CFG.usdt) { toast('Гаманець ще не вказано'); return; }
+    var sums = [3, 5, 10, 25];
+    openSheet('Підтримати розробника',
+      '<p style="margin:0 0 14px;font-size:13.5px;color:var(--ink2);line-height:1.6">' +
+      'Переказ у USDT, мережа TRC-20. Нічого не відкриває — це просто подяка.</p>' +
+      (CFG.usdt === QR_FOR ? '<div class="card" style="text-align:center">' +
+        '<img src="usdt-qr.png" alt="QR гаманця" ' +
+        'style="width:170px;max-width:55%;border-radius:16px;display:block;margin:0 auto 12px">' +
+        '<div class="addr">' + esc(CFG.usdt) + '</div></div>'
+        : '<div class="card"><div class="addr">' + esc(CFG.usdt) + '</div></div>') +
+      '<div class="tips">' + sums.map(function (v) {
+        return '<button data-do="sendSelf" data-w="wallet" data-amount="' + v + '">$' + v + '</button>';
+      }).join('') + '</div>' +
+      '<button class="btn sec" data-do="sendSelf" data-w="wallet">Надіслати адресу в бот</button>' +
+      '<div class="note" style="margin-bottom:0">Дякую. Серйозно.</div>');
+  },
+
   keyCopy: function (t) { copy(t.dataset.c); toast('Код скопійовано'); },
 
   docUnlock: function () {
@@ -3114,6 +3280,14 @@ var DO = {
   },
 
   tokCopy: function () { if (VTOKEN) { copy(VTOKEN.token); toast('Ключ скопійовано'); } },
+  openBot: function () {
+    var link = (REF && REF.link) ? REF.link.split('?')[0] : '';
+    try {
+      if (link && tg && tg.openTelegramLink) { tg.openTelegramLink(link); return; }
+      if (tg && tg.close) { tg.close(); return; }
+    } catch (e) {}
+    toast('Відкрийте чат із ботом і затисніть мікрофон');
+  },
   tokReset: function () {
     ask('Видати новий ключ?', 'Старий перестане працювати одразу. Доведеться вписати новий у команду.',
         'Видати', function () {
@@ -3122,6 +3296,10 @@ var DO = {
       });
     });
   },
+
+  welNext: function () { WEL = Math.min(WEL + 1, WELCOME.length - 1); drawWelcome(); haptic('light'); },
+  welBack: function () { WEL = Math.max(0, WEL - 1); drawWelcome(); },
+  welDone: function () { closeSheet(); DIRTY = {}; render(); },
 
   storyNext: function () { STORY = Math.min(STORY + 1, STORIES.length - 1); drawTour(); haptic('light'); },
   storyBack: function () { STORY = Math.max(0, STORY - 1); drawTour(); },
@@ -3534,6 +3712,12 @@ document.addEventListener('click', function (e) {
       var a = document.getElementById('rOdoBox'), b = document.getElementById('rDateBox');
       if (a) a.classList.toggle('hidden', !byOdo);
       if (b) b.classList.toggle('hidden', byOdo);
+    }
+    if (seg.parentNode.id === 'vTabs') {
+      var ios = seg.dataset.v === 'ios';
+      var a1 = document.getElementById('vIos'), a2 = document.getElementById('vAndroid');
+      if (a1) a1.classList.toggle('hidden', !ios);
+      if (a2) a2.classList.toggle('hidden', ios);
     }
     if (seg.parentNode.id === 'rPreset') {
       var pr = REM_PRESETS[+seg.dataset.v];

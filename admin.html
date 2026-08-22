@@ -56,7 +56,15 @@
     <div><b id="stU">—</b><small>усього</small></div>
     <div><b id="stP">—</b><small>преміум</small></div>
     <div><b id="stC">—</b><small>авто</small></div>
-    <div><b id="stD">—</b><small>активні</small></div>
+    <div><b id="stD">—</b><small>з авто</small></div>
+  </div>
+
+  <div class="card">
+    <div class="sect">Аналітика</div>
+    <div id="anaBox"><div class="note">Завантажую…</div></div>
+    <button class="btn sec" id="anaFresh" style="margin-top:12px">Перерахувати зараз</button>
+    <div class="note">Рахується раз на добу автоматично. «Перерахувати» пробігає
+      всіх користувачів — на великій базі це займе час.</div>
   </div>
 
   <div class="card">
@@ -118,6 +126,39 @@
       чи прийшов переказ, і тиснете потрібний строк — преміум вмикається сам, людині
       приходить повідомлення. Нічого більше робити не треба.<br><br>
       Свій ID дізнаєтесь так: напишіть боту <b>/id</b>.</div>
+  </div>
+
+  <div class="card">
+    <div class="sect">Оголошення в застосунку</div>
+    <div class="rw" style="display:block">
+      <div class="lb" style="margin-bottom:8px">Заголовок<small>Коротко, кілька слів</small></div>
+      <input type="text" id="ntTitle" style="text-align:left" placeholder="Оновлення"></div>
+    <div class="rw" style="display:block">
+      <div class="lb" style="margin-bottom:8px">Текст</div>
+      <textarea id="ntText" rows="3" placeholder="Що саме хочете сказати"
+        style="width:100%;padding:12px 14px;border-radius:14px;background:#171B19;border:1px solid #2A3235;color:#EEF2EC;font:inherit;resize:vertical"></textarea>
+    </div>
+    <div class="rw"><div class="lb">Кому</div>
+      <select id="ntWho" style="text-align:left">
+        <option value="all">Усім</option>
+        <option value="pro">Тільки з преміумом</option>
+        <option value="free">Тільки без преміуму</option>
+      </select></div>
+    <div class="rw"><div class="lb">Вигляд</div>
+      <select id="ntKind" style="text-align:left">
+        <option value="info">Звичайне</option>
+        <option value="good">Добра новина</option>
+        <option value="warn">Попередження</option>
+      </select></div>
+    <div style="display:flex;gap:9px;margin-top:12px">
+      <button class="btn" id="ntSave">Показати всім</button>
+      <button class="btn sec" id="ntClear">Прибрати</button>
+    </div>
+    <div class="msg ok hidden" id="ntOk" style="margin-top:10px"></div>
+    <div class="msg er hidden" id="ntEr" style="margin-top:10px"></div>
+    <div class="note">Зʼявиться смужкою вгорі головного екрана. Кожен закриває її
+      сам, і більше вона йому не показується. Активне оголошення одне.</div>
+    <div id="ntNow" style="margin-top:10px"></div>
   </div>
 
   <div class="card">
@@ -239,12 +280,18 @@ function load() {
   }).catch(function () { show('info', 'Не вдалося завантажити налаштування.', true); $('#info').className = 'msg er'; });
 }
 
-function stats() {
-  post('/admin/stats', {}).then(function (d) {
+function stats(fresh) {
+  post('/admin/stats', fresh ? { fresh: 1 } : {}).then(function (d) {
     if (!d.ok) return;
     $('#stU').textContent = d.users; $('#stP').textContent = d.pro;
     $('#stC').textContent = d.cars;  $('#stD').textContent = d.withData;
     if ($('#hPN')) $('#hPN').textContent = (d.paid || 0) + (d.revenue ? ' · $' + d.revenue : '');
+    drawAna(d.stats);
+    var nn = $('#ntNow');
+    if (nn) nn.innerHTML = d.notice
+      ? '<div class="msg inf">Зараз показується: <b>' + (d.notice.title || '') + '</b> — ' +
+        d.notice.text.slice(0, 90) + '</div>'
+      : '';
     var lg = $('#bcLog');
     if (lg && d.sendlog && d.sendlog.length) {
       lg.innerHTML = '<div class="lb" style="margin-bottom:6px">Останні розсилки</div>' +
@@ -339,6 +386,54 @@ function resetUser(mode, d) {
     stats();
   }).catch(function () { show('uEr', 'Сервер не відповідає.', true); });
 }
+
+function drawAna(st) {
+  if (!st) { $('#anaBox').innerHTML = '<div class="note">Поки нема даних.</div>'; return; }
+  var groups = [
+    ['Люди', [
+      ['Усього', st.users], ['З преміумом', st.pro],
+      ['Активні за тиждень', st.active7], ['Активні за місяць', st.active30],
+      ['Сплять понад місяць', st.sleeping],
+      ['Нових за тиждень', st.newWeek], ['Нових за місяць', st.newMonth],
+    ]],
+    ['Авто і записи', [
+      ['Авто всього', st.cars], ['З них електро', st.ev],
+      ['Людей з авто', st.withCars],
+      ['Записів сервісу', st.service], ['Заправок', st.fuel], ['Штрафів', st.fines],
+    ]],
+    ['Можливості', [
+      ['Документів', st.docs], ['Нагадувань', st.rem],
+      ['Перевірок VIN', st.vin], ['Звітів PDF', st.reports],
+      ['Ключів для ярлика', st.tokens], ['Приведено друзів', st.refs],
+    ]],
+  ];
+  $('#anaBox').innerHTML = groups.map(function (g) {
+    return '<div class="lb" style="margin:12px 0 6px">' + g[0] + '</div>' +
+      g[1].map(function (r) {
+        return '<div class="rw"><div class="lb">' + r[0] + '</div><b>' + (r[1] == null ? '—' : r[1]) + '</b></div>';
+      }).join('');
+  }).join('') + '<div class="note" style="margin-top:10px">Пораховано ' + (st.day || '—') + '</div>';
+}
+
+function notice(clear) {
+  show('ntOk', '', false); show('ntEr', '', false);
+  var body = clear ? { clear: true } : {
+    title: $('#ntTitle').value.trim(), text: $('#ntText').value.trim(),
+    who: $('#ntWho').value, kind: $('#ntKind').value,
+  };
+  if (!clear && body.text.length < 3) { show('ntEr', 'Напишіть текст.', true); return; }
+  post('/admin/notice', body).then(function (d) {
+    if (!d.ok) { show('ntEr', d.error || 'Не вдалося.', true); return; }
+    show('ntOk', clear ? 'Оголошення прибрано.' : 'Показується всім, кому призначили.', true);
+    stats();
+  }).catch(function () { show('ntEr', 'Сервер не відповідає.', true); });
+}
+$('#ntSave').addEventListener('click', function () { notice(false); });
+$('#ntClear').addEventListener('click', function () { notice(true); });
+$('#anaFresh').addEventListener('click', function () {
+  $('#anaBox').innerHTML = '<div class="note">Перераховую…</div>';
+  stats(true);
+});
 
 $('#uLook').addEventListener('click', function () {
   show('uOk', '', false); show('uEr', '', false); $('#uCard').innerHTML = '';

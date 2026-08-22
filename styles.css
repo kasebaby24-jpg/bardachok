@@ -73,7 +73,7 @@ input,select,textarea{-webkit-appearance:none;appearance:none}
 }
 .avaWrap{position:relative}
 
-.scroll{flex:1;overflow-y:auto;overflow-x:hidden;overscroll-behavior-y:contain;scroll-behavior:smooth;padding:2px 14px calc(104px + var(--safe-b));-webkit-overflow-scrolling:touch}
+.scroll{flex:1;overflow-y:auto;overflow-x:hidden;max-width:100%;overscroll-behavior-y:contain;scroll-behavior:smooth;padding:2px 14px calc(104px + var(--safe-b));-webkit-overflow-scrolling:touch}
 .scroll::-webkit-scrollbar{width:0}
 
 .screen{display:none}
@@ -110,7 +110,7 @@ input,select,textarea{-webkit-appearance:none;appearance:none}
 /* ---------------- картки ---------------- */
 .card{
   position:relative;background:#121517;border:1px solid var(--line);
-  border-radius:24px;padding:17px;
+  border-radius:24px;padding:17px;max-width:100%;overflow:hidden;
 }
 .card::before{
   content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;
@@ -172,8 +172,10 @@ input,select,textarea{-webkit-appearance:none;appearance:none}
 /* сповіщення */
 .alert{
   display:flex;gap:12px;align-items:flex-start;padding:15px;border-radius:19px;
-  background:var(--surf);border-left:3px solid var(--warn);
+  background:#121517;border-left:3px solid var(--warn);
+  max-width:100%;overflow:hidden;
 }
+.alert .bd b,.alert .bd p{overflow-wrap:anywhere}
 .alert+.alert{margin-top:9px}
 .alert.hot{border-left-color:var(--bad)}
 .alert.ok{border-left-color:var(--good)}
@@ -273,7 +275,9 @@ input,select,textarea{-webkit-appearance:none;appearance:none}
 .field input,.field select,.field textarea{
   width:100%;padding:14px 15px;border-radius:16px;background:var(--surf2);
   border:1.5px solid transparent;font-size:16px;font-weight:600;outline:none;
+  line-height:1.25;                     /* без цього каретка на iOS падає під текст */
 }
+.field input,.field select{height:52px}
 .field textarea{min-height:88px;resize:vertical;font-weight:500;font-size:15px;line-height:1.5}
 .field input::placeholder,.field textarea::placeholder{color:#5C6A66;font-weight:500}
 .field input:focus,.field select:focus,.field textarea:focus{border-color:var(--lime);background:var(--surf3)}
@@ -320,17 +324,22 @@ input,select,textarea{-webkit-appearance:none;appearance:none}
 .bub.typing i:nth-child(3){animation-delay:.36s}
 @keyframes dot{0%,60%,100%{opacity:.25;transform:translateY(0)}30%{opacity:1;transform:translateY(-3px)}}
 
-.chat-bar{display:flex;gap:9px;align-items:flex-end;margin-top:14px}
+.chat-bar{
+  display:flex;gap:9px;align-items:center;margin-top:14px;
+  position:sticky;bottom:0;z-index:5;padding:8px 0 4px;
+  background:linear-gradient(180deg,transparent,var(--ground) 22%);
+}
 .chat-bar textarea{
   flex:1;min-width:0;padding:13px 16px;border-radius:19px;background:var(--surf2);
   border:1.5px solid transparent;font-size:15px;line-height:1.4;resize:none;outline:none;
-  font-family:var(--body);max-height:120px;color:var(--ink);
+  font-family:var(--body);max-height:120px;min-height:48px;color:var(--ink);
+  line-height:20px;display:block;
 }
 .chat-bar textarea:focus{border-color:var(--lime);background:var(--surf3)}
 .chat-bar textarea::placeholder{color:#5C6A66}
 .chat-bar textarea[disabled]{opacity:.5}
 .chat-bar .send{
-  width:46px;height:46px;flex:0 0 46px;border-radius:16px;background:var(--lime);
+  width:48px;height:48px;flex:0 0 48px;border-radius:16px;background:var(--lime);
   display:grid;place-items:center;transition:.14s;
 }
 .chat-bar .send .icn{color:#10130E;stroke-width:2}
@@ -388,12 +397,60 @@ input,select,textarea{-webkit-appearance:none;appearance:none}
   background:var(--bad);box-shadow:0 0 0 2px rgba(18,21,23,.9)}
 
 /* завантаження */
-.boot{position:fixed;inset:0;display:grid;place-items:center;background:var(--ground);z-index:200;z-index:200;text-align:center;padding:24px}
-.boot .lg{font-family:var(--disp);font-weight:800;font-size:26px;letter-spacing:-.03em}
+.boot{
+  position:fixed;inset:0;display:grid;place-items:center;background:var(--ground);
+  z-index:200;text-align:center;padding:24px;
+}
+.boot .lg{
+  font-family:var(--disp);font-weight:800;font-size:26px;letter-spacing:-.03em;
+  animation:rise .5s cubic-bezier(.16,1,.3,1) .5s both;
+}
 .boot .lg em{font-style:normal;color:var(--lime)}
-.boot p{color:var(--mut);font-size:13px;margin:10px 0 0;line-height:1.55;max-width:300px}
-.spin{width:26px;height:26px;border-radius:50%;border:2.5px solid var(--surf3);border-top-color:var(--lime);animation:sp .8s linear infinite;margin:18px auto 0}
-@keyframes sp{to{transform:rotate(360deg)}}
+.boot p{
+  color:var(--mut);font-size:13px;margin:10px 0 0;line-height:1.55;max-width:300px;
+  animation:rise .5s cubic-bezier(.16,1,.3,1) .65s both;
+}
+.boot.gone{animation:bootOut .35s ease forwards}
+@keyframes bootOut{to{opacity:0;transform:scale(1.04)}}
+
+/* заставка: бардачок відкривається, звідти виїжджають картки */
+.bootart{width:190px;height:142px;display:block;margin:0 auto 10px}
+.bootart .b-box{fill:#12160F;stroke:var(--line);stroke-width:1.5}
+.bootart .b-lid rect{fill:#1A1F18;stroke:var(--line);stroke-width:1.5}
+.bootart .b-handle{fill:var(--mut);stroke:none}
+.bootart .b-lid{transform-origin:100px 118px;animation:bLid 2.6s cubic-bezier(.5,0,.3,1) .25s infinite}
+.bootart .b-card rect{stroke:none}
+.bootart .b-c1 rect{fill:var(--lime)}
+.bootart .b-c2 rect{fill:#EDF2E6}
+.bootart .b-c3 rect{fill:#9BE7C4}
+.bootart .b-card{opacity:0}
+.bootart .b-c1{animation:bCard 2.6s cubic-bezier(.2,.9,.25,1) .5s infinite}
+.bootart .b-c2{animation:bCard2 2.6s cubic-bezier(.2,.9,.25,1) .66s infinite}
+.bootart .b-c3{animation:bCard3 2.6s cubic-bezier(.2,.9,.25,1) .82s infinite}
+@keyframes bLid{
+  0%,10%{transform:translateY(0) scaleY(1)}
+  30%,72%{transform:translateY(11px) scaleY(.3)}
+  92%,100%{transform:translateY(0) scaleY(1)}
+}
+@keyframes bCard{
+  0%,16%{opacity:0;transform:translateY(6px)}
+  34%,70%{opacity:1;transform:translateY(-14px)}
+  86%,100%{opacity:0;transform:translateY(6px)}
+}
+@keyframes bCard2{
+  0%,16%{opacity:0;transform:translateY(6px) rotate(0)}
+  34%,70%{opacity:1;transform:translateY(-31px) rotate(-4deg)}
+  86%,100%{opacity:0;transform:translateY(6px) rotate(0)}
+}
+@keyframes bCard3{
+  0%,16%{opacity:0;transform:translateY(6px) rotate(0)}
+  34%,70%{opacity:1;transform:translateY(-46px) rotate(3.5deg)}
+  86%,100%{opacity:0;transform:translateY(6px) rotate(0)}
+}
+@media (prefers-reduced-motion:reduce){
+  .bootart .b-lid,.bootart .b-card{animation:none}
+  .bootart .b-card{opacity:1}
+}
 
 /* ---------------- знайомство: сторіз ---------------- */
 .st-wrap{display:flex;flex-direction:column;min-height:calc(100vh - 190px);padding-top:4px}
@@ -671,3 +728,111 @@ input,select,textarea{-webkit-appearance:none;appearance:none}
 .wxd b{display:block;font-family:var(--disp);font-weight:800;font-size:17px;letter-spacing:-.02em}
 .wxd i{display:block;font-style:normal;font-size:11px;color:var(--mut);margin-top:2px}
 .wxd.on i{color:rgba(16,19,14,.55)}
+
+/* золотий замочок біля преміальних можливостей */
+.lock{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:18px;height:18px;border-radius:6px;margin-left:6px;vertical-align:-3px;
+  background:linear-gradient(150deg,#FFD86B,#E8A93C);
+}
+.lock .icn{color:#4A3400;stroke-width:2.4}
+.promo .lock{background:linear-gradient(150deg,#FFE18C,#F0B845)}
+
+/* суми подяки */
+.tips{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:12px 0}
+.tips button{
+  background:var(--surf2);border:1px solid var(--line);border-radius:15px;padding:14px 4px;
+  font-family:var(--disp);font-weight:800;font-size:16px;color:var(--ink);
+}
+.tips button:active{background:var(--lime);color:#10130E}
+
+/* приклади голосових фраз */
+.say{
+  background:var(--surf2);border-radius:16px 16px 16px 6px;padding:11px 14px;margin-bottom:7px;
+  font-size:13.5px;color:var(--ink2);
+}
+.say:last-of-type{margin-bottom:0}
+
+/* галочка у привітанні */
+.wel-check{
+  width:80px;height:80px;margin:0 auto;border-radius:50%;background:#10130E;
+  display:grid;place-items:center;animation:popIn .5s cubic-bezier(.34,1.5,.64,1) both;
+}
+.wel-check .icn{color:var(--lime);stroke-width:2.6}
+@keyframes popIn{from{opacity:0;transform:scale(.5)}}
+
+/* оголошення від власника застосунку */
+.notice{
+  display:flex;gap:12px;align-items:flex-start;margin:12px 0 4px;padding:14px 15px;
+  border-radius:20px;background:rgba(215,255,62,.10);border:1px solid rgba(215,255,62,.24);
+  animation:rise .35s cubic-bezier(.16,1,.3,1) both;
+}
+.notice.warn{background:rgba(255,179,64,.10);border-color:rgba(255,179,64,.28)}
+.notice.good{background:rgba(62,213,152,.10);border-color:rgba(62,213,152,.28)}
+.notice .tx{flex:1;min-width:0}
+.notice .tx b{display:block;font-size:13.5px;font-weight:700;margin-bottom:3px}
+.notice .tx p{margin:0;font-size:12.5px;color:var(--ink2);line-height:1.5;overflow-wrap:anywhere}
+.notice span{flex:0 0 auto;color:var(--mut);font-size:18px;line-height:1;padding:2px 0 0 4px}
+
+/* як саме захищені документи */
+.safe{display:grid;gap:11px;margin:4px 0 14px}
+.safe>div{display:flex;gap:10px;align-items:flex-start}
+.safe i{
+  flex:0 0 26px;width:26px;height:26px;border-radius:9px;background:rgba(215,255,62,.14);
+  display:grid;place-items:center;font-style:normal;
+}
+.safe i .icn{color:var(--lime)}
+.safe span{font-size:12.5px;color:var(--mut);line-height:1.45}
+.safe span b{color:var(--ink2);font-weight:600}
+
+/* ---------------- картка авто ---------------- */
+.cc-top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+.cc-go{
+  width:34px;height:34px;flex:0 0 34px;border-radius:50%;display:grid;place-items:center;
+  background:rgba(14,18,7,.14);transition:.16s;
+}
+.cc-go .icn{color:#0E1207;stroke-width:2}
+.cc-go:active{transform:scale(.92);background:rgba(14,18,7,.24)}
+.carcard h3{margin:0 0 8px}
+.cc-specs{display:flex;flex-wrap:wrap;gap:6px}
+.cc-specs span{
+  background:rgba(14,18,7,.13);border-radius:9px;padding:5px 10px;
+  font-size:11.5px;font-weight:600;color:rgba(14,18,7,.78);
+}
+.cc-odo{
+  display:flex;align-items:center;gap:5px;background:rgba(14,18,7,.9);color:var(--lime);
+  padding:10px 14px;border-radius:14px;font-size:12.5px;font-weight:700;transition:.16s;
+}
+.cc-odo .icn{color:var(--lime);stroke-width:2.4}
+.cc-odo:active{transform:scale(.95)}
+.carcard .odo{margin-top:16px;align-items:flex-end}
+.carcard .odo small{max-width:190px;white-space:normal;line-height:1.3}
+
+/* ---------------- плашка повідомлень ---------------- */
+.toast{
+  position:fixed;left:16px;right:16px;bottom:calc(96px + var(--safe-b));z-index:150;
+  max-width:420px;margin:0 auto;padding:14px 18px;border-radius:18px;
+  background:rgba(24,28,26,.94);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+  border:1px solid rgba(255,255,255,.09);color:var(--ink);
+  font-size:13.5px;line-height:1.45;text-align:center;
+  box-shadow:0 16px 36px -14px rgba(0,0,0,.8);
+  opacity:0;transform:translate3d(0,14px,0);pointer-events:none;
+  transition:opacity .26s cubic-bezier(.16,1,.3,1),transform .26s cubic-bezier(.16,1,.3,1);
+}
+.toast.on{opacity:1;transform:translate3d(0,0,0)}
+.toast.er{border-color:rgba(255,90,74,.4);color:#FFB3AA}
+.toast.ok{border-color:rgba(215,255,62,.4);color:var(--lime)}
+
+/* ---------------- заготовка завантаження ---------------- */
+.sk{overflow:hidden}
+.sk-l{
+  height:13px;border-radius:7px;margin-bottom:11px;
+  background:linear-gradient(90deg,var(--surf2) 25%,var(--surf3) 50%,var(--surf2) 75%);
+  background-size:220% 100%;animation:shimmer 1.25s linear infinite;
+}
+.sk-l:last-child{margin-bottom:0}
+.sk-l.w60{width:60%}
+.sk-l.w90{width:90%}
+.sk-l.w40{width:40%}
+@keyframes shimmer{to{background-position:-120% 0}}
+@media (prefers-reduced-motion:reduce){.sk-l{animation:none}}
