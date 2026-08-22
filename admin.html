@@ -98,6 +98,19 @@
   </div>
 
   <div class="card">
+    <div class="sect">Оплата в USDT</div>
+    <div class="rw"><div class="lb">Гаманець TRC-20<small>На нього переказують</small></div>
+      <input type="text" id="usdtAddress" style="text-align:left"></div>
+    <div class="rw"><div class="lb">Ваш Telegram ID<small>Сюди бот пише про оплати</small></div>
+      <input type="text" id="adminId" style="text-align:left" placeholder="123456789"></div>
+    <div class="note"><b>Як це працює.</b> Людина тисне «Я оплатив» — вам у бот приходить
+      повідомлення з її номером, тарифом і сумою, а під ним кнопки. Дивитесь у Trust Wallet,
+      чи прийшов переказ, і тиснете потрібний строк — преміум вмикається сам, людині
+      приходить повідомлення. Нічого більше робити не треба.<br><br>
+      Свій ID дізнаєтесь так: напишіть боту <b>/id</b>.</div>
+  </div>
+
+  <div class="card">
     <div class="sect">Повідомлення користувачам</div>
     <div class="rw" style="display:block">
       <div class="lb" style="margin-bottom:8px">Текст<small>Можна жирний &lt;b&gt;так&lt;/b&gt; і посилання &lt;a href="…"&gt;текст&lt;/a&gt;</small></div>
@@ -166,7 +179,7 @@
 var API = 'https://bardachok.kasebaby24.workers.dev';
 
 var NUM = ['premiumMonth','premiumHalf','premiumYear','freeCars','remindInsurance','remindService','oilInterval'];
-var TXT = ['contactTg','wfpMerchant','wfpDomain'];
+var TXT = ['contactTg','wfpMerchant','wfpDomain','usdtAddress','adminId'];
 var KEY = '';
 var $ = function (s) { return document.querySelector(s); };
 function show(id, t, on) { var e = $('#' + id); e.textContent = t || ''; e.classList.toggle('hidden', !on); }
