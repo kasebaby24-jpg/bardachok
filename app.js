@@ -12,6 +12,9 @@ var API = 'https://bardachok.kasebaby24.workers.dev';
 
 var QR_FOR = 'TWqHKxsLAdGMPC7kY4i3r2GQxNJ2U6vQXv';   // до цієї адреси намальовано usdt-qr.png
 
+var BUILD = '20260822-2150';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
+var BOOT_T0 = Date.now();
+
 var tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
 
 var S    = null;   // дані користувача з сервера
@@ -1222,7 +1225,7 @@ function drawMore() {
   h += '<div class="promo" style="margin-top:12px">' +
     '<b>Передайте далі — <em>і місяць ваш</em></b>' +
     '<p>За кожного, хто приєднається за вашим посиланням, вам +30 днів Преміуму. ' +
-    'Одразу, без умов. Друг отримає свій місяць так само — коли приведе когось сам.</p>' +
+    'Одразу і без умов. Скільки людей — стільки й місяців.</p>' +
     (REF.count
       ? '<div class="kv" style="border:0;padding:0 0 12px"><span>Уже привели</span><b>' +
         REF.count + ' ' + plural(REF.count, 'людину', 'людей', 'людей') + ' · +' +
@@ -1241,6 +1244,8 @@ function drawMore() {
     'Бардачок робить одна людина. Якщо застосунок вам допоміг — можна закинути ' +
     'скільки не шкода. Це не підписка й нічого не відкриває, просто дякую.</p>' +
     '<button class="btn sec" data-do="tip">Закинути на каву</button></div>';
+
+  h += '<div class="note" style="text-align:center;opacity:.5">Версія ' + BUILD + '</div>';
 
   h += '<div class="note">Бардачок не замінює механіка й не є юридичною консультацією. ' +
        'Дати й суми ви вносите самі — я лише стежу, щоб нічого не забулось.</div>';
@@ -1568,21 +1573,14 @@ function rpPages(car) {
   }
   y += 26;
 
-  /* ---- силует авто ---- */
-  {
-    var bw = RP_W - RP_M * 2, bh = 250;
-    room(bh + 24);
-    x.fillStyle = '#F5F7F2'; rrect(RP_M, y, bw, bh, 22); x.fill();
-    var sv = silSvg(car.body || guessCar(car.make, car.model).body || 'sedan', '#0F1310', '#F5F7F2');
-    var img2 = new Image();
-    var blob = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(
-      sv.replace('<svg class="sil"', '<svg xmlns="http://www.w3.org/2000/svg"'));
-    if (window.__silImg && window.__silImg.src === blob) {
-      var iw2 = bw * 0.72, ih2 = iw2 * 80 / 200;
-      x.drawImage(window.__silImg, RP_M + (bw - iw2) / 2, y + (bh - ih2) / 2, iw2, ih2);
-    }
-    y += bh + 14;
+  /* ---- силует авто: невеликий, у верхньому куті ---- */
+  if (window.__silImg) {
+    var iw2 = 260, ih2 = iw2 * 80 / 200;
+    x.save(); x.globalAlpha = 0.9;
+    x.drawImage(window.__silImg, RP_W - RP_M - iw2, 176, iw2, ih2);
+    x.restore();
   }
+  y += 10;
 
   /* ---- ключове ---- */
   h2('Коротко');
@@ -1679,7 +1677,10 @@ var PAY_TIMER = null;
 function watchPayment() {
   if (PAY_TIMER) clearTimeout(PAY_TIMER);
   var tries = 0;
-  var delays = [4000, 4000, 5000, 6000, 8000, 10000, 15000, 20000, 30000, 30000, 60000, 60000];
+  /* перші три хвилини перевіряємо часто — саме там людина чекає */
+  var delays = [];
+  for (var i = 0; i < 60; i++) delays.push(3000);
+  for (var j = 0; j < 30; j++) delays.push(10000);
 
   function tick() {
     api('/api/pay-check', {}).then(function (d) {
@@ -1767,6 +1768,16 @@ function drawWelcome() {
           (w.last ? 'Почати користуватись' : 'Далі') + '</button>' +
       '</div>' +
     '</div>');
+}
+
+/* Преміум могли увімкнути, поки застосунок був закритий. Порівнюємо з тим,
+   що бачили минулого разу, і вітаємо один раз. */
+function checkNewPremium() {
+  var was = '';
+  try { was = localStorage.getItem('b_pro') || ''; } catch (e) {}
+  var now = PRO ? (S.premiumUntil || '1') : '';
+  try { localStorage.setItem('b_pro', now); } catch (e) {}
+  if (now && now !== was) setTimeout(function () { premiumWelcome(S.premiumUntil); }, 700);
 }
 
 function paywallHtml(what) {
@@ -2309,12 +2320,23 @@ function docShoot() {
   var kind = on ? on.dataset.v : 'other';
   var title = val('dTitle');
 
+  /* Поле мусить бути в самій сторінці. Відірваний від документа input
+     у вебперегляді Telegram на iPhone просто не повідомляє про вибір —
+     людина обирає фото, і нічого не відбувається. */
+  var old = document.getElementById('docFile');
+  if (old) old.remove();
   var inp = document.createElement('input');
+  inp.id = 'docFile';
   inp.type = 'file'; inp.accept = 'image/*';
+  inp.style.cssText = 'position:fixed;left:-9999px;width:1px;height:1px;opacity:0';
+  document.body.appendChild(inp);
+
   inp.onchange = function () {
     var f = inp.files && inp.files[0];
-    if (!f) return;
+    if (!f) { inp.remove(); return; }
+    toast('Обробляю знімок…');
     var fr = new FileReader();
+    fr.onerror = function () { toast('Не вдалося прочитати файл', 'er'); inp.remove(); };
     fr.onload = function () {
       var img = new Image();
       img.onload = function () {
@@ -2350,11 +2372,13 @@ function docShoot() {
             return;
           }
           DOCS = d.docs || [];
-          closeSheet(); drawDocs(); haptic('medium');
+          inp.remove();
+          closeSheet(); DIRTY['s-docs'] = 0; drawDocs(); haptic('medium');
+          toast('Документ у бардачку', 'ok');
         }).catch(function () { toast('Немає зв’язку'); });
         });
       };
-      img.onerror = function () { toast('Не вдалося прочитати знімок'); };
+      img.onerror = function () { toast('Не вдалося прочитати знімок', 'er'); inp.remove(); };
       img.src = fr.result;
     };
     fr.readAsDataURL(f);
@@ -3180,19 +3204,17 @@ var DO = {
 
   tip: function () {
     if (!CFG.usdt) { toast('Гаманець ще не вказано'); return; }
-    var sums = [3, 5, 10, 25];
     openSheet('Підтримати розробника',
       '<p style="margin:0 0 14px;font-size:13.5px;color:var(--ink2);line-height:1.6">' +
-      'Переказ у USDT, мережа TRC-20. Нічого не відкриває — це просто подяка.</p>' +
+      'Переказ у USDT, мережа TRC-20. Скільки не шкода — фіксованої суми немає. ' +
+      'Нічого не відкриває, це просто подяка.</p>' +
       (CFG.usdt === QR_FOR ? '<div class="card" style="text-align:center">' +
         '<img src="usdt-qr.png" alt="QR гаманця" ' +
         'style="width:170px;max-width:55%;border-radius:16px;display:block;margin:0 auto 12px">' +
         '<div class="addr">' + esc(CFG.usdt) + '</div></div>'
         : '<div class="card"><div class="addr">' + esc(CFG.usdt) + '</div></div>') +
-      '<div class="tips">' + sums.map(function (v) {
-        return '<button data-do="sendSelf" data-w="wallet" data-amount="' + v + '">$' + v + '</button>';
-      }).join('') + '</div>' +
-      '<button class="btn sec" data-do="sendSelf" data-w="wallet">Надіслати адресу в бот</button>' +
+      '<button class="btn" data-do="sendSelf" data-w="wallet">Надіслати адресу в бот</button>' +
+      '<button class="btn sec" data-do="copyAddr" data-a="' + esc(CFG.usdt) + '">Скопіювати адресу</button>' +
       '<div class="note" style="margin-bottom:0">Дякую. Серйозно.</div>');
   },
 
@@ -3797,9 +3819,18 @@ function start() {
       return;
     }
     S = d.data; PRO = d.premium; CFG = d.cfg || {}; REF = d.ref || {};
-    $('#boot').classList.add('hidden');
-    $('#app').classList.remove('hidden');
-    render();
+
+    /* даємо заставці показатись хоча б раз — інакше вона блимає й це
+       виглядає як збій, а не як анімація */
+    var left = Math.max(0, 1500 - (Date.now() - BOOT_T0));
+    setTimeout(function () {
+      var b = $('#boot');
+      b.classList.add('gone');
+      setTimeout(function () { b.classList.add('hidden'); }, 340);
+      $('#app').classList.remove('hidden');
+      render();
+      checkNewPremium();
+    }, left);
   }).catch(function () {
     bootFail('Немає зв’язку із сервером.<br>Перевірте інтернет і спробуйте ще раз.');
   });
