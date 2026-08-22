@@ -12,7 +12,7 @@ var API = 'https://bardachok.kasebaby24.workers.dev';
 
 var QR_FOR = 'TWqHKxsLAdGMPC7kY4i3r2GQxNJ2U6vQXv';   // до цієї адреси намальовано usdt-qr.png
 
-var BUILD = '20260822-2307';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
+var BUILD = '20260822-2355';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
 var BOOT_T0 = Date.now();
 
 var tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
@@ -2804,8 +2804,9 @@ function drawPlate() {
           (!CFG.plates ? 'ще не підключено' : PRO ? 'державний реєстр' : 'у Преміумі') +
           '</small></div></div>' +
       '<p style="margin:0 0 13px;font-size:12.5px;color:var(--mut);line-height:1.5">' +
-        'Марка, модель, рік, обʼєм, колір і тип кузова за номерним знаком. ' +
-        'Зручно перед оглядом авто — видно, чи збігається з оголошенням.</p>' +
+        'Марка, модель, рік, обʼєм двигуна, колір, регіон і дата останньої ' +
+        'реєстрації. Зручно перед оглядом авто — видно, чи збігається з оголошенням, ' +
+        'і чи не числиться авто в розшуку.</p>' +
       '<div class="field"><input id="plIn" type="text" placeholder="АА1234ВВ" maxlength="10" autocomplete="off"></div>' +
       '<button class="btn" data-do="plateGo">Знайти' + (PRO ? '' : lockIc()) + '</button>' +
     '</div>' +
@@ -2819,25 +2820,45 @@ function drawPlate() {
 }
 
 function plateCard(c) {
-  return (c.photo
-      ? '<div class="vin-model" style="background-image:url(' + esc(c.photo) + ')"></div>' +
-        '<div class="vin-credit">' + (c.photoFrom === 'Вікіпедія'
-          ? 'Так виглядає ця модель · фото з Вікіпедії'
-          : 'Фото з реєстру') + '</div>'
-      : '') +
-    (c.isStolen ? '<div class="msg er">Це авто числиться в розшуку. Будьте обережні.</div>' : '') +
-    '<div class="card"><div class="h3">' + esc(c.plate) + '</div>' +
-      kv('Авто', [c.year, c.make, c.model].filter(Boolean).join(' ')) +
-      kv('Кузов', c.body) + kv('Колір', c.color) +
-      kv('Паливо', c.fuel) +
-      kv('Обʼєм', c.engine ? c.engine + ' см³' : '') +
-      kv('Споряджена маса', c.weight ? c.weight + ' кг' : '') +
-      kv('VIN', c.vin) +
-      kv('Регіон', c.region) +
-      kv('Остання операція', [c.operation, c.date].filter(Boolean).join(' · ')) +
-    '</div>' +
-    (c.vin ? '<button class="btn sec" data-do="plateToVin" data-vin="' + esc(c.vin) + '">' +
-      'Перевірити цей VIN' + '</button>' : '');
+  var h = '';
+
+  if (c.photo)
+    h += '<div class="vin-model" style="background-image:url(' + esc(c.photo) + ')"></div>' +
+         '<div class="vin-credit">' +
+         (c.photoFrom === 'Вікіпедія' ? 'Так виглядає ця модель · фото з Вікіпедії'
+                                      : 'Фото моделі з каталогу реєстру') + '</div>';
+
+  if (c.isStolen)
+    h += '<div class="msg er"><b>Авто числиться в розшуку.</b>' +
+         (c.stolen && c.stolen.date ? ' Заявлено ' + esc(c.stolen.date) + '.' : '') +
+         ' Будьте обережні й не поспішайте з завдатком.</div>';
+
+  h += '<div class="card"><div class="h3">' + esc(c.plate) + '</div>' +
+    kv('Авто', [c.year, c.make, c.model].filter(Boolean).join(' ')) +
+    kv('Колір', c.color) +
+    kv('Тип', [c.kind, c.body].filter(Boolean).join(' · ')) +
+    kv('Обʼєм двигуна', c.engine ? nfmt(c.engine) + ' см³' : '') +
+    kv('Регіон', c.region) +
+    kv('VIN', c.vin) +
+    '</div>';
+
+  if (c.date || c.operation)
+    h += '<div class="card"><div class="h3">Остання реєстрація</div>' +
+      kv('Дата', c.date) +
+      kv('Що саме', c.opGroup || c.operation) +
+      kv('Підрозділ', c.dept) +
+      (c.ops > 1 ? '<div class="kv"><span>Реєстрацій усього</span><b>' + c.ops + '</b></div>' : '') +
+      '</div>';
+
+  if (!c.vin)
+    h += '<div class="note">VIN у відкритій частині реєстру є лише для авто, ' +
+         'зареєстрованих з 2021 року. Для старіших його не показують — це не помилка.</div>';
+
+  if (c.vin)
+    h += '<button class="btn sec" data-do="plateToVin" data-vin="' + esc(c.vin) + '">' +
+         'Перевірити цей VIN</button>';
+
+  return h;
 }
 
 /* ------------------------------------------------------------------ */
@@ -3316,14 +3337,21 @@ var DO = {
 
   plateGo: function () {
     if (!PRO) { needPro('plate'); return; }
-    var v = val('plIn');
     var out = document.getElementById('plOut');
+    if (!CFG.plates) {
+      out.innerHTML = '<div class="msg er">Джерело даних поки не підключене — ' +
+        'пошук за номером тимчасово не працює.</div>';
+      return;
+    }
+    var v = val('plIn');
     if (!v) { out.innerHTML = '<div class="msg er">Впишіть номерний знак.</div>'; return; }
     out.innerHTML = '<div class="msg inf">Шукаю…</div>';
     api('/api/plate', { plate: v }).then(function (d) {
       if (!d.ok) {
         if (d.error === 'premium') { out.innerHTML = ''; needPro('plate'); return; }
-        out.innerHTML = '<div class="msg er">' + esc(d.error || 'Не вдалося') + '</div>';
+        /* показуємо людський текст, а не службовий код помилки */
+        out.innerHTML = '<div class="msg er">' +
+          esc(d.message || d.error || 'Не вдалося виконати пошук.') + '</div>';
         return;
       }
       if (!d.car) { out.innerHTML = '<div class="msg er">' +
