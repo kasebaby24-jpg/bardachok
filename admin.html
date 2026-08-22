@@ -170,6 +170,7 @@
     <div class="rw"><div class="lb">AI (голос і питання)</div><b id="hA">—</b></div>
     <div class="rw"><div class="lb">Оплата карткою</div><b id="hPC">—</b></div>
     <div class="rw"><div class="lb">Оплата криптою</div><b id="hPY">—</b></div>
+    <div class="rw"><div class="lb">Пошук за номером</div><b id="hPL">—</b></div>
     <div class="rw"><div class="lb">Успішних оплат</div><b id="hPN">—</b></div>
   </div>
 </div>
@@ -214,6 +215,7 @@ function doLogin() {
       $('#hA').textContent = d.ai ? 'увімкнено' : 'вимкнено';
       $('#hPC').textContent = d.payCard ? 'ключ є' : 'нема ключа WFP_SECRET';
       $('#hPY').textContent = d.payCrypto ? 'ключ є' : 'нема ключа CRYPTO_TOKEN';
+      $('#hPL').textContent = d.plates ? 'ключ є' : 'нема ключа PLATE_TOKEN — розділ прихований';
       load(); stats();
     })
     .catch(function () { $('#login').disabled = false; show('gErr', 'Сервер не відповідає.', true); });

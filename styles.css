@@ -73,12 +73,11 @@ input,select,textarea{-webkit-appearance:none;appearance:none}
 }
 .avaWrap{position:relative}
 
-.scroll{flex:1;overflow-y:auto;overflow-x:hidden;padding:2px 14px calc(104px + var(--safe-b));-webkit-overflow-scrolling:touch}
+.scroll{flex:1;overflow-y:auto;overflow-x:hidden;overscroll-behavior-y:contain;scroll-behavior:smooth;padding:2px 14px calc(104px + var(--safe-b));-webkit-overflow-scrolling:touch}
 .scroll::-webkit-scrollbar{width:0}
 
 .screen{display:none}
-.screen.on{display:block;animation:fade .3s cubic-bezier(.22,.7,.2,1)}
-@keyframes fade{from{opacity:0;transform:translateY(9px)}}
+.screen.on{display:block}
 @media (prefers-reduced-motion:reduce){.screen.on{animation:none}}
 
 /* ---------------- типографіка ---------------- */
@@ -110,9 +109,8 @@ input,select,textarea{-webkit-appearance:none;appearance:none}
 
 /* ---------------- картки ---------------- */
 .card{
-  position:relative;background:var(--glass);border:1px solid var(--line);
+  position:relative;background:#121517;border:1px solid var(--line);
   border-radius:24px;padding:17px;
-  backdrop-filter:blur(22px) saturate(1.25);-webkit-backdrop-filter:blur(22px) saturate(1.25);
 }
 .card::before{
   content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;
@@ -209,7 +207,7 @@ input,select,textarea{-webkit-appearance:none;appearance:none}
 
 .quick{display:grid;grid-template-columns:repeat(4,1fr);gap:9px}
 .quick button{
-  background:var(--glass);border:1px solid var(--line);border-radius:18px;padding:14px 4px 11px;
+  background:#121517;border:1px solid var(--line);border-radius:18px;padding:14px 4px 11px;
   display:flex;flex-direction:column;align-items:center;gap:6px;
   font-size:10.5px;color:var(--ink2);font-weight:600;transition:.14s;
 }
@@ -301,7 +299,7 @@ input,select,textarea{-webkit-appearance:none;appearance:none}
 .chat-empty p{margin:0 0 14px;font-size:13.5px;color:var(--mut);line-height:1.55}
 .hints{display:flex;flex-direction:column;gap:8px}
 .hint{
-  text-align:left;padding:13px 15px;border-radius:16px;background:var(--glass);border:1px solid var(--line);
+  text-align:left;padding:13px 15px;border-radius:16px;background:#121517;border:1px solid var(--line);
   font-size:13.5px;font-weight:500;color:var(--ink2);line-height:1.4;transition:.14s;width:100%;
 }
 .hint:active{transform:scale(.985);background:var(--surf2)}
@@ -368,7 +366,7 @@ input,select,textarea{-webkit-appearance:none;appearance:none}
   box-shadow:0 18px 40px -12px rgba(0,0,0,.75);
 }
 .nav button{
-  display:flex;flex-direction:column;align-items:center;gap:6px;padding:9px 2px 7px;
+  display:flex;flex-direction:column;align-items:center;gap:7px;padding:8px 2px 8px;
   border-radius:22px;color:var(--mut);font-size:9.5px;font-weight:600;position:relative;
   transition:color .2s, transform .2s;
 }
@@ -381,7 +379,7 @@ input,select,textarea{-webkit-appearance:none;appearance:none}
 .nav button.on span{color:var(--lime);font-weight:700}
 .nav button.on svg{transform:scale(1.04)}
 .nav button.on::before{
-  content:'';position:absolute;left:50%;top:5px;width:37px;height:37px;margin-left:-18.5px;
+  content:'';position:absolute;left:50%;top:4px;width:34px;height:34px;margin-left:-17px;
   border-radius:50%;background:linear-gradient(150deg,var(--lime),var(--lime2));z-index:-1;
   animation:navpop .32s cubic-bezier(.34,1.56,.64,1);
 }
@@ -444,7 +442,11 @@ input,select,textarea{-webkit-appearance:none;appearance:none}
   margin-top:12px;font-size:12.5px;line-height:1.5;color:var(--mut);
   border-left:2px solid var(--lime);padding-left:12px;
 }
-.st-foot{display:flex;gap:9px;align-items:center;margin-top:20px}
+.st-tap{position:absolute;top:60px;bottom:110px;width:34%;z-index:2}
+.st-tap.left{left:0}
+.st-tap.right{right:0}
+.st-wrap{position:relative}
+.st-foot{position:relative;z-index:3;display:flex;gap:9px;align-items:center;margin-top:20px}
 .st-foot .btn{margin:0;flex:1}
 .st-back{
   width:50px;height:50px;flex:0 0 50px;border-radius:16px;background:var(--surf);
@@ -480,7 +482,7 @@ input,select,textarea{-webkit-appearance:none;appearance:none}
 
 /* ---------------- панель приладів: плитки, фільтр, графік ---------------- */
 .pills{
-  display:flex;gap:6px;padding:5px;border-radius:20px;background:var(--glass);border:1px solid var(--line);
+  display:flex;gap:6px;padding:5px;border-radius:20px;background:#121517;border:1px solid var(--line);
   margin-bottom:12px;overflow-x:auto;
 }
 .pills::-webkit-scrollbar{height:0}
@@ -525,9 +527,8 @@ input,select,textarea{-webkit-appearance:none;appearance:none}
 
 .tiles{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:10px}
 .tile{
-  position:relative;background:var(--glass);border:1px solid var(--line);
+  position:relative;background:#121517;border:1px solid var(--line);
   border-radius:22px;padding:15px 16px 13px;
-  backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
 }
 .tile.acc{background:var(--lime);color:#10130E}
 .tile small{display:block;font-size:11.5px;color:var(--mut);margin-bottom:5px;font-weight:600}
@@ -544,7 +545,7 @@ input,select,textarea{-webkit-appearance:none;appearance:none}
 
 /* ---------------- підказки «щоб рахувало точніше» ---------------- */
 .nudge{
-  display:flex;align-items:center;gap:12px;background:var(--glass);border:1px solid var(--line);border-radius:20px;
+  display:flex;align-items:center;gap:12px;background:#121517;border:1px solid var(--line);border-radius:20px;
   padding:14px 15px;margin-bottom:9px;border-left:2px solid var(--lime);
 }
 .nudge .tx{flex:1;min-width:0}
@@ -598,12 +599,11 @@ input,select,textarea{-webkit-appearance:none;appearance:none}
 .tokenbox .chip{margin:0;flex:0 0 auto}
 
 /* ---------------- рух ---------------- */
-.screen.on>*{animation:rise .42s cubic-bezier(.22,.9,.24,1) both}
-.screen.on>*:nth-child(2){animation-delay:.04s}
-.screen.on>*:nth-child(3){animation-delay:.08s}
-.screen.on>*:nth-child(4){animation-delay:.12s}
-.screen.on>*:nth-child(n+5){animation-delay:.15s}
-@keyframes rise{from{opacity:0;transform:translateY(12px)}}
+.screen.on>*{animation:rise .3s cubic-bezier(.16,1,.3,1) both;will-change:transform,opacity}
+.screen.on>*:nth-child(2){animation-delay:.03s}
+.screen.on>*:nth-child(3){animation-delay:.06s}
+.screen.on>*:nth-child(n+4){animation-delay:.08s}
+@keyframes rise{from{opacity:0;transform:translate3d(0,10px,0)}}
 .chart .col.on .colv i{animation:grow .5s cubic-bezier(.22,.9,.24,1) both}
 @keyframes grow{from{height:0}}
 @media (prefers-reduced-motion:reduce){
@@ -615,4 +615,47 @@ input,select,textarea{-webkit-appearance:none;appearance:none}
   font-size:13px;line-height:1.5;word-break:break-all;color:var(--lime);
   background:var(--surf2);border:1px dashed var(--line);border-radius:14px;padding:12px 14px;
   font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+
+/* ---------------- рух у сторіз ---------------- */
+.st-body h2{animation:stIn .5s cubic-bezier(.16,1,.3,1) both}
+.st-body>p{animation:stIn .5s cubic-bezier(.16,1,.3,1) .06s both}
+.st-art{animation:stIn .5s cubic-bezier(.16,1,.3,1) .12s both}
+.st-fact{animation:stIn .5s cubic-bezier(.16,1,.3,1) .3s both}
+@keyframes stIn{from{opacity:0;transform:translate3d(0,14px,0)}}
+
+.st-art .st-row{animation:slideIn .45s cubic-bezier(.16,1,.3,1) both}
+.st-art .st-row:nth-child(1){animation-delay:.18s}
+.st-art .st-row:nth-child(2){animation-delay:.3s}
+.st-art .st-row:nth-child(3){animation-delay:.42s}
+@keyframes slideIn{from{opacity:0;transform:translate3d(-16px,0,0)}}
+
+.st-say{animation:pop .4s cubic-bezier(.34,1.4,.64,1) .16s both}
+.st-bub.me{animation:pop .4s cubic-bezier(.34,1.4,.64,1) .18s both}
+.st-bub.ai{animation:pop .45s cubic-bezier(.34,1.4,.64,1) 1.05s both}
+@keyframes pop{from{opacity:0;transform:scale(.9)}}
+
+.st-art.hero .sil{animation:drive .8s cubic-bezier(.16,1,.3,1) .1s both}
+@keyframes drive{from{opacity:0;transform:translate3d(-40px,0,0)}}
+
+.st-doc{animation:pop .5s cubic-bezier(.34,1.3,.64,1) .16s both}
+.st-doc .st-row{animation-delay:.34s}
+.st-doc .st-row:nth-child(3){animation-delay:.44s}
+.st-doc .st-row:nth-child(4){animation-delay:.54s}
+
+/* «друкує» — три крапки, як у месенджері */
+.st-typing{display:flex;gap:5px;padding:14px 16px;background:var(--surf2);border-radius:16px;
+  border-bottom-left-radius:5px;width:fit-content;
+  animation:pop .3s ease .3s both, hideIt .25s ease .95s forwards}
+@keyframes hideIt{to{opacity:0;height:0;padding:0;margin:0;overflow:hidden}}
+.st-typing i{width:7px;height:7px;border-radius:50%;background:var(--mut);animation:dot 1.2s infinite}
+.st-typing i:nth-child(2){animation-delay:.18s}
+.st-typing i:nth-child(3){animation-delay:.36s}
+
+/* лічильник, що біжить */
+.st-count{font-variant-numeric:tabular-nums}
+
+@media (prefers-reduced-motion:reduce){
+  .st-body h2,.st-body>p,.st-art,.st-fact,.st-art .st-row,.st-say,.st-bub,
+  .st-art.hero .sil,.st-doc,.st-typing{animation:none}
 }
