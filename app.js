@@ -12,7 +12,7 @@ var API = 'https://bardachok.kasebaby24.workers.dev';
 
 var QR_FOR = 'TWqHKxsLAdGMPC7kY4i3r2GQxNJ2U6vQXv';   // до цієї адреси намальовано usdt-qr.png
 
-var BUILD = '20260822-2355';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
+var BUILD = '20260823-0020';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
 var BOOT_T0 = Date.now();
 
 var tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
@@ -225,7 +225,7 @@ var PRO_WHY = {
   voice:  ['Голосове внесення', 'Надиктували боту або кнопці «Дія» — запис зʼявився сам.'],
   ai:     ['Питання про авто', 'Помічник відповідає з вашою сервісною книжкою перед очима.'],
   plate:  ['Пошук за номером', 'Марка, рік, обʼєм і колір за державним реєстром.'],
-  vin:    ['Перевірки по VIN', 'Без обмежень, з фото й ціною з американського аукціону.'],
+  vin:    ['Перевірка по VIN', 'Що це за авто насправді — з фото й ціною з американського аукціону.'],
   report: ['Звіти для покупця', 'PDF із сервісною книжкою — сильний аргумент у торгу.'],
   docs:   ['Документи', 'Двадцять знімків замість трьох.'],
   cars:   ['Кілька авто', 'До дванадцяти машин в одному гаражі.'],
@@ -695,7 +695,7 @@ var STORIES = [
     t: 'Знає саме\nваше авто',
     p: 'Питаєте — відповідає з вашою книжкою перед очима: коли міняли, скільки вклали, що вже пора.',
     art: 'brain',
-    fact: 'Плюс перевірка по VIN: що це за машина насправді, ще до купівлі.',
+    fact: 'У Преміумі — ще й перевірка по VIN: що це за машина насправді, ще до купівлі.',
   },
   {
     tag: 'Продаж',
@@ -1211,7 +1211,7 @@ function drawMore() {
   }
 
   h += '<div class="h2">Інструменти</div><div class="card list">' +
-    itemBtn('search', 'Перевірка по VIN', 'Що це за авто насправді', 'tab:s-vin') +
+    itemBtn('search', 'Перевірка по VIN', 'Що це за авто насправді', 'tab:s-vin', !PRO && !vinFree()) +
     itemBtn('idcard', 'Пошук за номером', 'Марка, рік, обʼєм за реєстром', 'tab:s-plate', !PRO) +
     itemBtn('chat', 'Голосове внесення', 'Надиктували боту — записалось', 'tab:s-voice', !PRO) +
     itemBtn('chat', 'Питання про авто', 'Стукає, гріється, не заводиться', 'tab:s-ask', !PRO) +
@@ -1225,8 +1225,9 @@ function drawMore() {
 
   h += '<div class="promo" style="margin-top:12px">' +
     '<b>Передайте далі — <em>і місяць ваш</em></b>' +
-    '<p>За кожного, хто приєднається за вашим посиланням, вам +30 днів Преміуму. ' +
-    'Одразу і без умов. Скільки людей — стільки й місяців.</p>' +
+    '<p>За кожного, хто вперше зайде за вашим посиланням, вам +30 днів Преміуму. ' +
+    'Одразу і без умов. Скільки людей — стільки й місяців. ' +
+    'Другові нічого не обіцяємо — місяць отримуєте ви.</p>' +
     (REF.count
       ? '<div class="kv" style="border:0;padding:0 0 12px"><span>Уже привели</span><b>' +
         REF.count + ' ' + plural(REF.count, 'людину', 'людей', 'людей') + ' · +' +
@@ -1331,9 +1332,13 @@ function vinCard(c, vin) {
   return h;
 }
 
+/* Скільки безкоштовних перевірок VIN дозволено налаштуваннями. 0 = лише Преміум. */
+function vinFree() { return parseInt(CFG.freeVin, 10) || 0; }
+
 function drawVin() {
   var left = CFG.vinLeft;
-  var unlimited = (left === null || left === undefined);
+  var unlimited = (left === null || left === undefined);   // це преміум
+  var proOnly = !unlimited && !vinFree();                  // безкоштовних не передбачено
 
   $('#s-vin').innerHTML =
     '<div class="card">' +
@@ -1342,21 +1347,25 @@ function drawVin() {
         '<div style="flex:1;min-width:0">' +
           '<b style="display:block;font-size:15px;font-weight:700">Перевірка по VIN</b>' +
           '<small style="color:var(--mut);font-size:12px">' +
-            (unlimited ? 'без обмежень' :
-              (left > 0 ? 'залишилось ' + left + ' ' + plural(left, 'безкоштовна', 'безкоштовні', 'безкоштовних') + ' ' +
-                          plural(left, 'перевірка', 'перевірки', 'перевірок')
-                        : 'безкоштовні вичерпані')) + '</small>' +
+            (unlimited ? 'без обмежень'
+              : proOnly ? 'у Преміумі'
+              : left > 0 ? 'залишилось ' + left + ' ' + plural(left, 'безкоштовна', 'безкоштовні', 'безкоштовних') + ' ' +
+                           plural(left, 'перевірка', 'перевірки', 'перевірок')
+              : 'безкоштовні вичерпані') + '</small>' +
         '</div></div>' +
       '<p style="margin:0 0 13px;font-size:12.5px;color:var(--mut);line-height:1.5">' +
         'Марка, рік, тип кузова, двигун і паливо — з державного декодера. ' +
-        'Корисно перед купівлею: видно, чи збігається реальність із оголошенням.</p>' +
+        'Якщо авто приїхало з американського аукціону, підтягуються ще й фото ' +
+        'та ціна продажу. Корисно перед купівлею: видно, чи збігається реальність ' +
+        'із оголошенням.</p>' +
       '<div class="field"><input id="vinIn" type="text" placeholder="17 символів" maxlength="20" autocomplete="off"></div>' +
-      '<button class="btn" data-do="vinGo">Перевірити</button>' +
+      '<button class="btn" data-do="vinGo">Перевірити' + (unlimited ? '' : lockIc()) + '</button>' +
     '</div>' +
     '<div id="vinOut"></div>' +
-    (unlimited || left > 0 ? '' :
-      '<div class="promo" style="margin-top:11px"><b>Потрібно більше <em>перевірок</em></b>' +
-      '<p>У Преміумі перевірок необмежено — плюс голосове внесення й помічник.</p>' +
+    (unlimited || (!proOnly && left > 0) ? '' :
+      '<div class="promo" style="margin-top:11px"><b>Перевірка VIN — <em>у Преміумі</em></b>' +
+      '<p>Скільки завгодно перевірок, фото й ціна з аукціону, а разом з тим ' +
+      'голосове внесення, помічник і звіти для покупця.</p>' +
       '<button class="btn" data-go="tab:s-more">Дивитись Преміум</button></div>') +
     '<div class="note">Дані про власника — персональні, у відкритому доступі їх немає. ' +
     'Перевірка показує саме авто.</div>';
@@ -3522,14 +3531,18 @@ var DO = {
   },
 
   vinGo: function () {
+    if (!PRO && !vinFree()) { needPro('vin'); return; }
     var v = val('vinIn').toUpperCase().replace(/[^A-Z0-9]/g, '');
     var out = document.getElementById('vinOut');
     if (v.length !== 17) { out.innerHTML = '<div class="msg er">VIN має містити рівно 17 символів. Зараз ' + v.length + '.</div>'; return; }
     out.innerHTML = '<div class="msg inf">Перевіряю…</div>';
     api('/api/vin', { vin: v }).then(function (d) {
       if (!d.ok) {
-        if (d.error === 'limit') { CFG.vinLeft = 0; drawVin(); needPro('vin'); return; }
-        out.innerHTML = '<div class="msg er">' + esc(d.error || 'Не знайдено') + '</div>';
+        if (d.error === 'limit' || d.error === 'premium') {
+          CFG.vinLeft = 0; drawVin(); needPro('vin'); return;
+        }
+        out.innerHTML = '<div class="msg er">' +
+          esc(d.message || d.error || 'Не знайдено') + '</div>';
         return;
       }
       if (d.left !== undefined && d.left !== null) CFG.vinLeft = d.left;
@@ -3542,7 +3555,7 @@ var DO = {
         badge.textContent = CFG.vinLeft > 0
           ? 'залишилось ' + CFG.vinLeft + ' ' + plural(CFG.vinLeft, 'безкоштовна', 'безкоштовні', 'безкоштовних') + ' ' +
             plural(CFG.vinLeft, 'перевірка', 'перевірки', 'перевірок')
-          : 'безкоштовні вичерпані';
+          : (vinFree() ? 'безкоштовні вичерпані' : 'у Преміумі');
       }
     }).catch(function () { out.innerHTML = '<div class="msg er">Немає зв’язку. Спробуйте ще раз.</div>'; });
   },
@@ -3615,8 +3628,9 @@ var DO = {
 
   share: function () {
     if (!REF.link) { toast('Посилання ще не готове'); return; }
-    var txt = 'Бардачок — нагадує про страховку, ТО і ловить штрафи, поки діє знижка 50%. ' +
-              'Записи можна диктувати голосом. За моїм посиланням тобі одразу місяць Преміуму:';
+    var txt = 'Бардачок — нагадує про страховку і ТО, рахує витрати на авто ' +
+              'і ловить штрафи, поки діє знижка 50%. Записи можна диктувати голосом. ' +
+              'Ось посилання:';
     var u = 'https://t.me/share/url?url=' + encodeURIComponent(REF.link) +
             '&text=' + encodeURIComponent(txt);
     if (tg && tg.openTelegramLink) tg.openTelegramLink(u);

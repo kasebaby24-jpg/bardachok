@@ -7,7 +7,7 @@
 <meta name="robots" content="noindex, nofollow">
 <title>Бардачок — керування</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="styles.css?v=20260822-2355">
+<link rel="stylesheet" href="styles.css?v=20260823-0020">
 <style>
   body{overflow:auto}
   .wrap{max-width:620px;margin:0 auto;padding:26px 16px 60px}
@@ -65,7 +65,7 @@
     <button data-t="t-set">Налаштування</button>
   </div>
   <div class="msg inf" id="info">Завантаження…</div>
-  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260822-2355</div>
+  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260823-0020</div>
 
   <div class="pane on" id="t-home">
   <div class="st" id="stats">
@@ -129,6 +129,8 @@
     <div class="sect">Правила</div>
     <div class="rw"><div class="lb">Авто без преміуму<small>Скільки машин можна вести безкоштовно</small></div>
       <input type="number" id="freeCars"></div>
+    <div class="rw"><div class="lb">Безкоштовних перевірок VIN<small>0 — перевірка лише у Преміумі</small></div>
+      <input type="number" id="freeVin"></div>
     <div class="rw"><div class="lb">Попереджати про страховку<small>За скільки днів</small></div>
       <input type="number" id="remindInsurance"></div>
     <div class="rw"><div class="lb">Попереджати про ТО<small>За скільки кілометрів</small></div>
@@ -282,7 +284,7 @@
 /* ⚠️ Та сама адреса, що і в app.js */
 var API = 'https://bardachok.kasebaby24.workers.dev';
 
-var NUM = ['premiumMonth','premiumHalf','premiumYear','freeCars','remindInsurance','remindService','oilInterval'];
+var NUM = ['premiumMonth','premiumHalf','premiumYear','freeCars','freeVin','remindInsurance','remindService','oilInterval'];
 var TXT = ['contactTg','wfpMerchant','wfpDomain','usdtAddress','adminId'];
 var KEY = '';
 var $ = function (s) { return document.querySelector(s); };
