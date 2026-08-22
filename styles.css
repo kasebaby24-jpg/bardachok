@@ -763,16 +763,34 @@ input,select,textarea{-webkit-appearance:none;appearance:none}
 
 /* оголошення від власника застосунку */
 .notice{
-  display:flex;gap:12px;align-items:flex-start;margin:12px 0 4px;padding:14px 15px;
-  border-radius:20px;background:rgba(215,255,62,.10);border:1px solid rgba(215,255,62,.24);
-  animation:rise .35s cubic-bezier(.16,1,.3,1) both;
+  display:flex;gap:12px;align-items:center;margin:0 0 14px;padding:14px 15px;
+  border-radius:20px;background:rgba(215,255,62,.10);border:1px solid rgba(215,255,62,.26);
+  animation:rise .35s cubic-bezier(.16,1,.3,1) both;transition:.16s;
 }
-.notice.warn{background:rgba(255,179,64,.10);border-color:rgba(255,179,64,.28)}
-.notice.good{background:rgba(62,213,152,.10);border-color:rgba(62,213,152,.28)}
+.notice:active{transform:scale(.99)}
+.notice.warn{background:rgba(255,179,64,.10);border-color:rgba(255,179,64,.3)}
+.notice.good{background:rgba(62,213,152,.10);border-color:rgba(62,213,152,.3)}
+.nt-ic{
+  width:34px;height:34px;flex:0 0 34px;border-radius:12px;display:grid;place-items:center;
+  background:rgba(215,255,62,.16);
+}
+.notice.warn .nt-ic{background:rgba(255,179,64,.16)}
+.notice.good .nt-ic{background:rgba(62,213,152,.16)}
+.nt-ic .icn{color:var(--lime)}
+.notice.warn .nt-ic .icn{color:var(--warn)}
+.notice.good .nt-ic .icn{color:var(--good)}
 .notice .tx{flex:1;min-width:0}
-.notice .tx b{display:block;font-size:13.5px;font-weight:700;margin-bottom:3px}
-.notice .tx p{margin:0;font-size:12.5px;color:var(--ink2);line-height:1.5;overflow-wrap:anywhere}
-.notice span{flex:0 0 auto;color:var(--mut);font-size:18px;line-height:1;padding:2px 0 0 4px}
+.notice .tx b{display:block;font-size:13.5px;font-weight:700;margin-bottom:2px}
+.notice .tx p{
+  margin:0;font-size:12.5px;color:var(--ink2);line-height:1.45;
+  overflow:hidden;text-overflow:ellipsis;display:-webkit-box;
+  -webkit-line-clamp:2;-webkit-box-orient:vertical;
+}
+.nt-go{
+  width:28px;height:28px;flex:0 0 28px;border-radius:50%;display:grid;place-items:center;
+  background:rgba(255,255,255,.07);
+}
+.nt-go .icn{color:var(--ink2);transform:rotate(180deg)}
 
 /* як саме захищені документи */
 .safe{display:grid;gap:11px;margin:4px 0 14px}
@@ -836,45 +854,3 @@ input,select,textarea{-webkit-appearance:none;appearance:none}
 .sk-l.w40{width:40%}
 @keyframes shimmer{to{background-position:-120% 0}}
 @media (prefers-reduced-motion:reduce){.sk-l{animation:none}}
-
-/* ---------------- вигляд для Преміуму ---------------- */
-/* Не підфарбовуємо лимонний — від цього він і став болотним.
-   Замість цього головна картка стає графітовою із золотом:
-   так виглядають преміальні картки, а лимонний лишається
-   впізнаваним кольором безкоштовної версії. */
-:root{
-  --gold:#E8C87A;
-  --gold2:#C9A24D;
-}
-.is-pro::before{
-  background:
-    radial-gradient(680px 420px at 78% -8%, rgba(232,200,122,.10), transparent 62%),
-    radial-gradient(520px 380px at 8% 4%, rgba(215,255,62,.06), transparent 60%);
-}
-
-.is-pro .carcard{
-  background:linear-gradient(150deg,#23262A,#15181B 52%,#0E1012);
-  color:#F4F1EA;
-  box-shadow:inset 0 0 0 1px rgba(232,200,122,.28), 0 20px 44px -22px rgba(0,0,0,.9);
-}
-.is-pro .carcard.ev{background:linear-gradient(150deg,#1D2A28,#131C1B 52%,#0D1413)}
-.is-pro .carcard .plate{background:rgba(232,200,122,.14);color:var(--gold)}
-.is-pro .carcard .cc-specs span{background:rgba(255,255,255,.06);color:#CFCABF}
-.is-pro .carcard .odo small{color:rgba(244,241,234,.55)}
-.is-pro .carcard .cc-go{background:rgba(232,200,122,.14)}
-.is-pro .carcard .cc-go .icn{color:var(--gold)}
-.is-pro .carcard .cc-odo{background:linear-gradient(150deg,var(--gold),var(--gold2));color:#241B06}
-.is-pro .carcard .cc-odo .icn{color:#241B06}
-.is-pro .carcard .sil{opacity:.11}
-
-/* решта лишається як була — тільки тонкий золотий акцент */
-.is-pro .nav{border-color:rgba(232,200,122,.18)}
-.is-pro .nav button.on::before{background:linear-gradient(150deg,var(--gold),var(--gold2))}
-.is-pro .nav button.on span{color:var(--gold)}
-.is-pro .ava{background:linear-gradient(150deg,var(--gold),var(--gold2));color:#241B06}
-.is-pro .ava.pro::after{background:#12160F;color:var(--gold)}
-.is-pro .top .hi strong::after{
-  content:'PRO';margin-left:8px;font-family:var(--body);font-size:9.5px;font-weight:800;
-  letter-spacing:.1em;color:#241B06;background:linear-gradient(150deg,var(--gold),var(--gold2));
-  padding:3px 6px;border-radius:6px;vertical-align:3px;
-}

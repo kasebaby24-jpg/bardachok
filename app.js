@@ -12,7 +12,7 @@ var API = 'https://bardachok.kasebaby24.workers.dev';
 
 var QR_FOR = 'TWqHKxsLAdGMPC7kY4i3r2GQxNJ2U6vQXv';   // до цієї адреси намальовано usdt-qr.png
 
-var BUILD = '20260822-2239';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
+var BUILD = '20260822-2307';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
 var BOOT_T0 = Date.now();
 
 var tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
@@ -623,7 +623,6 @@ function render() {
   var av = $('#ava');
   av.textContent = (S && S.name ? S.name : 'Б').trim().charAt(0).toUpperCase();
   av.classList.toggle('pro', PRO);
-  document.body.classList.toggle('is-pro', !!PRO);
 
   var unpaid = (S.fines || []).filter(function (f) { return !f.paid; }).length;
   var fbtn = $('.nav button[data-tab="s-fines"]');
@@ -803,8 +802,7 @@ function drawHome() {
   var stale = car.odoDate ? daysBetween(car.odoDate, today()) : 999;
 
   h += '<div class="carcard' + (isEV ? ' ev' : '') + '">' +
-    silSvg(bodyKind, PRO ? '#E8C87A' : '#0E1207',
-                     PRO ? '#15181B' : (isEV ? '#9BE7C4' : '#D7FF3E')) +
+    silSvg(bodyKind, '#0E1207', isEV ? '#9BE7C4' : '#D7FF3E') +
     '<div class="cc-top">' +
       (car.plate ? '<span class="plate">' + esc(car.plate) + '</span>' : '<span></span>') +
       '<button class="cc-go" data-do="editThis" aria-label="Змінити авто">' + ic('wrench', 15) + '</button>' +
@@ -841,9 +839,11 @@ function drawHome() {
 
   var nt = CFG.notice;
   if (nt && !seen('nt_' + nt.id)) {
-    h += '<div class="notice ' + esc(nt.kind || 'info') + '" data-do="noticeClose" data-id="' + esc(nt.id) + '">' +
+    h = '<div class="notice ' + esc(nt.kind || 'info') + '" data-do="noticeOpen">' +
+      '<div class="nt-ic">' + ic(nt.kind === 'warn' ? 'alert' : 'star', 17) + '</div>' +
       '<div class="tx">' + (nt.title ? '<b>' + esc(nt.title) + '</b>' : '') +
-      '<p>' + esc(nt.text) + '</p></div><span>×</span></div>';
+      '<p>' + esc(nt.text) + '</p></div>' +
+      '<div class="nt-go">' + ic('back', 15) + '</div></div>' + h;
   }
 
   var nd = nudges(car);
@@ -2895,18 +2895,18 @@ function drawVoice() {
 
       '<div id="vIos" style="margin-top:14px">' +
         '<div class="steps">' +
-          '<div><i>1</i><div><b>Візьміть свій ключ</b>' +
-            '<p>Ключ і адреса прийдуть у чат бота — звідти копіюються одним дотиком. ' +
-            'Нікому їх не пересилайте: ключ замінює вхід.</p>' +
-            '<button class="chip gh" style="margin-top:8px" data-do="sendSelf" data-w="token">' +
-            'Надіслати собі в бот</button></div></div>' +
+          '<div><i>1</i><div><b>Скопіюйте свій ключ</b>' +
+            '<p>Він замінює вхід — нікому не пересилайте.</p>' +
+            '<div class="tokenbox"><code>' + esc(t ? t.token : '…') + '</code>' +
+            '<button class="chip gh" data-do="tokCopy">Копіювати</button></div></div></div>' +
           '<div><i>2</i><div><b>Застосунок «Команди»</b>' +
             '<p>Він уже є на кожному iPhone. Плюс угорі → «Нова команда».</p></div></div>' +
           '<div><i>3</i><div><b>Дія «Диктувати текст»</b>' +
             '<p>У пошуку напишіть «диктувати». Мову поставте українську.</p></div></div>' +
           '<div><i>4</i><div><b>Дія «Отримати вміст URL-адреси»</b>' +
-            '<p>Адресу й ключ надішліть собі в бот — звідти зручно скопіювати:</p>' +
-            '<button class="chip gh" data-do="sendSelf" data-w="token">Надіслати в бот</button>' +
+            '<p>Вставте цю адресу:</p>' +
+            '<div class="tokenbox"><code>' + esc(t ? t.url : '…') + '</code>' +
+            '<button class="chip gh" data-do="urlCopy">Копіювати</button></div>' +
             '<p style="margin-top:8px">«Показати більше» → Спосіб <b>POST</b>, ' +
             'Тіло запиту <b>JSON</b>, поле <b>text</b> зі значенням ' +
             '<b>Диктований текст</b>.</p></div></div>' +
@@ -2921,15 +2921,16 @@ function drawVoice() {
 
       '<div id="vAndroid" class="hidden" style="margin-top:14px">' +
         '<div class="steps">' +
-          '<div><i>1</i><div><b>Візьміть свій ключ</b>' +
-            '<p>Ключ і адреса прийдуть у чат бота.</p>' +
-            '<button class="chip gh" style="margin-top:8px" data-do="sendSelf" data-w="token">' +
-            'Надіслати собі в бот</button></div></div>' +
+          '<div><i>1</i><div><b>Скопіюйте свій ключ</b>' +
+            '<div class="tokenbox"><code>' + esc(t ? t.token : '…') + '</code>' +
+            '<button class="chip gh" data-do="tokCopy">Копіювати</button></div></div></div>' +
           '<div><i>2</i><div><b>Встановіть «HTTP Shortcuts»</b>' +
             '<p>Безкоштовний застосунок у Google Play. Він робить те саме, ' +
             'що «Команди» на iPhone.</p></div></div>' +
           '<div><i>3</i><div><b>Створіть запит</b>' +
-            '<p>Спосіб <b>POST</b>, адреса — та, що прийшла в бот.</p>' +
+            '<p>Спосіб <b>POST</b>, адреса:</p>' +
+            '<div class="tokenbox"><code>' + esc(t ? t.url : '…') + '</code>' +
+            '<button class="chip gh" data-do="urlCopy">Копіювати</button></div>' +
             '<p style="margin-top:8px">Тіло — <b>JSON</b>: <code class="mini">' +
             '{"text":"{{Питання}}"}</code>, де «Питання» — змінна з голосовим вводом.</p></div></div>' +
           '<div><i>4</i><div><b>Винесіть на робочий стіл</b>' +
@@ -3234,8 +3235,17 @@ var DO = {
 
   needPro: function (t) { needPro(t.dataset.w); },
 
-  noticeClose: function (t) {
-    markSeen('nt_' + t.dataset.id);
+  noticeOpen: function () {
+    var nt = CFG.notice;
+    if (!nt) return;
+    openSheet(nt.title || 'Повідомлення',
+      '<p style="margin:0 0 18px;font-size:14.5px;color:var(--ink2);line-height:1.65">' +
+        esc(nt.text) + '</p>' +
+      '<button class="btn" data-do="noticeOk">Добре</button>');
+  },
+  noticeOk: function () {
+    if (CFG.notice) markSeen('nt_' + CFG.notice.id);
+    closeSheet();
     DIRTY['s-home'] = 0; drawHome();
   },
 
@@ -3328,7 +3338,8 @@ var DO = {
     if (i) { i.value = t.dataset.vin; DO.vinGo(); }
   },
 
-  tokCopy: function () { if (VTOKEN) { copy(VTOKEN.token); toast('Ключ скопійовано'); } },
+  tokCopy: function () { if (VTOKEN) { copy(VTOKEN.token); toast('Ключ скопійовано', 'ok'); } },
+  urlCopy: function () { if (VTOKEN) { copy(VTOKEN.url); toast('Адресу скопійовано', 'ok'); } },
   openBot: function () {
     var link = (REF && REF.link) ? REF.link.split('?')[0] : '';
     try {
