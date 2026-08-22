@@ -72,6 +72,16 @@
   </div>
 
   <div class="card">
+    <div class="sect">Профіль користувача</div>
+    <div class="rw"><div class="lb">Telegram ID<small>Спершу подивіться, чиї це дані</small></div>
+      <input type="text" id="uid" placeholder="123456789" style="text-align:left"></div>
+    <button class="btn sec" id="uLook" style="margin-top:12px">Подивитись</button>
+    <div id="uCard" style="margin-top:12px"></div>
+    <div class="msg ok hidden" id="uOk" style="margin-top:10px"></div>
+    <div class="msg er hidden" id="uEr" style="margin-top:10px"></div>
+  </div>
+
+  <div class="card">
     <div class="sect">Ціни преміуму, ₴</div>
     <div class="rw"><div class="lb">Місяць<small>у доларах — платять USDT</small></div>
       <input type="number" step="0.5" id="premiumMonth"></div>
@@ -286,6 +296,60 @@ function broadcast(test) {
       show('bcOk', '', false); show('bcEr', 'Сервер не відповідає.', true);
     });
 }
+function userCard(d) {
+  var rows = [
+    ['Імʼя', d.name],
+    ['Преміум', d.premium ? 'до ' + d.until : 'нема'],
+    ['Авто', d.cars.length ? d.cars.join(', ') : 'нема'],
+    ['Сервіс · заправки', d.service + ' · ' + d.fuel],
+    ['Штрафи · витрати', d.fines + ' · ' + d.exp],
+    ['Документи · нагадування', d.docs + ' · ' + d.rem],
+    ['Перевірок VIN · звітів', d.vinUsed + ' · ' + d.reports],
+    ['У застосунку з', d.created || '—'],
+  ];
+  $('#uCard').innerHTML =
+    rows.map(function (r) {
+      return '<div class="rw"><div class="lb">' + r[0] + '</div><b>' + r[1] + '</b></div>';
+    }).join('') +
+    '<div style="display:flex;gap:9px;margin-top:12px">' +
+      '<button class="btn sec" id="uWipe">Очистити дані</button>' +
+      '<button class="btn dan" id="uKill">Видалити профіль</button>' +
+    '</div>' +
+    '<div class="note">«Очистити» прибирає авто, записи й документи, але лишає ' +
+    'оплачений преміум і реферальну історію. «Видалити» стирає профіль повністю — ' +
+    'людина почне як новий користувач. Обидві дії незворотні, і людині прийде ' +
+    'повідомлення в бот.</div>';
+
+  $('#uWipe').addEventListener('click', function () { resetUser('data', d); });
+  $('#uKill').addEventListener('click', function () { resetUser('all', d); });
+}
+
+function resetUser(mode, d) {
+  var what = mode === 'all' ? 'ВИДАЛИТИ профіль повністю' : 'очистити всі дані';
+  if (!confirm(what.toUpperCase() + '\n\n' + d.name + ' (ID ' + d.id + ')\n' +
+      'Авто: ' + (d.cars.length || 0) + ', записів: ' + (d.service + d.fuel + d.fines + d.exp) +
+      ', документів: ' + d.docs + '\n\nЦе незворотно. Продовжити?')) return;
+
+  show('uOk', '', false); show('uEr', '', false);
+  post('/admin/reset', { tgId: d.id, mode: mode }).then(function (r) {
+    if (!r.ok) { show('uEr', r.error || 'Не вдалося.', true); return; }
+    show('uOk', mode === 'all' ? 'Профіль видалено.' :
+      'Дані очищено' + (r.docsGone ? ', документів прибрано: ' + r.docsGone : '') + '.', true);
+    $('#uCard').innerHTML = '';
+    stats();
+  }).catch(function () { show('uEr', 'Сервер не відповідає.', true); });
+}
+
+$('#uLook').addEventListener('click', function () {
+  show('uOk', '', false); show('uEr', '', false); $('#uCard').innerHTML = '';
+  var id = $('#uid').value.trim();
+  if (!id) { show('uEr', 'Впишіть Telegram ID.', true); return; }
+  post('/admin/user', { tgId: id }).then(function (d) {
+    if (!d.ok) { show('uEr', d.error || 'Не знайшов.', true); return; }
+    userCard(d);
+  }).catch(function () { show('uEr', 'Сервер не відповідає.', true); });
+});
+
 $('#bcTest').addEventListener('click', function () { broadcast(true); });
 $('#bcSend').addEventListener('click', function () { broadcast(false); });
 

@@ -659,3 +659,15 @@ input,select,textarea{-webkit-appearance:none;appearance:none}
   .st-body h2,.st-body>p,.st-art,.st-fact,.st-art .st-row,.st-say,.st-bub,
   .st-art.hero .sil,.st-doc,.st-typing{animation:none}
 }
+
+/* ---------------- погода ---------------- */
+.wx{display:flex;gap:8px}
+.wxd{
+  flex:1;background:var(--surf2);border-radius:16px;padding:11px 6px 10px;text-align:center;
+}
+.wxd.on{background:var(--lime);color:#10130E}
+.wxd span{display:block;font-size:10px;color:var(--mut);margin-bottom:4px;font-weight:600}
+.wxd.on span{color:rgba(16,19,14,.6)}
+.wxd b{display:block;font-family:var(--disp);font-weight:800;font-size:17px;letter-spacing:-.02em}
+.wxd i{display:block;font-style:normal;font-size:11px;color:var(--mut);margin-top:2px}
+.wxd.on i{color:rgba(16,19,14,.55)}

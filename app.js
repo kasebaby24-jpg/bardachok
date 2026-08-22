@@ -131,6 +131,9 @@ var ICONS = {
   plus:   '<path d="M12 5v14M5 12h14"/>',
   star:   '<path d="m12 4 2.4 5 5.6.8-4 3.9 1 5.5-5-2.7-5 2.7 1-5.5-4-3.9 5.6-.8L12 4Z"/>',
   back:   '<path d="M15 5 8 12l7 7"/>',
+  rain:   '<path d="M12 3.5c3 3.6 5 6.1 5 8.2a5 5 0 0 1-10 0c0-2.1 2-4.6 5-8.2Z"/>',
+  sun:    '<circle cx="12" cy="12" r="4"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M19.1 4.9l-1.8 1.8M6.7 17.3l-1.8 1.8"/>',
+  snow:   '<path d="M12 2v20M4 7l16 10M20 7 4 17"/>',
   idcard: '<rect x="3" y="5.5" width="18" height="13" rx="2.5"/><circle cx="8.5" cy="11" r="2"/>' +
           '<path d="M5.5 16c.6-1.4 1.7-2 3-2s2.4.6 3 2M14 10h4.5M14 13.5h3"/>',
   gift:   '<rect x="3.5" y="9" width="17" height="11" rx="1.5"/><path d="M3.5 13h17M12 9v11"/><path d="M12 9c-3.5 0-4.5-1-4.5-2.5S9 4 10 5s2 4 2 4Zm0 0c3.5 0 4.5-1 4.5-2.5S15 4 14 5s-2 4-2 4Z"/>',
@@ -912,6 +915,10 @@ function drawService() {
     '<button class="btn" data-do="service">Додати запис</button></div>';
 
   var recs = (S.service || []).filter(function (r) { return r.carId === car.id; });
+  loadWeather(function () {
+    if (TAB === 's-service' && WX) { DIRTY['s-service'] = 0; drawService(); }
+  });
+  h += weatherCard(car);
   h += seasonCard(car);
 
   h += '<div class="h2">Сервісна книжка' + (recs.length ? '<span class="act">' + recs.length + '</span>' : '') + '</div>';
@@ -1055,13 +1062,15 @@ function drawMoney() {
   /* вартість володіння */
   var own = ownership(car.id);
   if (own) {
-    h += '<div class="card"><div class="card-h"><b>Скільки коштує це авто</b></div>' +
+    h += '<div class="card"><div class="card-h"><b>Скільки коштує це авто</b>' +
+      (own.short ? '<span>записів ще мало</span>' : '') + '</div>' +
       '<div class="two-num">' +
-        '<div><small>на місяць</small><b>' + money(own.perMonth) + '</b></div>' +
+        '<div><small>' + (own.short ? 'за ' + own.days + ' ' + dayWord(own.days) : 'на місяць') + '</small><b>' +
+          money(own.short ? own.total : own.perMonth) + '</b></div>' +
         '<div><small>' + (own.perKm ? 'кілометр' : 'усього') + '</small><b>' +
           (own.perKm ? own.perKm.toFixed(2) + ' ₴' : money(own.total)) + '</b></div>' +
       '</div>' +
-      (own.kmPerMonth ? '<div class="kv"><span>Пробіг за місяць</span><b>' +
+      (own.kmPerMonth && !own.short ? '<div class="kv"><span>Пробіг за місяць</span><b>' +
         nfmt(own.kmPerMonth) + ' км</b></div>' : '') +
       '<div class="kv"><span>Рахую від</span><b>' + fmtDate(own.since) + '</b></div>' +
       '<div class="note" style="margin:10px 0 0">Сюди входить усе: паливо, ремонти, ' +
@@ -1945,31 +1954,97 @@ function keyFromCode(code) {
   return out;
 }
 
-function hasKey() { try { return !!localStorage.getItem(KEY_STORE); } catch (e) { return false; } }
+/* Ключ живе у трьох місцях, і жодне з них — не наш сервер:
+   1) у памʼяті телефона (швидко),
+   2) у хмарі Telegram для цього застосунку (переживає чистку кешу
+      і переїзд на інший телефон; наш сервер туди не має доступу),
+   3) у голові власника — код відновлення.
+   Плюс, якщо телефон уміє, вхід можна закрити відбитком або обличчям. */
+var CLOUD = (tg && tg.CloudStorage) ? tg.CloudStorage : null;
+var BIO = (tg && tg.BiometricManager) ? tg.BiometricManager : null;
+var KEY_CACHE = null;
+
+function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+
+function hasKey() { return !!(KEY_CACHE || lsGet(KEY_STORE)); }
+
+/* тягнемо ключ із хмари Telegram, якщо на пристрої його нема */
+function syncKey() {
+  return new Promise(function (res) {
+    var local = lsGet(KEY_STORE);
+    if (!CLOUD) { res(local); return; }
+    CLOUD.getItem(KEY_STORE, function (err, val) {
+      if (!err && val) {
+        if (!local) lsSet(KEY_STORE, val);           // впав із хмари
+        res(val);
+        return;
+      }
+      if (local) { try { CLOUD.setItem(KEY_STORE, local, function () {}); } catch (e) {} }
+      res(local);
+    });
+  });
+}
 
 function loadKey() {
   if (DOC_KEY) return Promise.resolve(DOC_KEY);
-  var raw;
-  try { raw = localStorage.getItem(KEY_STORE); } catch (e) { raw = null; }
-  if (!raw) return Promise.resolve(null);
-  return crypto.subtle.importKey('raw', unb64(raw), { name: 'AES-GCM' }, false, ['encrypt', 'decrypt'])
-    .then(function (k) { DOC_KEY = k; return k; })
-    .catch(function () { return null; });
+  return syncKey().then(function (raw) {
+    if (!raw) return null;
+    KEY_CACHE = raw;
+    return crypto.subtle.importKey('raw', unb64(raw), { name: 'AES-GCM' }, false, ['encrypt', 'decrypt'])
+      .then(function (k) { DOC_KEY = k; return k; })
+      .catch(function () { return null; });
+  });
+}
+
+function saveKeyRaw(rawB64) {
+  KEY_CACHE = rawB64;
+  lsSet(KEY_STORE, rawB64);
+  if (CLOUD) { try { CLOUD.setItem(KEY_STORE, rawB64, function () {}); } catch (e) {} }
+  if (BIO && BIO.isBiometricAvailable && BIO.isAccessGranted) {
+    try { BIO.updateBiometricToken(rawB64, function () {}); } catch (e) {}
+  }
+  DOC_KEY = null;
 }
 
 function makeKey() {
   var raw = crypto.getRandomValues(new Uint8Array(16));
-  try { localStorage.setItem(KEY_STORE, b64(raw)); } catch (e) {}
-  DOC_KEY = null;
+  saveKeyRaw(b64(raw));
   return { code: codeFromKey(raw) };
 }
 
 function restoreKey(code) {
   var raw = keyFromCode(code);
   if (!raw) return false;
-  try { localStorage.setItem(KEY_STORE, b64(raw)); } catch (e) {}
-  DOC_KEY = null;
+  saveKeyRaw(b64(raw));
   return true;
+}
+
+/* Замок на документи: якщо телефон уміє — питаємо відбиток або обличчя */
+var DOC_UNLOCKED = false;
+function bioAvailable() {
+  return !!(BIO && BIO.isInited && BIO.isBiometricAvailable);
+}
+function bioOn() { return lsGet('b_bio') === '1'; }
+
+function bioSetup(on, cb) {
+  if (!bioAvailable()) { toast('Цей телефон не пропонує такий замок'); return; }
+  if (!on) { lsSet('b_bio', '0'); if (cb) cb(); return; }
+  BIO.requestAccess({ reason: 'Щоб закрити документи відбитком' }, function (granted) {
+    if (!granted) { toast('Дозвіл не надано'); return; }
+    lsSet('b_bio', '1');
+    if (KEY_CACHE) { try { BIO.updateBiometricToken(KEY_CACHE, function () {}); } catch (e) {} }
+    if (cb) cb();
+  });
+}
+
+function bioUnlock(cb) {
+  if (!bioOn() || !bioAvailable()) { DOC_UNLOCKED = true; cb(true); return; }
+  BIO.authenticate({ reason: 'Відкрити документи' }, function (ok, token) {
+    if (ok && token && !hasKey()) saveKeyRaw(token);
+    DOC_UNLOCKED = !!ok;
+    cb(!!ok);
+  });
 }
 
 function seal(text) {
@@ -2005,8 +2080,9 @@ function ensureKey(cb) {
     '<p style="margin:0 0 14px;font-size:13.5px;color:var(--ink2);line-height:1.6">' +
       'Знімки документів шифруються прямо в телефоні. Ключ зберігається лише тут, ' +
       'на сервер він не потрапляє — навіть ми не можемо їх відкрити.</p>' +
-    '<div class="tokenbox"><code>' + esc(made.code) + '</code>' +
-      '<button class="chip gh" data-do="keyCopy" data-c="' + esc(made.code) + '">Копіювати</button></div>' +
+    '<div class="tokenbox"><code>' + esc(made.code) + '</code></div>' +
+    '<button class="btn sec" style="margin-top:9px" data-do="sendSelf" data-w="reccode" ' +
+      'data-code="' + esc(made.code) + '">Надіслати код собі в бот</button>' +
     '<div class="note">Збережіть цей код. Якщо зміните телефон або почистите ' +
       'застосунок — без нього документи не відкриються.</div>' +
     '<button class="btn" data-do="keyOk">Записав, продовжити</button>' +
@@ -2037,6 +2113,17 @@ function loadDocs(cb) {
 function drawDocs() {
   var el = $('#s-docs');
   if (!el) return;
+
+  if (bioOn() && !DOC_UNLOCKED) {
+    el.innerHTML = '<div class="card" style="text-align:center;padding:34px 20px">' +
+      '<div class="ic-box" style="margin:0 auto 14px">' + ic('shield', 22) + '</div>' +
+      '<b style="display:block;font-family:var(--disp);font-size:17px;margin-bottom:6px">Документи закриті</b>' +
+      '<p style="margin:0 0 16px;font-size:13px;color:var(--mut);line-height:1.55">' +
+      'Відкрийте відбитком або обличчям — так їх не побачить той, ' +
+      'кому ви дали телефон на хвилину.</p>' +
+      '<button class="btn" data-do="docUnlock">Відкрити</button></div>';
+    return;
+  }
 
   if (DOCS === null) {
     el.innerHTML = '<div class="card"><p style="margin:0;color:var(--mut);font-size:13px">Дивлюсь, що там…</p></div>';
@@ -2069,11 +2156,21 @@ function drawDocs() {
     h += '<div class="empty">Поки що порожньо. Найкорисніше — техпаспорт і страховка.</div>';
   }
 
+  h += '<div class="card" style="margin-top:10px"><div class="card-h"><b>Захист</b></div>' +
+    '<div class="kv"><span>Шифрування</span><b>у вашому телефоні</b></div>' +
+    '<div class="kv"><span>Ключ у хмарі Telegram</span><b>' + (CLOUD ? 'так' : 'недоступно') + '</b></div>' +
+    (bioAvailable()
+      ? '<button class="btn sec" style="margin-top:11px" data-do="bioToggle">' +
+        (bioOn() ? 'Вимкнути замок' : 'Закрити відбитком або обличчям') + '</button>'
+      : '<div class="note" style="margin:10px 0 0">Замок відбитком цей телефон не пропонує.</div>') +
+    '<button class="btn sec" data-do="keyShow">Показати код відновлення</button>' +
+    '</div>';
+
   h += '<div class="note">Знімки шифруються ще до відправки — на сервері лежить набір байтів, ' +
        'який неможливо прочитати без вашого ключа. Ключ зберігається лише у вашому телефоні, ' +
        'ми його не бачимо.' +
-       (hasKey() ? ' <button class="chip gh" style="margin-top:8px" data-do="keyShow">Показати код відновлення</button>' : '') +
-       '</div>';
+       ' Ключ дублюється у хмарі Telegram — тому переживає чистку кешу й переїзд ' +
+       'на інший телефон.</div>';
   el.innerHTML = h;
 }
 
@@ -2105,17 +2202,33 @@ function docShoot() {
     fr.onload = function () {
       var img = new Image();
       img.onload = function () {
-        var W = 1400;                             // текст має лишитись читабельним
-        var k = Math.min(1, W / Math.max(img.width, img.height));
-        var c = document.createElement('canvas');
-        c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
-        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-        var data = c.toDataURL('image/jpeg', 0.72);
-        if (data.length > 700000) data = c.toDataURL('image/jpeg', 0.5);
+        /* Шифрування збільшує обсяг на третину, тому тиснемо з запасом:
+           зменшуємо, поки не влізе, інакше сервер відмовить і людина
+           не зрозуміє чому. */
+        var data = null;
+        var sizes = [1500, 1300, 1100, 900, 750];
+        var quals = [0.72, 0.62, 0.5, 0.42];
+        for (var si = 0; si < sizes.length && !data; si++) {
+          for (var qi = 0; qi < quals.length; qi++) {
+            var k = Math.min(1, sizes[si] / Math.max(img.width, img.height));
+            var c = document.createElement('canvas');
+            c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+            c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+            var d0 = c.toDataURL('image/jpeg', quals[qi]);
+            if (d0.length < 700000) { data = d0; break; }
+          }
+        }
+        if (!data) { toast('Знімок завеликий навіть після стиснення'); return; }
         toast('Шифрую й кладу в бардачок…');
         seal(data).then(function (payload) {
         api('/api/doc', { kind: kind, title: title, data: payload || data }).then(function (d) {
-          if (!d.ok) { toast(d.message || d.error || 'Не вдалося зберегти'); return; }
+          if (!d.ok) {
+            if (d.error === 'limit') { needPro('docs'); return; }
+            openSheet('Не вдалося зберегти',
+              '<div class="msg er">' + esc(d.message || d.error || 'Сервер відмовив') + '</div>' +
+              '<button class="btn" data-close="1">Зрозуміло</button>');
+            return;
+          }
           DOCS = d.docs || [];
           closeSheet(); drawDocs(); haptic('medium');
         }).catch(function () { toast('Немає зв’язку'); });
@@ -2291,6 +2404,7 @@ function ownership(carId) {
 
   return {
     total: total,
+    short: days < 45,                       // за два тижні місячна цифра — вигадка
     perMonth: total / days * 30,
     perKm: km > 500 ? total / km : null,
     kmPerMonth: km > 500 ? km / days * 30 : null,
@@ -2387,6 +2501,62 @@ function benchCard(car) {
 /* ------------------------------------------------------------------ */
 /* СЕЗОННИЙ ЧЕК-ЛИСТ                                                   */
 /* ------------------------------------------------------------------ */
+var WX = null, WX_ASKED = false;
+function loadWeather(cb) {
+  if (WX_ASKED) return;          // вже питали — інакше зворотний виклик зациклиться
+  WX_ASKED = true;
+  api('/api/weather', {}).then(function (d) {
+    WX = d.ok ? { w: d.weather, city: d.city } : null;
+    if (cb) cb();
+  }).catch(function () { if (cb) cb(); });
+}
+
+/* Порада, яка випливає саме з прогнозу, а не з календаря */
+function weatherCard(car) {
+  if (!WX || !WX.w || !WX.w.days || !WX.w.days.length) return '';
+  var w = WX.w, isEV = car.fuel === 'electric';
+  var d = w.days.slice(0, 3);
+  var minLow = Math.min.apply(null, d.map(function (x) { return x.min; }));
+  var maxHigh = Math.max.apply(null, d.map(function (x) { return x.max; }));
+  var rain = Math.max.apply(null, d.map(function (x) { return x.rain || 0; }));
+
+  var tips = [];
+  if (minLow <= 0)
+    tips.push(['snow', 'Вночі до ' + minLow + '°',
+      isEV ? 'Запас ходу впаде помітно — ставте на зарядку з вечора і грійте салон від мережі.'
+           : 'Слабкий акумулятор саме в такі ночі й помирає. Перевірте, поки не стало пізно.']);
+  else if (minLow <= 7)
+    tips.push(['tires', 'Вночі ' + minLow + '°',
+      'Нижче семи градусів літня гума дубіє. Час думати про зимову.']);
+
+  if (maxHigh >= 28)
+    tips.push(['sun', 'Вдень до ' + maxHigh + '°',
+      isEV ? 'На спеці зарядка повільніша, а батарея гріється — не лишайте авто на сонці надовго.'
+           : 'Перевірте антифриз і тиск у шинах: на гарячому асфальті він росте.']);
+
+  if (rain >= 60)
+    tips.push(['rain', 'Дощ найближчими днями',
+      'Щітки і протектор вирішують. Перша година дощу — найслизькіша.']);
+
+  if (!tips.length)
+    tips.push(['check', (w.now != null ? w.now + '° зараз' : 'Погода спокійна'),
+      'Нічого термінового найближчі три дні. Добрий час зробити те, що відкладали.']);
+
+  return '<div class="h2">Погода і авто' +
+    (WX.city ? '<span class="act" style="pointer-events:none">' + esc(WX.city) + '</span>' : '') +
+    '</div>' +
+    '<div class="card"><div class="wx">' + w.days.slice(0, 4).map(function (x, i) {
+      var dd = x.date.split('-');
+      return '<div class="wxd' + (i === 0 ? ' on' : '') + '">' +
+        '<span>' + (i === 0 ? 'сьогодні' : parseInt(dd[2], 10) + ' ' + MONTHS_SHORT[parseInt(dd[1], 10) - 1]) + '</span>' +
+        '<b>' + x.max + '°</b><i>' + x.min + '°</i></div>';
+    }).join('') + '</div>' +
+    tips.map(function (t) {
+      return '<div class="alert" style="margin-top:10px"><div class="ic">' + ic(t[0], 18) + '</div>' +
+        '<div class="bd"><b>' + esc(t[1]) + '</b><p>' + esc(t[2]) + '</p></div></div>';
+    }).join('') + '</div>';
+}
+
 function seasonCard(car) {
   var m = new Date().getMonth() + 1;
   var isEV = car.fuel === 'electric';
@@ -2544,8 +2714,11 @@ function drawVoice() {
       'а не про застосунок «Дія».</p>' +
       '<div class="steps">' +
         '<div><i>1</i><div><b>Скопіюйте свій ключ</b><p>Він унікальний і замінює вхід — нікому не показуйте.</p>' +
-          '<div class="tokenbox"><code id="vtok">' + esc(t ? t.token : '…') + '</code>' +
-          '<button class="chip gh" data-do="tokCopy">Копіювати</button></div></div></div>' +
+          '<div class="tokenbox"><code id="vtok">' + esc(t ? t.token : '…') + '</code></div>' +
+          '<button class="btn sec" style="margin-top:9px" data-do="sendSelf" data-w="token">' +
+          'Надіслати собі в бот</button>' +
+          '<p style="margin-top:6px">У чаті бота текст копіюється одним дотиком — ' +
+          'це найзручніший шлях перенести його в «Команди».</p></div></div>' +
         '<div><i>2</i><div><b>Відкрийте застосунок «Команди»</b>' +
           '<p>Він уже стоїть на кожному iPhone. Плюс угорі → «Нова команда».</p></div></div>' +
         '<div><i>3</i><div><b>Додайте дію «Диктувати текст»</b>' +
@@ -2553,8 +2726,7 @@ function drawVoice() {
           'Натисніть на неї та поставте мову «Українська».</p></div></div>' +
         '<div><i>4</i><div><b>Додайте «Отримати вміст URL-адреси»</b>' +
           '<p>У поле адреси вставте це:</p>' +
-          '<div class="tokenbox"><code>' + esc(t ? t.url : '') + '</code>' +
-          '<button class="chip gh" data-do="urlCopy">Копіювати</button></div>' +
+          '<div class="tokenbox"><code>' + esc(t ? t.url : '') + '</code></div>' +
           '<p style="margin-top:8px">Далі натисніть «Показати більше» під цією дією і виставте:<br>' +
           '• <b>Спосіб</b> → POST<br>' +
           '• <b>Тіло запиту</b> → JSON<br>' +
@@ -2577,7 +2749,7 @@ function drawVoice() {
 }
 
 function loadToken(cb) {
-  if (VTOKEN) { if (cb) cb(); return; }
+  if (VTOKEN) return;
   api('/api/token', {}).then(function (d) {
     if (d.ok) VTOKEN = { token: d.token, url: d.url };
     if (cb) cb();
@@ -2859,6 +3031,33 @@ var DO = {
   needPro: function (t) { needPro(t.dataset.w); },
 
   keyCopy: function (t) { copy(t.dataset.c); toast('Код скопійовано'); },
+
+  docUnlock: function () {
+    bioUnlock(function (ok) {
+      if (ok) { DIRTY['s-docs'] = 0; drawDocs(); }
+      else toast('Не вдалося підтвердити');
+    });
+  },
+  bioToggle: function () {
+    if (bioOn()) {
+      bioSetup(false, function () { DOC_UNLOCKED = true; DIRTY['s-docs'] = 0; drawDocs(); toast('Замок знято'); });
+    } else {
+      bioSetup(true, function () { DOC_UNLOCKED = true; DIRTY['s-docs'] = 0; drawDocs(); toast('Замок увімкнено'); });
+    }
+  },
+
+  sendSelf: function (t) {
+    var body = { what: t.dataset.w };
+    if (t.dataset.amount) body.amount = t.dataset.amount;
+    if (t.dataset.code) body.code = t.dataset.code;
+    t.disabled = true;
+    api('/api/send', body).then(function (d) {
+      t.disabled = false;
+      if (!d.ok) { toast(d.error || 'Не вдалося надіслати'); return; }
+      toast('Надіслано в чат бота');
+      haptic('light');
+    }).catch(function () { t.disabled = false; toast('Немає звʼязку'); });
+  },
   keyShow: function () {
     var raw;
     try { raw = localStorage.getItem(KEY_STORE); } catch (e) { raw = null; }
@@ -2867,8 +3066,9 @@ var DO = {
     openSheet('Код відновлення',
       '<p style="margin:0 0 14px;font-size:13.5px;color:var(--ink2);line-height:1.6">' +
       'Запишіть його. Без цього коду документи не відкриються на іншому телефоні.</p>' +
-      '<div class="tokenbox"><code>' + esc(code) + '</code>' +
-      '<button class="chip gh" data-do="keyCopy" data-c="' + esc(code) + '">Копіювати</button></div>' +
+      '<div class="tokenbox"><code>' + esc(code) + '</code></div>' +
+      '<button class="btn sec" style="margin-top:9px" data-do="sendSelf" data-w="reccode" ' +
+        'data-code="' + esc(code) + '">Надіслати код собі в бот</button>' +
       '<button class="btn" data-close="1">Готово</button>');
   },
   keyOk:   function () { var cb = KEY_NEXT; KEY_NEXT = null; closeSheet(); if (cb) setTimeout(cb, 80); },
@@ -2914,7 +3114,6 @@ var DO = {
   },
 
   tokCopy: function () { if (VTOKEN) { copy(VTOKEN.token); toast('Ключ скопійовано'); } },
-  urlCopy: function () { if (VTOKEN) { copy(VTOKEN.url); toast('Адресу скопійовано'); } },
   tokReset: function () {
     ask('Видати новий ключ?', 'Старий перестане працювати одразу. Доведеться вписати новий у команду.',
         'Видати', function () {
@@ -3211,8 +3410,9 @@ var DO = {
           '<div style="font-size:11.5px;color:var(--mut);font-weight:600;letter-spacing:.06em;' +
             'text-transform:uppercase;margin-bottom:6px">Мережа TRC-20 · Tron</div>' +
           '<div class="addr" id="usdtAddr">' + esc(d.address) + '</div>' +
-          '<button class="btn sec" style="margin-top:11px" data-do="copyAddr" ' +
-            'data-a="' + esc(d.address) + '">Скопіювати адресу</button>' +
+          '<button class="btn sec" style="margin-top:11px" data-do="sendSelf" ' +
+            'data-w="wallet" data-amount="' + d.amount + '">Надіслати адресу в бот</button>' +
+          '<button class="btn sec" data-do="copyAddr" data-a="' + esc(d.address) + '">Скопіювати</button>' +
         '</div>' +
         '<div class="card"><div class="kv"><span>Сума</span><b>' + d.amount + ' USDT</b></div>' +
           (uah ? '<div class="kv"><span>У гривні</span><b>' + uah + '</b></div>' : '') +
@@ -3402,6 +3602,8 @@ function start() {
     var m = String(sp).match(/^ref_(\d+)$/);
     if (m) ref = m[1];
   } catch (e) {}
+
+  try { if (tg && tg.BiometricManager && tg.BiometricManager.init) tg.BiometricManager.init(); } catch (e) {}
 
   api('/api/me', { ref: ref }).then(function (d) {
     if (!d.ok) {
