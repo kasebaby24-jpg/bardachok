@@ -12,7 +12,7 @@ var API = 'https://bardachok.kasebaby24.workers.dev';
 
 var QR_FOR = 'TWqHKxsLAdGMPC7kY4i3r2GQxNJ2U6vQXv';   // до цієї адреси намальовано usdt-qr.png
 
-var BUILD = '20260822-2150';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
+var BUILD = '20260822-2228';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
 var BOOT_T0 = Date.now();
 
 var tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
@@ -623,6 +623,7 @@ function render() {
   var av = $('#ava');
   av.textContent = (S && S.name ? S.name : 'Б').trim().charAt(0).toUpperCase();
   av.classList.toggle('pro', PRO);
+  document.body.classList.toggle('is-pro', !!PRO);
 
   var unpaid = (S.fines || []).filter(function (f) { return !f.paid; }).length;
   var fbtn = $('.nav button[data-tab="s-fines"]');
@@ -1134,7 +1135,7 @@ function drawMoney() {
     '<p style="margin:0 0 12px;font-size:12.5px;color:var(--mut);line-height:1.5">' +
     'Куди пішли гроші за рік: помісячно, за статтями, найбільші витрати. ' +
     'Зручно, коли треба показати комусь або просто побачити картину.</p>' +
-    '<button class="btn" data-do="moneyReport">Зібрати PDF</button></div>';
+    '<button class="btn" data-do="moneyReport">Зібрати PDF' + (PRO ? '' : lockIc()) + '</button></div>';
 
   h += '<div class="grid2" style="margin-top:11px">' +
     '<button class="btn sec" data-do="fuel">' + (isEV ? 'Зарядка' : 'Заправка') + '</button>' +
@@ -1932,6 +1933,7 @@ function rpMoneyPages(car) {
 function sendMoneyReport() {
   var car = activeCar();
   if (!car) return;
+  if (!PRO) { needPro('report'); return; }
   toast('Готую звіт…');
   var ready = document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve();
   ready.then(function () {
@@ -1972,7 +1974,7 @@ function drawReport() {
       '<div class="kv"><span>Вкладено в обслуговування</span><b>' + money(st.spentSrv) + '</b></div>' +
       '<div class="kv"><span>Книжка ведеться з</span><b>' + (st.since ? fmtDate(st.since) : 'сьогодні') + '</b></div>' +
       '<button class="btn" data-do="report" style="margin-top:14px">' +
-        (PRO ? 'Створити PDF' : 'Створити PDF · Преміум') + '</button>' +
+        (PRO ? 'Створити PDF' : 'Створити PDF') + (PRO ? '' : lockIc()) + '</button>' +
       '<div class="note" style="margin-top:10px">Файл прийде у чат бота — звідти перешлете покупцю.</div>' +
     '</div>' +
     (st.srv.length ? '' :
@@ -1982,7 +1984,7 @@ function drawReport() {
 function sendReport() {
   var car = activeCar();
   if (!car) return;
-  /* перший звіт безкоштовний — далі сервер сам поставить замок */
+  if (!PRO) { needPro('report'); return; }
 
   toast('Готую звіт…');
   var ready = document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve();
@@ -2131,55 +2133,46 @@ function restoreKey(code) {
   return true;
 }
 
-/* Замок на документи: якщо телефон уміє — питаємо відбиток або обличчя */
+/* Замок на документи. Face ID є не в усіх, тому головний спосіб — власний
+   код із чотирьох цифр, а відбиток чи обличчя пропонуємо додатково. */
 var DOC_UNLOCKED = false;
-function bioAvailable() {
-  return !!(BIO && BIO.isInited && BIO.isBiometricAvailable);
-}
-function bioOn() { return lsGet('b_bio') === '1'; }
+var PIN_STORE = 'b_pin';
 
-function bioSetup(on, cb) {
-  if (!bioAvailable()) { toast('Цей телефон не пропонує такий замок'); return; }
-  if (!on) { lsSet('b_bio', '0'); if (cb) cb(); return; }
-  BIO.requestAccess({ reason: 'Щоб закрити документи відбитком' }, function (granted) {
-    if (!granted) { toast('Дозвіл не надано'); return; }
-    lsSet('b_bio', '1');
+function bioAvailable() {
+  try { return !!(BIO && BIO.isInited && BIO.isBiometricAvailable); } catch (e) { return false; }
+}
+function bioType() {
+  try { return (BIO && BIO.biometricType) || ''; } catch (e) { return ''; }
+}
+function lockMode() { return lsGet('b_lock') || 'off'; }   // off | pin | bio
+
+function pinHash(pin) {                       // не зберігаємо самі цифри
+  var h = 5381, str = 'bd' + pin;
+  for (var i = 0; i < str.length; i++) h = ((h * 33) ^ str.charCodeAt(i)) >>> 0;
+  return String(h);
+}
+function pinSet(pin) { lsSet(PIN_STORE, pinHash(pin)); lsSet('b_lock', 'pin'); }
+function pinOk(pin) { return lsGet(PIN_STORE) === pinHash(pin); }
+
+function lockOff() { lsSet('b_lock', 'off'); DOC_UNLOCKED = true; }
+
+function bioSetup(cb) {
+  if (!bioAvailable()) { toast('Цей телефон такого не пропонує', 'er'); return; }
+  BIO.requestAccess({ reason: 'Щоб відкривати документи без коду' }, function (granted) {
+    if (!granted) { toast('Дозвіл не надано', 'er'); return; }
+    lsSet('b_lock', 'bio');
     if (KEY_CACHE) { try { BIO.updateBiometricToken(KEY_CACHE, function () {}); } catch (e) {} }
+    DOC_UNLOCKED = true;
     if (cb) cb();
   });
 }
 
 function bioUnlock(cb) {
-  if (!bioOn() || !bioAvailable()) { DOC_UNLOCKED = true; cb(true); return; }
+  if (!bioAvailable()) { cb(false); return; }
   BIO.authenticate({ reason: 'Відкрити документи' }, function (ok, token) {
     if (ok && token && !hasKey()) saveKeyRaw(token);
     DOC_UNLOCKED = !!ok;
     cb(!!ok);
-  });
-}
-
-function seal(text) {
-  return loadKey().then(function (k) {
-    if (!k) return null;
-    if (!(window.crypto && crypto.subtle)) return null;   // старий вебперегляд
-    var iv = crypto.getRandomValues(new Uint8Array(12));
-    var data = new TextEncoder().encode(text);
-    return crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, k, data).then(function (buf) {
-      return 'sealed:' + b64(iv) + ':' + b64(buf);
-    });
-  });
-}
-
-function unseal(payload) {
-  if (!payload) return Promise.resolve(null);
-  if (payload.indexOf('sealed:') !== 0) return Promise.resolve(payload);   // старий незашифрований
-  var parts = payload.split(':');
-  if (parts.length < 3) return Promise.resolve(null);
-  return loadKey().then(function (k) {
-    if (!k) return null;
-    return crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64(parts[1]) }, k, unb64(parts[2]))
-      .then(function (buf) { return new TextDecoder().decode(buf); })
-      .catch(function () { return null; });
   });
 }
 
@@ -2235,14 +2228,19 @@ function drawDocs() {
   var el = $('#s-docs');
   if (!el) return;
 
-  if (bioOn() && !DOC_UNLOCKED) {
+  if (lockMode() !== 'off' && !DOC_UNLOCKED) {
+    var bio = lockMode() === 'bio';
     el.innerHTML = '<div class="card" style="text-align:center;padding:34px 20px">' +
-      '<div class="ic-box" style="margin:0 auto 14px">' + ic('shield', 22) + '</div>' +
+      '<div class="ic-box" style="margin:0 auto 14px">' + ic('lock', 22) + '</div>' +
       '<b style="display:block;font-family:var(--disp);font-size:17px;margin-bottom:6px">Документи закриті</b>' +
       '<p style="margin:0 0 16px;font-size:13px;color:var(--mut);line-height:1.55">' +
-      'Відкрийте відбитком або обличчям — так їх не побачить той, ' +
-      'кому ви дали телефон на хвилину.</p>' +
-      '<button class="btn" data-do="docUnlock">Відкрити</button></div>';
+      (bio ? 'Підтвердьте, що це ви.' : 'Введіть свій код із чотирьох цифр.') + '</p>' +
+      (bio ? '<button class="btn" data-do="docUnlock">Відкрити</button>'
+           : '<div class="field"><input id="pinIn" type="password" inputmode="numeric" ' +
+             'maxlength="6" placeholder="••••" style="text-align:center;letter-spacing:.4em"></div>' +
+             '<div id="pinErr"></div>' +
+             '<button class="btn" data-do="pinCheck">Відкрити</button>') +
+      '<button class="btn sec" data-do="lockForgot">Забув код</button></div>';
     return;
   }
 
@@ -2262,8 +2260,8 @@ function drawDocs() {
     '<div class="safe">' +
       '<div><i>' + ic('lock', 15) + '</i><span>Знімок шифрується <b>у вашому телефоні</b> — ' +
         'ще до того, як полетить на сервер</span></div>' +
-      '<div><i>' + ic('shield', 15) + '</i><span>На сервері лежить набір байтів. ' +
-        'Ані ми, ані той, хто вкраде базу, його не прочитає</span></div>' +
+      '<div><i>' + ic('shield', 15) + '</i><span>У хмарі лежать <b>закодовані байти</b>, ' +
+        'а не ваші фотографії</span></div>' +
       '<div><i>' + ic('check', 15) + '</i><span>Ключ живе у вашому телефоні й у хмарі Telegram — ' +
         'переживе чистку кешу і новий телефон</span></div>' +
     '</div>' +
@@ -2286,18 +2284,17 @@ function drawDocs() {
   h += '<div class="card" style="margin-top:10px"><div class="card-h"><b>Захист</b></div>' +
     '<div class="kv"><span>Шифрування</span><b>у вашому телефоні</b></div>' +
     '<div class="kv"><span>Ключ у хмарі Telegram</span><b>' + (CLOUD ? 'так' : 'недоступно') + '</b></div>' +
-    (bioAvailable()
-      ? '<button class="btn sec" style="margin-top:11px" data-do="bioToggle">' +
-        (bioOn() ? 'Вимкнути замок' : 'Закрити відбитком або обличчям') + '</button>'
-      : '<div class="note" style="margin:10px 0 0">Замок відбитком цей телефон не пропонує.</div>') +
+    '<div class="kv"><span>Замок на розділ</span><b>' +
+      (lockMode() === 'pin' ? 'код' : lockMode() === 'bio' ? (bioType() === 'face' ? 'обличчя' : 'відбиток') : 'вимкнено') +
+      '</b></div>' +
+    '<button class="btn sec" style="margin-top:11px" data-do="lockSetup">' +
+      (lockMode() === 'off' ? 'Поставити замок' : 'Змінити або зняти замок') + '</button>' +
     '<button class="btn sec" data-do="keyShow">Показати код відновлення</button>' +
     '</div>';
 
-  h += '<div class="note">Знімки шифруються ще до відправки — на сервері лежить набір байтів, ' +
-       'який неможливо прочитати без вашого ключа. Ключ зберігається лише у вашому телефоні, ' +
-       'ми його не бачимо.' +
-       ' Ключ дублюється у хмарі Telegram — тому переживає чистку кешу й переїзд ' +
-       'на інший телефон.</div>';
+  h += '<div class="note">У кожного свій персональний ключ, і він лишається у вас: ' +
+       'у телефоні та у вашій хмарі Telegram. Тому документи переживають чистку кешу ' +
+       'і переїзд на новий телефон — і відкриваються тільки вашим ключем.</div>';
   el.innerHTML = h;
 }
 
@@ -2423,6 +2420,7 @@ function docOpen(id) {
 /* НАГАДУВАННЯ                                                         */
 /* Усе, чого немає в стандартних строках: ТО, ГРМ, кредит, техогляд.   */
 /* ------------------------------------------------------------------ */
+var REM_SUG = [];
 var REM_PRESETS = [
   { t: 'Заміна ременя ГРМ', every: 90000, ice: true },
   { t: 'Заміна гальмівної рідини', every: 40000 },
@@ -2485,10 +2483,71 @@ function drawRem() {
       '</div>';
     }).join('') + '</div>';
   } else {
-    h += '<div class="empty">Поки порожньо. Найчастіше додають ГРМ, антифриз і техогляд.</div>';
+    h += '<div class="empty">Поки порожньо.</div>';
+  }
+
+  var sug = remSuggest(car);
+  if (sug.length) {
+    h += '<div class="h2">Схоже, варто поставити</div>' + sug.map(function (x, i) {
+      return '<div class="nudge"><div class="tx"><b>' + esc(x.t) + '</b>' +
+        '<p>' + esc(x.why) + '</p></div>' +
+        '<button class="chip gh" data-do="remQuick" data-i="' + i + '">Додати</button></div>';
+    }).join('') +
+    '<div class="note">Пропозиції зібрані з вашої ж сервісної книжки — ' +
+    'не загальні поради, а те, чого саме тут бракує.</div>';
+    REM_SUG = sug;
   }
 
   el.innerHTML = h;
+}
+
+/* Що варто поставити саме цьому авто — виводимо з його ж книжки.
+   Не загальні поради, а «цього у вас ще не було» або «востаннє давно». */
+function remSuggest(car) {
+  if (!car) return [];
+  var isEV = car.fuel === 'electric';
+  var srv = (S.service || []).filter(function (r) { return r.carId === car.id; });
+  var have = remList(car.id);
+  var out = [];
+
+  function lastOf(re) {
+    var hit = srv.filter(function (r) { return re.test((r.title || '') + ' ' + (r.kind || '')); })
+                 .sort(function (a, b) { return b.odo - a.odo; })[0];
+    return hit || null;
+  }
+  function already(t) {
+    return have.some(function (r) { return r.title.toLowerCase().indexOf(t.toLowerCase().slice(0, 10)) > -1; });
+  }
+
+  var rules = [
+    { t: 'Заміна ременя ГРМ', every: 90000, re: /грм|ремінь|ремен/i, ice: true },
+    { t: 'Заміна гальмівної рідини', every: 40000, re: /гальмівн.*рідин|тормозн.*жидк/i },
+    { t: 'Заміна антифризу', every: 60000, re: /антифриз|охолодж/i },
+    { t: 'Заміна свічок', every: 30000, re: /свічк|свеч/i, ice: true },
+    { t: 'Заміна повітряного фільтра', every: 15000, re: /повітрян|воздушн/i, ice: true },
+    { t: 'Заміна салонного фільтра', every: 20000, re: /салонн/i },
+    { t: 'Перевірка батареї (SOH)', every: 20000, re: /батаре|soh/i, ev: true },
+  ];
+
+  rules.forEach(function (r) {
+    if (isEV ? r.ice : r.ev) return;
+    if (already(r.t)) return;
+    var last = lastOf(r.re);
+    if (last) {
+      var passed = car.odo - last.odo;
+      if (passed >= r.every * 0.7)
+        out.push({ t: r.t, odo: last.odo + r.every, every: r.every,
+                   why: 'востаннє на ' + nfmt(last.odo) + ' км, минуло ' + nfmt(passed) + ' км' });
+    } else if (srv.length >= 2) {
+      out.push({ t: r.t, odo: car.odo + Math.round(r.every * 0.3), every: r.every,
+                 why: 'у книжці такого запису ще немає' });
+    }
+  });
+
+  if (!car.insuranceEnd && !already('ОСЦПВ'))
+    out.push({ t: 'Оформити ОСЦПВ', date: null, why: 'дата поліса не вказана' });
+
+  return out.slice(0, 4);
 }
 
 function remForm() {
@@ -2866,8 +2925,8 @@ function drawVoice() {
       '<div id="vIos" style="margin-top:14px">' +
         '<div class="steps">' +
           '<div><i>1</i><div><b>Візьміть свій ключ</b>' +
-            '<p>Він замінює вхід — нікому не пересилайте.</p>' +
-            '<div class="tokenbox"><code>' + esc(t ? t.token : '…') + '</code></div>' +
+            '<p>Ключ і адреса прийдуть у чат бота — звідти копіюються одним дотиком. ' +
+            'Нікому їх не пересилайте: ключ замінює вхід.</p>' +
             '<button class="chip gh" style="margin-top:8px" data-do="sendSelf" data-w="token">' +
             'Надіслати собі в бот</button></div></div>' +
           '<div><i>2</i><div><b>Застосунок «Команди»</b>' +
@@ -2875,13 +2934,15 @@ function drawVoice() {
           '<div><i>3</i><div><b>Дія «Диктувати текст»</b>' +
             '<p>У пошуку напишіть «диктувати». Мову поставте українську.</p></div></div>' +
           '<div><i>4</i><div><b>Дія «Отримати вміст URL-адреси»</b>' +
-            '<p>Адреса:</p><div class="tokenbox"><code>' + esc(t ? t.url : '') + '</code></div>' +
+            '<p>Адресу й ключ надішліть собі в бот — звідти зручно скопіювати:</p>' +
+            '<button class="chip gh" data-do="sendSelf" data-w="token">Надіслати в бот</button>' +
             '<p style="margin-top:8px">«Показати більше» → Спосіб <b>POST</b>, ' +
             'Тіло запиту <b>JSON</b>, поле <b>text</b> зі значенням ' +
             '<b>Диктований текст</b>.</p></div></div>' +
           '<div><i>5</i><div><b>Повісьте на кнопку</b>' +
-            '<p>Налаштування → <b>Дія (Action Button)</b> → Команда — це бічна кнопка ' +
-            'на iPhone 15 Pro і новіших, із застосунком «Дія» вона не повʼязана.<br>' +
+            '<p>Налаштування → <b>Action Button</b> → Команда. Це бічна кнопка над ' +
+            'гойдалкою гучності на iPhone 15 Pro і новіших. До застосунку «Дія» ' +
+            'вона стосунку не має.<br>' +
             'Немає такої кнопки — Налаштування → Універсальний доступ → Дотик → ' +
             'Дотик до задньої панелі → Подвійний дотик.</p></div></div>' +
         '</div>' +
@@ -2890,15 +2951,14 @@ function drawVoice() {
       '<div id="vAndroid" class="hidden" style="margin-top:14px">' +
         '<div class="steps">' +
           '<div><i>1</i><div><b>Візьміть свій ключ</b>' +
-            '<div class="tokenbox"><code>' + esc(t ? t.token : '…') + '</code></div>' +
+            '<p>Ключ і адреса прийдуть у чат бота.</p>' +
             '<button class="chip gh" style="margin-top:8px" data-do="sendSelf" data-w="token">' +
             'Надіслати собі в бот</button></div></div>' +
           '<div><i>2</i><div><b>Встановіть «HTTP Shortcuts»</b>' +
             '<p>Безкоштовний застосунок у Google Play. Він робить те саме, ' +
             'що «Команди» на iPhone.</p></div></div>' +
           '<div><i>3</i><div><b>Створіть запит</b>' +
-            '<p>Спосіб <b>POST</b>, адреса:</p>' +
-            '<div class="tokenbox"><code>' + esc(t ? t.url : '') + '</code></div>' +
+            '<p>Спосіб <b>POST</b>, адреса — та, що прийшла в бот.</p>' +
             '<p style="margin-top:8px">Тіло — <b>JSON</b>: <code class="mini">' +
             '{"text":"{{Питання}}"}</code>, де «Питання» — змінна з голосовим вводом.</p></div></div>' +
           '<div><i>4</i><div><b>Винесіть на робочий стіл</b>' +
@@ -3175,6 +3235,12 @@ var DO = {
   },
 
   remAdd:  function () { remForm(); },
+  remQuick: function (t) {
+    var x = REM_SUG[+t.dataset.i];
+    if (!x) return;
+    act({ action: 'addRem', title: x.t, odo: x.odo || null, every: x.every || null, date: x.date || null });
+    toast('Нагадування додано', 'ok');
+  },
   remSave: function () {
     var pre = document.querySelector('#rPreset button.on');
     var mode = (document.querySelector('#rMode button.on') || {}).dataset;
@@ -3220,20 +3286,6 @@ var DO = {
 
   keyCopy: function (t) { copy(t.dataset.c); toast('Код скопійовано'); },
 
-  docUnlock: function () {
-    bioUnlock(function (ok) {
-      if (ok) { DIRTY['s-docs'] = 0; drawDocs(); }
-      else toast('Не вдалося підтвердити');
-    });
-  },
-  bioToggle: function () {
-    if (bioOn()) {
-      bioSetup(false, function () { DOC_UNLOCKED = true; DIRTY['s-docs'] = 0; drawDocs(); toast('Замок знято'); });
-    } else {
-      bioSetup(true, function () { DOC_UNLOCKED = true; DIRTY['s-docs'] = 0; drawDocs(); toast('Замок увімкнено'); });
-    }
-  },
-
   sendSelf: function (t) {
     var body = { what: t.dataset.w };
     if (t.dataset.amount) body.amount = t.dataset.amount;
@@ -3241,11 +3293,12 @@ var DO = {
     t.disabled = true;
     api('/api/send', body).then(function (d) {
       t.disabled = false;
-      if (!d.ok) { toast(d.error || 'Не вдалося надіслати'); return; }
-      toast('Надіслано в чат бота');
+      if (!d.ok) { toast(d.error || 'Не вдалося надіслати', 'er'); return; }
+      toast('Надіслано в чат бота', 'ok');
       haptic('light');
-    }).catch(function () { t.disabled = false; toast('Немає звʼязку'); });
+    }).catch(function () { t.disabled = false; toast('Немає звʼязку', 'er'); });
   },
+
   keyShow: function () {
     var raw;
     try { raw = localStorage.getItem(KEY_STORE); } catch (e) { raw = null; }
@@ -3253,12 +3306,83 @@ var DO = {
     var code = codeFromKey(unb64(raw));
     openSheet('Код відновлення',
       '<p style="margin:0 0 14px;font-size:13.5px;color:var(--ink2);line-height:1.6">' +
-      'Запишіть його. Без цього коду документи не відкриються на іншому телефоні.</p>' +
+      'Це ваш персональний ключ у зручному вигляді. Він потрібен, якщо відкриватимете ' +
+      'документи на іншому телефоні.</p>' +
       '<div class="tokenbox"><code>' + esc(code) + '</code></div>' +
       '<button class="btn sec" style="margin-top:9px" data-do="sendSelf" data-w="reccode" ' +
         'data-code="' + esc(code) + '">Надіслати код собі в бот</button>' +
       '<button class="btn" data-close="1">Готово</button>');
   },
+
+  docUnlock: function () {
+    bioUnlock(function (ok) {
+      if (ok) { DIRTY['s-docs'] = 0; drawDocs(); }
+      else toast('Не вдалося підтвердити', 'er');
+    });
+  },
+  pinCheck: function () {
+    var v = val('pinIn');
+    if (pinOk(v)) { DOC_UNLOCKED = true; DIRTY['s-docs'] = 0; drawDocs(); haptic('light'); return; }
+    document.getElementById('pinErr').innerHTML = '<div class="msg er">Код не підходить.</div>';
+  },
+  lockForgot: function () {
+    ask('Зняти замок?', 'Ми не можемо нагадати код — він зберігається лише у вас, у зашифрованому вигляді. ' +
+        'Замок можна зняти: самі документи від цього не зникнуть.', 'Зняти замок', function () {
+      lockOff(); DIRTY['s-docs'] = 0; drawDocs(); toast('Замок знято');
+    });
+  },
+  lockSetup: function () {
+    var canBio = bioAvailable();
+    openSheet('Замок на документи',
+      '<p style="margin:0 0 14px;font-size:13.5px;color:var(--ink2);line-height:1.6">' +
+      'Щоб документи не побачив той, кому ви дали телефон на хвилину.</p>' +
+      '<div class="card list">' +
+        '<button class="it" data-do="lockPin"><div class="dt">' + ic('lock', 17) + '</div>' +
+          '<div class="tx"><b>Код із чотирьох цифр</b><small>Працює на будь-якому телефоні</small></div>' +
+          '<div class="ar">›</div></button>' +
+        (canBio
+          ? '<button class="it" data-do="lockBio"><div class="dt">' + ic('shield', 17) + '</div>' +
+            '<div class="tx"><b>' + (bioType() === 'face' ? 'Обличчя' : 'Відбиток') + '</b>' +
+            '<small>Швидше, але тільки на цьому телефоні</small></div><div class="ar">›</div></button>'
+          : '') +
+        (lockMode() !== 'off'
+          ? '<button class="it" data-do="lockNone"><div class="dt">' + ic('check', 17) + '</div>' +
+            '<div class="tx"><b>Без замка</b><small>Відкривається одразу</small></div>' +
+            '<div class="ar">›</div></button>'
+          : '') +
+      '</div>' +
+      (canBio ? '' : '<div class="note">Відбиток і обличчя цей телефон не пропонує — ' +
+        'або їх не налаштовано в самому Telegram.</div>'));
+  },
+  lockPin: function () {
+    openSheet('Код із чотирьох цифр',
+      '<p style="margin:0 0 14px;font-size:13.5px;color:var(--ink2);line-height:1.6">' +
+      'Придумайте код. Ми його не зберігаємо — тільки відбиток коду, за яким ' +
+      'звіряємо ввід. Забудете — замок можна зняти, документи лишаться.</p>' +
+      '<div class="field"><label>Код</label>' +
+      '<input id="pin1" type="password" inputmode="numeric" maxlength="6" placeholder="••••" ' +
+      'style="text-align:center;letter-spacing:.4em"></div>' +
+      '<div class="field"><label>Ще раз</label>' +
+      '<input id="pin2" type="password" inputmode="numeric" maxlength="6" placeholder="••••" ' +
+      'style="text-align:center;letter-spacing:.4em"></div>' +
+      '<div id="pinSetErr"></div>' +
+      '<button class="btn" data-do="pinSave">Поставити замок</button>');
+  },
+  pinSave: function () {
+    var a = val('pin1'), b = val('pin2');
+    var err = document.getElementById('pinSetErr');
+    if (!/^\d{4,6}$/.test(a)) { err.innerHTML = '<div class="msg er">Потрібно від чотирьох до шести цифр.</div>'; return; }
+    if (a !== b) { err.innerHTML = '<div class="msg er">Коди не збігаються.</div>'; return; }
+    pinSet(a); DOC_UNLOCKED = true;
+    closeSheet(); DIRTY['s-docs'] = 0; drawDocs(); toast('Замок поставлено', 'ok');
+  },
+  lockBio: function () {
+    bioSetup(function () { closeSheet(); DIRTY['s-docs'] = 0; drawDocs(); toast('Замок поставлено', 'ok'); });
+  },
+  lockNone: function () {
+    lockOff(); closeSheet(); DIRTY['s-docs'] = 0; drawDocs(); toast('Замок знято');
+  },
+
   keyOk:   function () { var cb = KEY_NEXT; KEY_NEXT = null; closeSheet(); if (cb) setTimeout(cb, 80); },
   keyRestore: function () {
     openSheet('Код відновлення',
@@ -3621,8 +3745,8 @@ var DO = {
           'гроші втрачаються, повернути їх неможливо.</div>' +
         '<div id="payErr2"></div>' +
         '<button class="btn" data-do="paidDone" data-plan="' + p + '">Я оплатив</button>' +
-        '<div class="note" style="margin-bottom:0">Після натискання надішліть скрін переказу ' +
-          'у чат бота. Преміум вмикаємо вручну, зазвичай за кілька хвилин.</div>');
+        '<div class="note" style="margin-bottom:0">Після натискання <b>обовʼязково надішліть ' +
+          'скрін переказу в чат бота</b> — інакше ми не звіримо платіж.</div>');
     }).catch(function () {
       if (box) box.innerHTML = '<div class="msg er">Немає звʼязку</div>';
     });
@@ -3638,12 +3762,15 @@ var DO = {
         '<div class="hero" style="margin-bottom:14px">' +
           '<div class="hero-top"><span>Що далі</span>' + ic('check', 18) + '</div>' +
           '<b style="font-size:24px;line-height:1.25">Надішліть скрін переказу в чат бота</b></div>' +
+        '<div class="msg er" style="margin-bottom:14px">Без скріншота Преміум не ввімкнеться — ' +
+        'ми не побачимо, що платіж саме ваш.</div>' +
         '<div class="steps">' +
-          '<div><i>1</i><div><b>Відкрийте бота</b><p>Той самий чат, звідки заходили сюди.</p></div></div>' +
+          '<div><i>1</i><div><b>Відкрийте чат із ботом</b>' +
+            '<p>Той самий, звідки заходили в застосунок.</p></div></div>' +
           '<div><i>2</i><div><b>Надішліть скріншот переказу</b>' +
-            '<p>Ми одразу його побачимо разом із вашим номером.</p></div></div>' +
+            '<p>Прикріпіть картинку — ми одразу побачимо її разом із вашим номером.</p></div></div>' +
           '<div><i>3</i><div><b>Чекайте кілька хвилин</b>' +
-            '<p>Щойно ввімкнемо — бот напише, і Преміум зʼявиться сам.</p></div></div>' +
+            '<p>Щойно ввімкнемо — Преміум зʼявиться сам, застосунок відкривати не треба.</p></div></div>' +
         '</div>' +
         '<button class="btn" style="margin-top:14px" data-do="payCheck">Перевірити зараз</button>' +
         '<button class="btn sec" data-close="1">Закрити</button>');

@@ -836,3 +836,28 @@ input,select,textarea{-webkit-appearance:none;appearance:none}
 .sk-l.w40{width:40%}
 @keyframes shimmer{to{background-position:-120% 0}}
 @media (prefers-reduced-motion:reduce){.sk-l{animation:none}}
+
+/* ---------------- вигляд для Преміуму ---------------- */
+/* Тепліше сяйво, золота обводка на головній картці й на навігації —
+   щоб відчувалось, що це інший рівень, але без зміни всієї палітри. */
+.is-pro::before{
+  background:
+    radial-gradient(680px 420px at 78% -8%, rgba(255,214,110,.13), transparent 62%),
+    radial-gradient(520px 380px at 8% 4%, rgba(215,255,62,.08), transparent 60%);
+}
+.is-pro .carcard{
+  background:linear-gradient(148deg,#E4FF6B,#C8F03A 46%,#93C400);
+  box-shadow:0 0 0 1px rgba(255,214,110,.35), 0 18px 40px -18px rgba(255,214,110,.35);
+}
+.is-pro .carcard.ev{background:linear-gradient(148deg,#A6F7DA,#5FE0B4 46%,#12A97C)}
+.is-pro .nav{border-color:rgba(255,214,110,.20)}
+.is-pro .hero{
+  background:linear-gradient(145deg,#E4FF6B,#CBF23F 55%,#9BD100);
+  box-shadow:0 0 0 1px rgba(255,214,110,.3);
+}
+.is-pro .ava.pro::after{background:linear-gradient(150deg,#FFD86B,#E8A93C);color:#4A3400}
+.is-pro .top .hi strong::after{
+  content:'PRO';margin-left:8px;font-family:var(--body);font-size:9.5px;font-weight:800;
+  letter-spacing:.1em;color:#4A3400;background:linear-gradient(150deg,#FFD86B,#E8A93C);
+  padding:3px 6px;border-radius:6px;vertical-align:3px;
+}

@@ -7,7 +7,7 @@
 <meta name="robots" content="noindex, nofollow">
 <title>Бардачок — керування</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="styles.css?v=20260822-2150">
+<link rel="stylesheet" href="styles.css?v=20260822-2228">
 <style>
   body{overflow:auto}
   .wrap{max-width:620px;margin:0 auto;padding:26px 16px 60px}
@@ -31,6 +31,14 @@
   .gate input{width:100%;padding:14px 16px;border-radius:16px;background:var(--surf2);
     border:1.5px solid transparent;font-size:16px;font-weight:600;outline:none;margin-bottom:11px}
   .gate input:focus{border-color:var(--lime)}
+.tabs{display:flex;gap:6px;padding:5px;border-radius:16px;background:#171B19;margin-bottom:14px;overflow-x:auto}
+.tabs button{flex:1;white-space:nowrap;padding:10px 12px;border-radius:12px;font-size:13px;font-weight:600;color:#8A968F}
+.tabs button.on{background:#EEF2EC;color:#12160F}
+.pane{display:none}
+.pane.on{display:block}
+.quickrow{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+.quickrow button{background:#171B19;border:1px solid #2A3235;border-radius:13px;padding:12px 6px;font-size:12.5px;color:#EEF2EC}
+.quickrow button:active{background:#212724}
 </style>
 </head>
 <body>
@@ -50,9 +58,16 @@
   <h1>Керування</h1>
   <div class="sub">Зміни діють одразу для всіх користувачів</div>
 
+  <div class="tabs" id="tabs">
+    <button class="on" data-t="t-home">Огляд</button>
+    <button data-t="t-users">Люди</button>
+    <button data-t="t-msg">Зв'язок</button>
+    <button data-t="t-set">Налаштування</button>
+  </div>
   <div class="msg inf" id="info">Завантаження…</div>
-  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260822-2150</div>
+  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260822-2228</div>
 
+  <div class="pane on" id="t-home">
   <div class="st" id="stats">
     <div><b id="stU">—</b><small>усього</small></div>
     <div><b id="stP">—</b><small>преміум</small></div>
@@ -68,13 +83,22 @@
       всіх користувачів — на великій базі це займе час.</div>
   </div>
 
+  </div><!-- /t-home -->
+
+  <div class="pane" id="t-users">
   <div class="card">
     <div class="sect">Преміум вручну</div>
     <div class="rw"><div class="lb">Telegram ID<small>Користувач має спершу відкрити застосунок</small></div>
       <input type="text" id="gid" placeholder="123456789" style="text-align:left"></div>
     <div class="rw"><div class="lb">Скільки днів<small>30 · 180 · 365. Мінус — забрати</small></div>
       <input type="number" id="gdays" value="30"></div>
-    <button class="btn" id="grant" style="margin-top:12px">Видати преміум</button>
+    <div class="quickrow">
+      <button data-days="30">+ місяць</button>
+      <button data-days="182">+ півроку</button>
+      <button data-days="365">+ рік</button>
+    </div>
+    <button class="btn" id="grant" style="margin-top:10px">Видати на вказану кількість днів</button>
+    <button class="btn sec" id="revoke">Забрати преміум</button>
     <div class="msg ok hidden" id="gOk" style="margin-top:10px"></div>
     <div class="msg er hidden" id="gEr" style="margin-top:10px"></div>
     <div class="note">Користувачу автоматично прийде повідомлення в бот.</div>
@@ -90,6 +114,9 @@
     <div class="msg er hidden" id="uEr" style="margin-top:10px"></div>
   </div>
 
+  </div><!-- /t-users -->
+
+  <div class="pane" id="t-set">
   <div class="card">
     <div class="sect">Ціни преміуму, $</div>
     <div class="rw"><div class="lb">Місяць<small>у доларах — платять USDT</small></div>
@@ -129,6 +156,9 @@
       Свій ID дізнаєтесь так: напишіть боту <b>/id</b>.</div>
   </div>
 
+  </div><!-- /t-set-part1 -->
+
+  <div class="pane" id="t-msg">
   <div class="card">
     <div class="sect">Оголошення в застосунку</div>
     <div class="rw" style="display:block">
@@ -188,6 +218,9 @@
     <div id="bcLog" style="margin-top:12px"></div>
   </div>
 
+  </div><!-- /t-msg -->
+
+  <div class="pane" id="t-set-b">
   <div class="card">
     <div class="sect">Оплата карткою (WayForPay)</div>
     <div class="rw"><div class="lb">Мерчант<small>Логін з кабінету WayForPay</small></div>
@@ -224,7 +257,9 @@
     <div class="rw"><div class="lb">Оплата криптою</div><b id="hPY">—</b></div>
     <div class="rw"><div class="lb">Пошук за номером</div><b id="hPL">—</b></div>
     <div class="rw"><div class="lb">Успішних оплат</div><b id="hPN">—</b></div>
+    <div class="rw"><div class="lb">Версія сервера</div><b id="hV">—</b></div>
   </div>
+  </div><!-- /t-set-b -->
 </div>
 
 <script>
@@ -268,6 +303,7 @@ function doLogin() {
       $('#hPC').textContent = d.payCard ? 'ключ є' : 'нема ключа WFP_SECRET';
       $('#hPY').textContent = d.payCrypto ? 'ключ є' : 'нема ключа CRYPTO_TOKEN';
       $('#hPL').textContent = d.plates ? 'ключ є' : 'нема ключа PLATE_TOKEN — розділ прихований';
+      $('#hV').textContent = d.version || 'стара збірка — оновіть worker';
       load(); stats();
     })
     .catch(function () { $('#login').disabled = false; show('gErr', 'Сервер не відповідає.', true); });
@@ -444,6 +480,37 @@ $('#uLook').addEventListener('click', function () {
     if (!d.ok) { show('uEr', d.error || 'Не знайшов.', true); return; }
     userCard(d);
   }).catch(function () { show('uEr', 'Сервер не відповідає.', true); });
+});
+
+/* вкладки */
+[].forEach.call(document.querySelectorAll('#tabs button'), function (b) {
+  b.addEventListener('click', function () {
+    [].forEach.call(document.querySelectorAll('#tabs button'), function (x) { x.classList.remove('on'); });
+    b.classList.add('on');
+    var t = b.dataset.t;
+    [].forEach.call(document.querySelectorAll('.pane'), function (p) {
+      var on = p.id === t || (t === 't-set' && p.id === 't-set-b');
+      p.classList.toggle('on', on);
+    });
+    window.scrollTo(0, 0);
+  });
+});
+
+/* швидка видача */
+[].forEach.call(document.querySelectorAll('.quickrow button'), function (b) {
+  b.addEventListener('click', function () { $('#gdays').value = b.dataset.days; $('#grant').click(); });
+});
+
+$('#revoke').addEventListener('click', function () {
+  var id = $('#gid').value.trim();
+  if (!id) { show('gEr', 'Впишіть Telegram ID.', true); return; }
+  if (!confirm('Забрати преміум у ' + id + '?')) return;
+  show('gOk', '', false); show('gEr', '', false);
+  post('/admin/revoke', { tgId: id }).then(function (d) {
+    if (!d.ok) { show('gEr', d.error || 'Не вдалося.', true); return; }
+    show('gOk', 'Преміум знято' + (d.name ? ' у ' + d.name : '') + '.', true);
+    stats();
+  }).catch(function () { show('gEr', 'Сервер не відповідає.', true); });
 });
 
 $('#bcTest').addEventListener('click', function () { broadcast(true); });
