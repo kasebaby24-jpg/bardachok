@@ -838,26 +838,43 @@ input,select,textarea{-webkit-appearance:none;appearance:none}
 @media (prefers-reduced-motion:reduce){.sk-l{animation:none}}
 
 /* ---------------- вигляд для Преміуму ---------------- */
-/* Тепліше сяйво, золота обводка на головній картці й на навігації —
-   щоб відчувалось, що це інший рівень, але без зміни всієї палітри. */
+/* Не підфарбовуємо лимонний — від цього він і став болотним.
+   Замість цього головна картка стає графітовою із золотом:
+   так виглядають преміальні картки, а лимонний лишається
+   впізнаваним кольором безкоштовної версії. */
+:root{
+  --gold:#E8C87A;
+  --gold2:#C9A24D;
+}
 .is-pro::before{
   background:
-    radial-gradient(680px 420px at 78% -8%, rgba(255,214,110,.13), transparent 62%),
-    radial-gradient(520px 380px at 8% 4%, rgba(215,255,62,.08), transparent 60%);
+    radial-gradient(680px 420px at 78% -8%, rgba(232,200,122,.10), transparent 62%),
+    radial-gradient(520px 380px at 8% 4%, rgba(215,255,62,.06), transparent 60%);
 }
+
 .is-pro .carcard{
-  background:linear-gradient(148deg,#E4FF6B,#C8F03A 46%,#93C400);
-  box-shadow:0 0 0 1px rgba(255,214,110,.35), 0 18px 40px -18px rgba(255,214,110,.35);
+  background:linear-gradient(150deg,#23262A,#15181B 52%,#0E1012);
+  color:#F4F1EA;
+  box-shadow:inset 0 0 0 1px rgba(232,200,122,.28), 0 20px 44px -22px rgba(0,0,0,.9);
 }
-.is-pro .carcard.ev{background:linear-gradient(148deg,#A6F7DA,#5FE0B4 46%,#12A97C)}
-.is-pro .nav{border-color:rgba(255,214,110,.20)}
-.is-pro .hero{
-  background:linear-gradient(145deg,#E4FF6B,#CBF23F 55%,#9BD100);
-  box-shadow:0 0 0 1px rgba(255,214,110,.3);
-}
-.is-pro .ava.pro::after{background:linear-gradient(150deg,#FFD86B,#E8A93C);color:#4A3400}
+.is-pro .carcard.ev{background:linear-gradient(150deg,#1D2A28,#131C1B 52%,#0D1413)}
+.is-pro .carcard .plate{background:rgba(232,200,122,.14);color:var(--gold)}
+.is-pro .carcard .cc-specs span{background:rgba(255,255,255,.06);color:#CFCABF}
+.is-pro .carcard .odo small{color:rgba(244,241,234,.55)}
+.is-pro .carcard .cc-go{background:rgba(232,200,122,.14)}
+.is-pro .carcard .cc-go .icn{color:var(--gold)}
+.is-pro .carcard .cc-odo{background:linear-gradient(150deg,var(--gold),var(--gold2));color:#241B06}
+.is-pro .carcard .cc-odo .icn{color:#241B06}
+.is-pro .carcard .sil{opacity:.11}
+
+/* решта лишається як була — тільки тонкий золотий акцент */
+.is-pro .nav{border-color:rgba(232,200,122,.18)}
+.is-pro .nav button.on::before{background:linear-gradient(150deg,var(--gold),var(--gold2))}
+.is-pro .nav button.on span{color:var(--gold)}
+.is-pro .ava{background:linear-gradient(150deg,var(--gold),var(--gold2));color:#241B06}
+.is-pro .ava.pro::after{background:#12160F;color:var(--gold)}
 .is-pro .top .hi strong::after{
   content:'PRO';margin-left:8px;font-family:var(--body);font-size:9.5px;font-weight:800;
-  letter-spacing:.1em;color:#4A3400;background:linear-gradient(150deg,#FFD86B,#E8A93C);
+  letter-spacing:.1em;color:#241B06;background:linear-gradient(150deg,var(--gold),var(--gold2));
   padding:3px 6px;border-radius:6px;vertical-align:3px;
 }

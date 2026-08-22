@@ -7,7 +7,7 @@
 <meta name="robots" content="noindex, nofollow">
 <title>Бардачок — керування</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="styles.css?v=20260822-2228">
+<link rel="stylesheet" href="styles.css?v=20260822-2239">
 <style>
   body{overflow:auto}
   .wrap{max-width:620px;margin:0 auto;padding:26px 16px 60px}
@@ -65,7 +65,7 @@
     <button data-t="t-set">Налаштування</button>
   </div>
   <div class="msg inf" id="info">Завантаження…</div>
-  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260822-2228</div>
+  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260822-2239</div>
 
   <div class="pane on" id="t-home">
   <div class="st" id="stats">
@@ -304,6 +304,21 @@ function doLogin() {
       $('#hPY').textContent = d.payCrypto ? 'ключ є' : 'нема ключа CRYPTO_TOKEN';
       $('#hPL').textContent = d.plates ? 'ключ є' : 'нема ключа PLATE_TOKEN — розділ прихований';
       $('#hV').textContent = d.version || 'стара збірка — оновіть worker';
+
+      /* Панель і сервер мають бути однієї збірки. Інакше половина кнопок
+         відповідає «невідомий маршрут», і незрозуміло чому. */
+      var mine = ($('#ver').textContent.match(/[0-9]{8}-[0-9]{4}/) || [''])[0];
+      if (!d.version || d.version !== mine) {
+        var w = document.createElement('div');
+        w.className = 'msg er';
+        w.style.marginBottom = '12px';
+        w.innerHTML = '<b>Сервер і панель різних збірок.</b><br>' +
+          'Панель: ' + (mine || '—') + ' · сервер: ' + (d.version || 'старіший за 22.08') + '.<br>' +
+          'Вставте свіжий <b>worker.js</b> у Cloudflare і натисніть Deploy — інакше нові ' +
+          'кнопки відповідатимуть «невідомий маршрут».';
+        var host = $('#panel');
+        host.insertBefore(w, host.firstChild);
+      }
       load(); stats();
     })
     .catch(function () { $('#login').disabled = false; show('gErr', 'Сервер не відповідає.', true); });

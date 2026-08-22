@@ -12,7 +12,7 @@ var API = 'https://bardachok.kasebaby24.workers.dev';
 
 var QR_FOR = 'TWqHKxsLAdGMPC7kY4i3r2GQxNJ2U6vQXv';   // до цієї адреси намальовано usdt-qr.png
 
-var BUILD = '20260822-2228';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
+var BUILD = '20260822-2239';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
 var BOOT_T0 = Date.now();
 
 var tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
@@ -547,7 +547,7 @@ function nudges(car) {
     out.push({ t: 'Додайте нагадування', p: 'ГРМ, антифриз, техогляд — усе, що легко забути.',
       go: 'tab:s-rem', btn: 'Створити' });
 
-  return out.slice(0, 2);                 // більше двох — уже настирливо
+  return out.slice(0, 1);                 // одна підказка за раз — дві вже гамірно
 }
 
 function attention() {
@@ -803,7 +803,8 @@ function drawHome() {
   var stale = car.odoDate ? daysBetween(car.odoDate, today()) : 999;
 
   h += '<div class="carcard' + (isEV ? ' ev' : '') + '">' +
-    silSvg(bodyKind, '#0E1207', isEV ? '#9BE7C4' : '#D7FF3E') +
+    silSvg(bodyKind, PRO ? '#E8C87A' : '#0E1207',
+                     PRO ? '#15181B' : (isEV ? '#9BE7C4' : '#D7FF3E')) +
     '<div class="cc-top">' +
       (car.plate ? '<span class="plate">' + esc(car.plate) + '</span>' : '<span></span>') +
       '<button class="cc-go" data-do="editThis" aria-label="Змінити авто">' + ic('wrench', 15) + '</button>' +
@@ -1211,8 +1212,7 @@ function drawMore() {
 
   h += '<div class="h2">Інструменти</div><div class="card list">' +
     itemBtn('search', 'Перевірка по VIN', 'Що це за авто насправді', 'tab:s-vin') +
-    (CFG.plates ? itemBtn('idcard', 'Пошук за номером',
-        'Марка, рік, обʼєм за реєстром', 'tab:s-plate', !PRO) : '') +
+    itemBtn('idcard', 'Пошук за номером', 'Марка, рік, обʼєм за реєстром', 'tab:s-plate', !PRO) +
     itemBtn('chat', 'Голосове внесення', 'Надиктували боту — записалось', 'tab:s-voice', !PRO) +
     itemBtn('chat', 'Питання про авто', 'Стукає, гріється, не заводиться', 'tab:s-ask', !PRO) +
     itemBtn('alert', 'Нагадування', 'ГРМ, техогляд, що завгодно', 'tab:s-rem') +
@@ -2065,7 +2065,6 @@ function keyFromCode(code) {
    3) у голові власника — код відновлення.
    Плюс, якщо телефон уміє, вхід можна закрити відбитком або обличчям. */
 var CLOUD = (tg && tg.CloudStorage) ? tg.CloudStorage : null;
-var BIO = (tg && tg.BiometricManager) ? tg.BiometricManager : null;
 var KEY_CACHE = null;
 
 function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
@@ -2114,9 +2113,6 @@ function saveKeyRaw(rawB64) {
   KEY_CACHE = rawB64;
   lsSet(KEY_STORE, rawB64);
   if (CLOUD) { try { CLOUD.setItem(KEY_STORE, rawB64, function () {}); } catch (e) {} }
-  if (BIO && BIO.isBiometricAvailable && BIO.isAccessGranted) {
-    try { BIO.updateBiometricToken(rawB64, function () {}); } catch (e) {}
-  }
   DOC_KEY = null;
 }
 
@@ -2133,46 +2129,28 @@ function restoreKey(code) {
   return true;
 }
 
-/* Замок на документи. Face ID є не в усіх, тому головний спосіб — власний
-   код із чотирьох цифр, а відбиток чи обличчя пропонуємо додатково. */
-var DOC_UNLOCKED = false;
-var PIN_STORE = 'b_pin';
-
-function bioAvailable() {
-  try { return !!(BIO && BIO.isInited && BIO.isBiometricAvailable); } catch (e) { return false; }
-}
-function bioType() {
-  try { return (BIO && BIO.biometricType) || ''; } catch (e) { return ''; }
-}
-function lockMode() { return lsGet('b_lock') || 'off'; }   // off | pin | bio
-
-function pinHash(pin) {                       // не зберігаємо самі цифри
-  var h = 5381, str = 'bd' + pin;
-  for (var i = 0; i < str.length; i++) h = ((h * 33) ^ str.charCodeAt(i)) >>> 0;
-  return String(h);
-}
-function pinSet(pin) { lsSet(PIN_STORE, pinHash(pin)); lsSet('b_lock', 'pin'); }
-function pinOk(pin) { return lsGet(PIN_STORE) === pinHash(pin); }
-
-function lockOff() { lsSet('b_lock', 'off'); DOC_UNLOCKED = true; }
-
-function bioSetup(cb) {
-  if (!bioAvailable()) { toast('Цей телефон такого не пропонує', 'er'); return; }
-  BIO.requestAccess({ reason: 'Щоб відкривати документи без коду' }, function (granted) {
-    if (!granted) { toast('Дозвіл не надано', 'er'); return; }
-    lsSet('b_lock', 'bio');
-    if (KEY_CACHE) { try { BIO.updateBiometricToken(KEY_CACHE, function () {}); } catch (e) {} }
-    DOC_UNLOCKED = true;
-    if (cb) cb();
+function seal(text) {
+  return loadKey().then(function (k) {
+    if (!k) return null;
+    if (!(window.crypto && crypto.subtle)) return null;   // старий вебперегляд
+    var iv = crypto.getRandomValues(new Uint8Array(12));
+    var data = new TextEncoder().encode(text);
+    return crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, k, data).then(function (buf) {
+      return 'sealed:' + b64(iv) + ':' + b64(buf);
+    });
   });
 }
 
-function bioUnlock(cb) {
-  if (!bioAvailable()) { cb(false); return; }
-  BIO.authenticate({ reason: 'Відкрити документи' }, function (ok, token) {
-    if (ok && token && !hasKey()) saveKeyRaw(token);
-    DOC_UNLOCKED = !!ok;
-    cb(!!ok);
+function unseal(payload) {
+  if (!payload) return Promise.resolve(null);
+  if (payload.indexOf('sealed:') !== 0) return Promise.resolve(payload);   // старий незашифрований
+  var parts = payload.split(':');
+  if (parts.length < 3) return Promise.resolve(null);
+  return loadKey().then(function (k) {
+    if (!k) return null;
+    return crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64(parts[1]) }, k, unb64(parts[2]))
+      .then(function (buf) { return new TextDecoder().decode(buf); })
+      .catch(function () { return null; });
   });
 }
 
@@ -2228,22 +2206,6 @@ function drawDocs() {
   var el = $('#s-docs');
   if (!el) return;
 
-  if (lockMode() !== 'off' && !DOC_UNLOCKED) {
-    var bio = lockMode() === 'bio';
-    el.innerHTML = '<div class="card" style="text-align:center;padding:34px 20px">' +
-      '<div class="ic-box" style="margin:0 auto 14px">' + ic('lock', 22) + '</div>' +
-      '<b style="display:block;font-family:var(--disp);font-size:17px;margin-bottom:6px">Документи закриті</b>' +
-      '<p style="margin:0 0 16px;font-size:13px;color:var(--mut);line-height:1.55">' +
-      (bio ? 'Підтвердьте, що це ви.' : 'Введіть свій код із чотирьох цифр.') + '</p>' +
-      (bio ? '<button class="btn" data-do="docUnlock">Відкрити</button>'
-           : '<div class="field"><input id="pinIn" type="password" inputmode="numeric" ' +
-             'maxlength="6" placeholder="••••" style="text-align:center;letter-spacing:.4em"></div>' +
-             '<div id="pinErr"></div>' +
-             '<button class="btn" data-do="pinCheck">Відкрити</button>') +
-      '<button class="btn sec" data-do="lockForgot">Забув код</button></div>';
-    return;
-  }
-
   if (DOCS === null) {
     el.innerHTML = skeleton(3);
     loadDocs();
@@ -2284,17 +2246,16 @@ function drawDocs() {
   h += '<div class="card" style="margin-top:10px"><div class="card-h"><b>Захист</b></div>' +
     '<div class="kv"><span>Шифрування</span><b>у вашому телефоні</b></div>' +
     '<div class="kv"><span>Ключ у хмарі Telegram</span><b>' + (CLOUD ? 'так' : 'недоступно') + '</b></div>' +
-    '<div class="kv"><span>Замок на розділ</span><b>' +
-      (lockMode() === 'pin' ? 'код' : lockMode() === 'bio' ? (bioType() === 'face' ? 'обличчя' : 'відбиток') : 'вимкнено') +
-      '</b></div>' +
-    '<button class="btn sec" style="margin-top:11px" data-do="lockSetup">' +
-      (lockMode() === 'off' ? 'Поставити замок' : 'Змінити або зняти замок') + '</button>' +
-    '<button class="btn sec" data-do="keyShow">Показати код відновлення</button>' +
+    '<button class="btn sec" style="margin-top:11px" data-do="keyShow">' +
+      'Показати код відновлення</button>' +
     '</div>';
 
   h += '<div class="note">У кожного свій персональний ключ, і він лишається у вас: ' +
        'у телефоні та у вашій хмарі Telegram. Тому документи переживають чистку кешу ' +
-       'і переїзд на новий телефон — і відкриваються тільки вашим ключем.</div>';
+       'і переїзд на новий телефон — і відкриваються тільки вашим ключем.<br><br>' +
+       'Окремого пароля на розділ немає навмисно: той, хто тримає ваш розблокований ' +
+       'телефон, однаково зняв би його в два дотики. Захист тут — саме шифрування ' +
+       'і блокування самого телефона.</div>';
   el.innerHTML = h;
 }
 
@@ -2840,20 +2801,30 @@ function drawPlate() {
         '<div class="ic-box">' + ic('idcard', 20) + '</div>' +
         '<div style="flex:1;min-width:0"><b style="display:block;font-size:15px;font-weight:700">Пошук за номером</b>' +
         '<small style="color:var(--mut);font-size:12px">' +
-          (PRO ? 'державний реєстр' : 'у Преміумі') + '</small></div></div>' +
+          (!CFG.plates ? 'ще не підключено' : PRO ? 'державний реєстр' : 'у Преміумі') +
+          '</small></div></div>' +
       '<p style="margin:0 0 13px;font-size:12.5px;color:var(--mut);line-height:1.5">' +
         'Марка, модель, рік, обʼєм, колір і тип кузова за номерним знаком. ' +
         'Зручно перед оглядом авто — видно, чи збігається з оголошенням.</p>' +
       '<div class="field"><input id="plIn" type="text" placeholder="АА1234ВВ" maxlength="10" autocomplete="off"></div>' +
-      '<button class="btn" data-do="plateGo">Знайти</button>' +
+      '<button class="btn" data-do="plateGo">Знайти' + (PRO ? '' : lockIc()) + '</button>' +
     '</div>' +
+    (!CFG.plates
+      ? '<div class="note">Джерело даних поки не підключене. Щойно зʼявиться — ' +
+        'пошук почне працювати без оновлення застосунку.</div>'
+      : '') +
     '<div id="plOut"></div>' +
     '<div class="note">Дані про власника не показуються — це персональні дані, ' +
     'і в реєстрі відкритої частини їх немає.</div>';
 }
 
 function plateCard(c) {
-  return (c.photo ? '<div class="vin-model" style="background-image:url(' + esc(c.photo) + ')"></div>' : '') +
+  return (c.photo
+      ? '<div class="vin-model" style="background-image:url(' + esc(c.photo) + ')"></div>' +
+        '<div class="vin-credit">' + (c.photoFrom === 'Вікіпедія'
+          ? 'Так виглядає ця модель · фото з Вікіпедії'
+          : 'Фото з реєстру') + '</div>'
+      : '') +
     (c.isStolen ? '<div class="msg er">Це авто числиться в розшуку. Будьте обережні.</div>' : '') +
     '<div class="card"><div class="h3">' + esc(c.plate) + '</div>' +
       kv('Авто', [c.year, c.make, c.model].filter(Boolean).join(' ')) +
@@ -3314,74 +3285,6 @@ var DO = {
       '<button class="btn" data-close="1">Готово</button>');
   },
 
-  docUnlock: function () {
-    bioUnlock(function (ok) {
-      if (ok) { DIRTY['s-docs'] = 0; drawDocs(); }
-      else toast('Не вдалося підтвердити', 'er');
-    });
-  },
-  pinCheck: function () {
-    var v = val('pinIn');
-    if (pinOk(v)) { DOC_UNLOCKED = true; DIRTY['s-docs'] = 0; drawDocs(); haptic('light'); return; }
-    document.getElementById('pinErr').innerHTML = '<div class="msg er">Код не підходить.</div>';
-  },
-  lockForgot: function () {
-    ask('Зняти замок?', 'Ми не можемо нагадати код — він зберігається лише у вас, у зашифрованому вигляді. ' +
-        'Замок можна зняти: самі документи від цього не зникнуть.', 'Зняти замок', function () {
-      lockOff(); DIRTY['s-docs'] = 0; drawDocs(); toast('Замок знято');
-    });
-  },
-  lockSetup: function () {
-    var canBio = bioAvailable();
-    openSheet('Замок на документи',
-      '<p style="margin:0 0 14px;font-size:13.5px;color:var(--ink2);line-height:1.6">' +
-      'Щоб документи не побачив той, кому ви дали телефон на хвилину.</p>' +
-      '<div class="card list">' +
-        '<button class="it" data-do="lockPin"><div class="dt">' + ic('lock', 17) + '</div>' +
-          '<div class="tx"><b>Код із чотирьох цифр</b><small>Працює на будь-якому телефоні</small></div>' +
-          '<div class="ar">›</div></button>' +
-        (canBio
-          ? '<button class="it" data-do="lockBio"><div class="dt">' + ic('shield', 17) + '</div>' +
-            '<div class="tx"><b>' + (bioType() === 'face' ? 'Обличчя' : 'Відбиток') + '</b>' +
-            '<small>Швидше, але тільки на цьому телефоні</small></div><div class="ar">›</div></button>'
-          : '') +
-        (lockMode() !== 'off'
-          ? '<button class="it" data-do="lockNone"><div class="dt">' + ic('check', 17) + '</div>' +
-            '<div class="tx"><b>Без замка</b><small>Відкривається одразу</small></div>' +
-            '<div class="ar">›</div></button>'
-          : '') +
-      '</div>' +
-      (canBio ? '' : '<div class="note">Відбиток і обличчя цей телефон не пропонує — ' +
-        'або їх не налаштовано в самому Telegram.</div>'));
-  },
-  lockPin: function () {
-    openSheet('Код із чотирьох цифр',
-      '<p style="margin:0 0 14px;font-size:13.5px;color:var(--ink2);line-height:1.6">' +
-      'Придумайте код. Ми його не зберігаємо — тільки відбиток коду, за яким ' +
-      'звіряємо ввід. Забудете — замок можна зняти, документи лишаться.</p>' +
-      '<div class="field"><label>Код</label>' +
-      '<input id="pin1" type="password" inputmode="numeric" maxlength="6" placeholder="••••" ' +
-      'style="text-align:center;letter-spacing:.4em"></div>' +
-      '<div class="field"><label>Ще раз</label>' +
-      '<input id="pin2" type="password" inputmode="numeric" maxlength="6" placeholder="••••" ' +
-      'style="text-align:center;letter-spacing:.4em"></div>' +
-      '<div id="pinSetErr"></div>' +
-      '<button class="btn" data-do="pinSave">Поставити замок</button>');
-  },
-  pinSave: function () {
-    var a = val('pin1'), b = val('pin2');
-    var err = document.getElementById('pinSetErr');
-    if (!/^\d{4,6}$/.test(a)) { err.innerHTML = '<div class="msg er">Потрібно від чотирьох до шести цифр.</div>'; return; }
-    if (a !== b) { err.innerHTML = '<div class="msg er">Коди не збігаються.</div>'; return; }
-    pinSet(a); DOC_UNLOCKED = true;
-    closeSheet(); DIRTY['s-docs'] = 0; drawDocs(); toast('Замок поставлено', 'ok');
-  },
-  lockBio: function () {
-    bioSetup(function () { closeSheet(); DIRTY['s-docs'] = 0; drawDocs(); toast('Замок поставлено', 'ok'); });
-  },
-  lockNone: function () {
-    lockOff(); closeSheet(); DIRTY['s-docs'] = 0; drawDocs(); toast('Замок знято');
-  },
 
   keyOk:   function () { var cb = KEY_NEXT; KEY_NEXT = null; closeSheet(); if (cb) setTimeout(cb, 80); },
   keyRestore: function () {
@@ -3935,8 +3838,6 @@ function start() {
     var m = String(sp).match(/^ref_(\d+)$/);
     if (m) ref = m[1];
   } catch (e) {}
-
-  try { if (tg && tg.BiometricManager && tg.BiometricManager.init) tg.BiometricManager.init(); } catch (e) {}
 
   api('/api/me', { ref: ref }).then(function (d) {
     if (!d.ok) {
