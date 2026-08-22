@@ -7,7 +7,7 @@
 <meta name="robots" content="noindex, nofollow">
 <title>Бардачок — керування</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="styles.css?v=20260823-0020">
+<link rel="stylesheet" href="styles.css?v=20260823-0140">
 <style>
   body{overflow:auto}
   .wrap{max-width:620px;margin:0 auto;padding:26px 16px 60px}
@@ -65,7 +65,7 @@
     <button data-t="t-set">Налаштування</button>
   </div>
   <div class="msg inf" id="info">Завантаження…</div>
-  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260823-0020</div>
+  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260823-0140</div>
 
   <div class="pane on" id="t-home">
   <div class="st" id="stats">
@@ -143,22 +143,6 @@
     <div class="sect">Контакт для клієнтів</div>
     <div class="rw"><div class="lb">Telegram<small>Без «@». Сюди пишуть щодо оплати</small></div>
       <input type="text" id="contactTg" style="text-align:left"></div>
-  </div>
-
-  <div class="card">
-    <div class="sect">Пошук за номерним знаком</div>
-    <div class="note" style="margin-top:0">
-      Щоб розділ запрацював, потрібен безкоштовний ключ:
-      <br><br>
-      1. Відкрийте <b>baza-gai.com.ua/api</b> і візьміть ключ — дають одразу, 1000 запитів на місяць.<br>
-      2. Cloudflare → ваш Worker → <b>Settings</b> → <b>Variables and secrets</b> → <b>Add</b>,
-         тип <b>Secret</b>, назва <code>PLATE_TOKEN</code>, значення — ключ.<br>
-      3. Натисніть <b>Deploy</b>.
-      <br><br>
-      Поки ключа немає, у застосунку розділ показується, але чесно каже, що джерело
-      не підключене. <b>carplates.app перевірено — там пошук вимагає домовленості,
-      безкоштовно не працює.</b>
-    </div>
   </div>
 
   <div class="card">
@@ -273,7 +257,6 @@
     <div class="rw"><div class="lb">AI (голос і питання)</div><b id="hA">—</b></div>
     <div class="rw"><div class="lb">Оплата карткою</div><b id="hPC">—</b></div>
     <div class="rw"><div class="lb">Оплата криптою</div><b id="hPY">—</b></div>
-    <div class="rw"><div class="lb">Пошук за номером</div><b id="hPL">—</b></div>
     <div class="rw"><div class="lb">Успішних оплат</div><b id="hPN">—</b></div>
     <div class="rw"><div class="lb">Версія сервера</div><b id="hV">—</b></div>
   </div>
@@ -320,10 +303,6 @@ function doLogin() {
       $('#hA').textContent = d.ai ? 'увімкнено' : 'вимкнено';
       $('#hPC').textContent = d.payCard ? 'ключ є' : 'нема ключа WFP_SECRET';
       $('#hPY').textContent = d.payCrypto ? 'ключ є' : 'нема ключа CRYPTO_TOKEN';
-      $('#hPL').textContent = d.plates
-        ? ('ключ є' + (d.plateLeft !== '' && d.plateLeft != null
-            ? ' · лишилось запитів цього місяця: ' + d.plateLeft : ''))
-        : 'нема ключа PLATE_TOKEN — розділ прихований';
       $('#hV').textContent = d.version || 'стара збірка — оновіть worker';
 
       /* Панель і сервер мають бути однієї збірки. Інакше половина кнопок

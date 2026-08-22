@@ -12,7 +12,7 @@ var API = 'https://bardachok.kasebaby24.workers.dev';
 
 var QR_FOR = 'TWqHKxsLAdGMPC7kY4i3r2GQxNJ2U6vQXv';   // до цієї адреси намальовано usdt-qr.png
 
-var BUILD = '20260823-0020';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
+var BUILD = '20260823-0140';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
 var BOOT_T0 = Date.now();
 
 var tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
@@ -224,7 +224,6 @@ function ask(title, text, okText, cb) {
 var PRO_WHY = {
   voice:  ['Голосове внесення', 'Надиктували боту або кнопці «Дія» — запис зʼявився сам.'],
   ai:     ['Питання про авто', 'Помічник відповідає з вашою сервісною книжкою перед очима.'],
-  plate:  ['Пошук за номером', 'Марка, рік, обʼєм і колір за державним реєстром.'],
   vin:    ['Перевірка по VIN', 'Що це за авто насправді — з фото й ціною з американського аукціону.'],
   report: ['Звіти для покупця', 'PDF із сервісною книжкою — сильний аргумент у торгу.'],
   docs:   ['Документи', 'Двадцять знімків замість трьох.'],
@@ -641,7 +640,7 @@ var PAINT = {
   's-tour': drawTour, 's-home': drawHome, 's-fines': drawFines, 's-service': drawService,
   's-money': drawMoney, 's-more': drawMore, 's-vin': drawVin, 's-ask': drawAsk,
   's-docs': drawDocs, 's-report': drawReport, 's-crash': drawCrash, 's-cars': drawCars,
-  's-rem': drawRem, 's-plate': drawPlate, 's-voice': drawVoice,
+  's-rem': drawRem, 's-voice': drawVoice,
 };
 function paint(id) {
   var f = PAINT[id];
@@ -1212,7 +1211,6 @@ function drawMore() {
 
   h += '<div class="h2">Інструменти</div><div class="card list">' +
     itemBtn('search', 'Перевірка по VIN', 'Що це за авто насправді', 'tab:s-vin', !PRO && !vinFree()) +
-    itemBtn('idcard', 'Пошук за номером', 'Марка, рік, обʼєм за реєстром', 'tab:s-plate', !PRO) +
     itemBtn('chat', 'Голосове внесення', 'Надиктували боту — записалось', 'tab:s-voice', !PRO) +
     itemBtn('chat', 'Питання про авто', 'Стукає, гріється, не заводиться', 'tab:s-ask', !PRO) +
     itemBtn('alert', 'Нагадування', 'ГРМ, техогляд, що завгодно', 'tab:s-rem') +
@@ -1723,7 +1721,7 @@ var WELCOME = [
   { tag: 'Готово', t: 'Преміум\nувімкнено', p: 'Дякуємо. Ось що зʼявилось — за хвилину пройдемось.', art: 'ok' },
   { tag: 'Голос', t: 'Просто\nнадиктуйте', p: 'Затисніть мікрофон у чаті з ботом і скажіть «залив 40 літрів на 1800». Запис зʼявиться сам.', art: 'voice' },
   { tag: 'Помічник', t: 'Питайте\nпро своє авто', p: 'Відповідає з вашою сервісною книжкою перед очима: коли міняли, скільки вклали, що вже пора.', art: 'brain' },
-  { tag: 'Перевірки', t: 'VIN і номерний\nзнак', p: 'Без обмежень. По VIN — ще й фото з американського аукціону, якщо авто звідти.', art: 'vin' },
+  { tag: 'Перевірка', t: 'Що це за авто\nнасправді', p: 'Перевірка по VIN без обмежень — а якщо авто з американського аукціону, то ще й фото та ціна продажу.', art: 'vin' },
   { tag: 'Документи', t: 'Усе під рукою', p: 'До двадцяти знімків, зашифрованих у телефоні. Плюс звіти для покупця й по витратах.', art: 'docs', last: true },
 ];
 
@@ -1744,8 +1742,8 @@ function welArt(kind) {
   if (kind === 'vin')
     return '<div class="st-art">' +
       '<div class="st-row"><span>' + ic('search', 18) + 'Перевірок по VIN</span><b>без ліміту</b></div>' +
-      '<div class="st-row"><span>' + ic('idcard', 18) + 'Пошук за номером</span><b>відкрито</b></div>' +
-      '<div class="st-row done"><span>' + ic('car', 18) + 'Фото з аукціону</span><b>так</b></div></div>';
+      '<div class="st-row"><span>' + ic('car', 18) + 'Фото з аукціону</span><b>так</b></div>' +
+      '<div class="st-row done"><span>' + ic('chart', 18) + 'Ціна продажу</span><b>так</b></div></div>';
   return '<div class="st-art">' +
     '<div class="st-row"><span>' + ic('doc', 18) + 'Документів</span><b>20</b></div>' +
     '<div class="st-row"><span>' + ic('chart', 18) + 'Звіт про витрати</span><b>PDF</b></div>' +
@@ -2801,76 +2799,6 @@ function pickedCur(id) {
 /* ------------------------------------------------------------------ */
 /* ПОШУК ЗА НОМЕРНИМ ЗНАКОМ                                            */
 /* ------------------------------------------------------------------ */
-function drawPlate() {
-  var el = $('#s-plate');
-  if (!el) return;
-  el.innerHTML =
-    '<div class="card">' +
-      '<div class="chat-head" style="padding:0 0 12px">' +
-        '<div class="ic-box">' + ic('idcard', 20) + '</div>' +
-        '<div style="flex:1;min-width:0"><b style="display:block;font-size:15px;font-weight:700">Пошук за номером</b>' +
-        '<small style="color:var(--mut);font-size:12px">' +
-          (!CFG.plates ? 'ще не підключено' : PRO ? 'державний реєстр' : 'у Преміумі') +
-          '</small></div></div>' +
-      '<p style="margin:0 0 13px;font-size:12.5px;color:var(--mut);line-height:1.5">' +
-        'Марка, модель, рік, обʼєм двигуна, колір, регіон і дата останньої ' +
-        'реєстрації. Зручно перед оглядом авто — видно, чи збігається з оголошенням, ' +
-        'і чи не числиться авто в розшуку.</p>' +
-      '<div class="field"><input id="plIn" type="text" placeholder="АА1234ВВ" maxlength="10" autocomplete="off"></div>' +
-      '<button class="btn" data-do="plateGo">Знайти' + (PRO ? '' : lockIc()) + '</button>' +
-    '</div>' +
-    (!CFG.plates
-      ? '<div class="note">Джерело даних поки не підключене. Щойно зʼявиться — ' +
-        'пошук почне працювати без оновлення застосунку.</div>'
-      : '') +
-    '<div id="plOut"></div>' +
-    '<div class="note">Дані про власника не показуються — це персональні дані, ' +
-    'і в реєстрі відкритої частини їх немає.</div>';
-}
-
-function plateCard(c) {
-  var h = '';
-
-  if (c.photo)
-    h += '<div class="vin-model" style="background-image:url(' + esc(c.photo) + ')"></div>' +
-         '<div class="vin-credit">' +
-         (c.photoFrom === 'Вікіпедія' ? 'Так виглядає ця модель · фото з Вікіпедії'
-                                      : 'Фото моделі з каталогу реєстру') + '</div>';
-
-  if (c.isStolen)
-    h += '<div class="msg er"><b>Авто числиться в розшуку.</b>' +
-         (c.stolen && c.stolen.date ? ' Заявлено ' + esc(c.stolen.date) + '.' : '') +
-         ' Будьте обережні й не поспішайте з завдатком.</div>';
-
-  h += '<div class="card"><div class="h3">' + esc(c.plate) + '</div>' +
-    kv('Авто', [c.year, c.make, c.model].filter(Boolean).join(' ')) +
-    kv('Колір', c.color) +
-    kv('Тип', [c.kind, c.body].filter(Boolean).join(' · ')) +
-    kv('Обʼєм двигуна', c.engine ? nfmt(c.engine) + ' см³' : '') +
-    kv('Регіон', c.region) +
-    kv('VIN', c.vin) +
-    '</div>';
-
-  if (c.date || c.operation)
-    h += '<div class="card"><div class="h3">Остання реєстрація</div>' +
-      kv('Дата', c.date) +
-      kv('Що саме', c.opGroup || c.operation) +
-      kv('Підрозділ', c.dept) +
-      (c.ops > 1 ? '<div class="kv"><span>Реєстрацій усього</span><b>' + c.ops + '</b></div>' : '') +
-      '</div>';
-
-  if (!c.vin)
-    h += '<div class="note">VIN у відкритій частині реєстру є лише для авто, ' +
-         'зареєстрованих з 2021 року. Для старіших його не показують — це не помилка.</div>';
-
-  if (c.vin)
-    h += '<button class="btn sec" data-do="plateToVin" data-vin="' + esc(c.vin) + '">' +
-         'Перевірити цей VIN</button>';
-
-  return h;
-}
-
-/* ------------------------------------------------------------------ */
 /* ГОЛОСОМ З ЕКРАНА БЛОКУВАННЯ                                         */
 /* Ключ замінює вхід, тому показуємо його тільки преміуму й даємо      */
 /* можливість перевипустити.                                            */
@@ -3342,37 +3270,6 @@ var DO = {
       document.getElementById('keyErr').innerHTML =
         '<div class="msg er">Код закороткий або з помилкою.</div>';
     }
-  },
-
-  plateGo: function () {
-    if (!PRO) { needPro('plate'); return; }
-    var out = document.getElementById('plOut');
-    if (!CFG.plates) {
-      out.innerHTML = '<div class="msg er">Джерело даних поки не підключене — ' +
-        'пошук за номером тимчасово не працює.</div>';
-      return;
-    }
-    var v = val('plIn');
-    if (!v) { out.innerHTML = '<div class="msg er">Впишіть номерний знак.</div>'; return; }
-    out.innerHTML = '<div class="msg inf">Шукаю…</div>';
-    api('/api/plate', { plate: v }).then(function (d) {
-      if (!d.ok) {
-        if (d.error === 'premium') { out.innerHTML = ''; needPro('plate'); return; }
-        /* показуємо людський текст, а не службовий код помилки */
-        out.innerHTML = '<div class="msg er">' +
-          esc(d.message || d.error || 'Не вдалося виконати пошук.') + '</div>';
-        return;
-      }
-      if (!d.car) { out.innerHTML = '<div class="msg er">' +
-        esc(d.message || 'За цим номером нічого не знайшлось.') + '</div>'; return; }
-      out.innerHTML = plateCard(d.car);
-      haptic('medium');
-    }).catch(function () { out.innerHTML = '<div class="msg er">Немає звʼязку.</div>'; });
-  },
-  plateToVin: function (t) {
-    show('s-vin');
-    var i = document.getElementById('vinIn');
-    if (i) { i.value = t.dataset.vin; DO.vinGo(); }
   },
 
   tokCopy: function () { if (VTOKEN) { copy(VTOKEN.token); toast('Ключ скопійовано', 'ok'); } },
