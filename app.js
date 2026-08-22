@@ -12,7 +12,7 @@ var API = 'https://bardachok.kasebaby24.workers.dev';
 
 var QR_FOR = 'TWqHKxsLAdGMPC7kY4i3r2GQxNJ2U6vQXv';   // до цієї адреси намальовано usdt-qr.png
 
-var BUILD = '20260823-0140';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
+var BUILD = '20260823-0230';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
 var BOOT_T0 = Date.now();
 
 var tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
@@ -3526,7 +3526,7 @@ var DO = {
   share: function () {
     if (!REF.link) { toast('Посилання ще не готове'); return; }
     var txt = 'Бардачок — нагадує про страховку і ТО, рахує витрати на авто ' +
-              'і ловить штрафи, поки діє знижка 50%. Записи можна диктувати голосом. ' +
+              'і не дає проґавити знижку 50% на штраф. Записи можна диктувати голосом. ' +
               'Ось посилання:';
     var u = 'https://t.me/share/url?url=' + encodeURIComponent(REF.link) +
             '&text=' + encodeURIComponent(txt);
