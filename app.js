@@ -162,12 +162,48 @@ function ic(name, size, cls) {
 function initData() {
   try { return (tg && tg.initData) ? tg.initData : ''; } catch (e) { return ''; }
 }
-function api(path, body) {
-  return fetch(API.replace(/\/+$/, '') + path, {
+/* Запит до сервера з межею очікування. Без неї при напливі людина крутить
+   спінер нескінченно: сервер мовчить, а застосунок цього не знає. І окремо —
+   відповідь може виявитись не тим, що ми чекаємо (сторінка помилки замість
+   даних), тому розбір теж захищений. */
+function api(path, body, ms) {
+  var url = API.replace(/\/+$/, '') + path;
+  var opts = {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-Init-Data': initData() },
     body: JSON.stringify(body || {}),
-  }).then(function (r) { return r.json(); });
+  };
+
+  var ctl = null, timer = null;
+  try {
+    if (window.AbortController) {
+      ctl = new AbortController();
+      opts.signal = ctl.signal;
+    }
+  } catch (e) {}
+
+  var p = fetch(url, opts).then(function (r) {
+    return r.text().then(function (t) {
+      try { return JSON.parse(t); }
+      catch (e) {
+        /* не JSON — це майже завжди сторінка помилки від Cloudflare */
+        return { ok: false, error: r.status >= 500
+          ? 'Сервер зараз перевантажений. Спробуйте за хвилину.'
+          : 'Сервер відповів незрозуміло. Спробуйте ще раз.' };
+      }
+    });
+  });
+
+  if (!ctl) return p;
+
+  return new Promise(function (resolve) {
+    timer = setTimeout(function () {
+      try { ctl.abort(); } catch (e) {}
+      resolve({ ok: false, error: 'Сервер не відповідає. Спробуйте ще раз.' });
+    }, ms || 25000);
+    p.then(function (d) { clearTimeout(timer); resolve(d); },
+           function () { clearTimeout(timer); resolve({ ok: false, error: 'Немає звʼязку з сервером.' }); });
+  });
 }
 
 /* Виконує дію на сервері, оновлює стан, показує помилку якщо є. */
