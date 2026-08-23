@@ -13,7 +13,7 @@ var API = 'https://bardachok.kasebaby24.workers.dev';
 var QR_FOR = 'TWqHKxsLAdGMPC7kY4i3r2GQxNJ2U6vQXv';   // до цієї адреси намальовано usdt-qr.png
 var USDT_CONTRACT = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';   // USDT у мережі TRON
 
-var BUILD = '20260823-1100';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
+var BUILD = '20260823-1200';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
 var BOOT_T0 = Date.now();
 
 var tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
@@ -703,7 +703,9 @@ function paint(id) {
       'Схоже, у записах є щось, чого я не очікував. Ваші дані на місці — ' +
       'їм нічого не загрожує. Про помилку вже знаю і полагоджу.</p>' +
       '<button class="btn" data-do="reload">Перезапустити</button>' +
-      '<button class="btn sec" data-go="tab:s-home">На головну</button></div>';
+      '<button class="btn sec" data-go="tab:s-home">На головну</button>' +
+      (CFG && CFG.contactTg ? '<button class="btn sec" data-do="support">Написати в підтримку</button>' : '') +
+      '</div>';
     DIRTY[id] = 1;
   }
 }
@@ -1275,6 +1277,7 @@ function drawMore() {
     itemBtn('doc', 'Документи', 'Техпаспорт, страховка, права', 'tab:s-docs') +
     itemBtn('doc', 'Звіт для покупця', 'PDF із сервісною книжкою', 'tab:s-report', !PRO) +
     itemBtn('crash', 'Що робити при ДТП', 'Покроково, без паніки', 'tab:s-crash') +
+    (CFG.contactTg ? itemBtn('chat', 'Підтримка', 'Написати, якщо щось не так', 'do:support') : '') +
     itemBtn('car', 'Мої авто', S.cars.length + ' ' + plural(S.cars.length, 'авто', 'авто', 'авто'), 'tab:s-cars') +
     '</div>';
 
@@ -3357,6 +3360,17 @@ var DO = {
   },
 
   reload: function () { try { location.reload(); } catch (e) {} },
+
+  /* Підтримка має бути під рукою скрізь, де людині може стати незрозуміло. */
+  support: function () {
+    if (!CFG.contactTg) { toast('Контакт підтримки ще не вказано'); return; }
+    var u = 'https://t.me/' + CFG.contactTg;
+    try {
+      if (tg && tg.openTelegramLink) tg.openTelegramLink(u);
+      else if (tg && tg.openLink) tg.openLink(u);
+      else window.open(u, '_blank');
+    } catch (e) { copy(u); toast('Скопіював адресу підтримки'); }
+  },
   tokCopy: function () { if (VTOKEN) { copy(VTOKEN.token); toast('Ключ скопійовано', 'ok'); } },
   urlCopy: function () { if (VTOKEN) { copy(VTOKEN.url); toast('Адресу скопійовано', 'ok'); } },
   openBot: function () {
@@ -3936,6 +3950,7 @@ document.addEventListener('click', function (e) {
   if (go) {
     var v = go.dataset.go;
     if (v.indexOf('tab:') === 0) { show(v.slice(4)); }
+    else if (v.indexOf('do:') === 0) { var f = DO[v.slice(3)]; if (f) f(go); }
     else if (v.indexOf('car:') === 0) {
       var c = S.cars.filter(function (x) { return x.id === v.slice(4); })[0];
       if (c) { openSheet(carName(c), formCar(c)); syncFuelBoxes(); }

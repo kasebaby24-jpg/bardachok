@@ -7,7 +7,7 @@
 <meta name="robots" content="noindex, nofollow">
 <title>Бардачок — керування</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="styles.css?v=20260823-1100">
+<link rel="stylesheet" href="styles.css?v=20260823-1200">
 <style>
   body{overflow:auto}
   .wrap{max-width:620px;margin:0 auto;padding:26px 16px 60px}
@@ -77,7 +77,7 @@
     <button data-t="t-set">Налаштування</button>
   </div>
   <div class="msg inf" id="info">Завантаження…</div>
-  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260823-1100</div>
+  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260823-1200</div>
 
   <div class="pane on" id="t-home">
   <div id="stCount"></div>
@@ -97,6 +97,23 @@
       <button class="btn sec" onclick="act('restart')">Перерахувати все</button>
     </div>
     <div id="actOut"></div>
+  </div>
+
+  <div class="card">
+    <div class="sect">Звіт і чистка</div>
+    <button class="btn sec" onclick="report()">Скачати звіт</button>
+    <div class="note" style="margin:8px 0 12px">Файл із зведенням, рухом по днях,
+      оплатами, помилками й найчастішими моделями. Персональних даних людей
+      і знімків документів у ньому немає.</div>
+    <div class="quickrow">
+      <button class="btn sec" onclick="clean('pend')">Протухлі оплати</button>
+      <button class="btn sec" onclick="clean('errors')">Помилки</button>
+      <button class="btn sec" onclick="clean('orders')">Старі замовлення</button>
+    </div>
+    <button class="btn sec" style="margin-top:8px" onclick="clean('all')">Прибрати все зайве</button>
+    <div class="note" style="margin-top:8px">Записи людей, авто, витрати й документи
+      не чіпаються ніколи — прибирається лише службове сміття.</div>
+    <div id="cleanOut"></div>
   </div>
 
   <div class="card">
@@ -174,6 +191,9 @@
     <div class="sect">Контакт для клієнтів</div>
     <div class="rw"><div class="lb">Telegram<small>Без «@». Сюди пишуть щодо оплати</small></div>
       <input type="text" id="contactTg" style="text-align:left"></div>
+    <div class="note" style="margin-top:8px">Цей нік показується людям у застосунку —
+      пункт «Підтримка» в розділі «Ще», у вікні оплати і на екрані, якщо щось пішло не так.
+      Без «собачки»: <code>BardachokTechnik</code>. Порожнє поле — пункт зникне.</div>
   </div>
 
   <div class="card">
@@ -672,6 +692,43 @@ function spark(hist, field, title) {
   return '<div class="sparkbox"><div class="lb">' + title +
     '<small>від ' + nfm(min) + ' до ' + nfm(max) + '</small></div>' +
     '<div class="spark">' + bars + '</div></div>';
+}
+
+/* Звіт файлом — щоб можна було глянути спокійно або переслати. */
+function report() {
+  var out = $('#cleanOut');
+  if (out) out.innerHTML = '<div class="msg inf">Збираю…</div>';
+  post('/admin/export', {}).then(function (d) {
+    if (!d.ok) { if (out) out.innerHTML = '<div class="msg er">' + esc(d.error || '') + '</div>'; return; }
+    var txt = JSON.stringify(d.report, null, 2);
+    var name = 'bardachok-zvit-' + new Date().toISOString().slice(0, 10) + '.json';
+    try {
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([txt], { type: 'application/json' }));
+      a.download = name;
+      document.body.appendChild(a); a.click();
+      setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+      if (out) out.innerHTML = '<div class="msg ok">Звіт збережено: ' + name + '</div>';
+    } catch (e) {
+      if (out) out.innerHTML = '<div class="msg inf">Не вдалось зберегти файл — ось звіт:</div>' +
+        '<textarea style="width:100%;height:220px;font-size:11px">' + esc(txt) + '</textarea>';
+    }
+  }).catch(function () {
+    if (out) out.innerHTML = '<div class="msg er">Сервер не відповідає.</div>';
+  });
+}
+
+function clean(what) {
+  if (!confirm('Прибрати службові дані? Записи людей і документи не постраждають.')) return;
+  var out = $('#cleanOut');
+  if (out) out.innerHTML = '<div class="msg inf">Прибираю…</div>';
+  post('/admin/cleanup', { what: what }).then(function (d) {
+    if (out) out.innerHTML = '<div class="msg ' + (d.ok ? 'ok' : 'er') + '">' +
+      esc(d.message || d.error || '') + '</div>';
+    if (d.ok) { stats(); errors(); }
+  }).catch(function () {
+    if (out) out.innerHTML = '<div class="msg er">Сервер не відповідає.</div>';
+  });
 }
 
 /* Оплати: хто зараз чекає переказу і що вже зароблено. */
