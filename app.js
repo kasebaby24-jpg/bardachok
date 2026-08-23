@@ -12,7 +12,7 @@ var API = 'https://bardachok.kasebaby24.workers.dev';
 
 var QR_FOR = 'TWqHKxsLAdGMPC7kY4i3r2GQxNJ2U6vQXv';   // до цієї адреси намальовано usdt-qr.png
 
-var BUILD = '20260823-0620';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
+var BUILD = '20260823-0730';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
 var BOOT_T0 = Date.now();
 
 var tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
@@ -262,8 +262,8 @@ var PRO_WHY = {
   ai:     ['Питання про авто', 'Помічник відповідає з вашою сервісною книжкою перед очима.'],
   vin:    ['Перевірка по VIN', 'Що це за авто насправді — з фото й ціною з американського аукціону.'],
   report: ['Звіти для покупця', 'PDF із сервісною книжкою — сильний аргумент у торгу.'],
-  docs:   ['Документи', 'Двадцять знімків замість трьох.'],
-  cars:   ['Кілька авто', 'До дванадцяти машин в одному гаражі.'],
+  docs:   ['Документи', 'Скільки завгодно знімків замість одного.'],
+  cars:   ['Кілька авто', 'Хоч увесь автопарк в одному гаражі.'],
 };
 
 function needPro(what) {
@@ -1796,7 +1796,7 @@ function welArt(kind) {
       '<div class="st-row"><span>' + ic('car', 18) + 'Фото з аукціону</span><b>так</b></div>' +
       '<div class="st-row done"><span>' + ic('chart', 18) + 'Ціна продажу</span><b>так</b></div></div>';
   return '<div class="st-art">' +
-    '<div class="st-row"><span>' + ic('doc', 18) + 'Документів</span><b>20</b></div>' +
+    '<div class="st-row"><span>' + ic('doc', 18) + 'Документів</span><b>без ліку</b></div>' +
     '<div class="st-row"><span>' + ic('chart', 18) + 'Звіт про витрати</span><b>PDF</b></div>' +
     '<div class="st-row done"><span>' + ic('star', 18) + 'Звіт для покупця</span><b>PDF</b></div></div>';
 }
@@ -3630,9 +3630,18 @@ var DO = {
         return;
       }
       window.__ord = d.order;
+      window.__payAuto = !!(d.auto && d.exact);
       var uah = uahOf(d.amount);
       var same = d.address === QR_FOR;
+      /* Копійки в сумі — не примха: саме за ними бот упізнає, що переказ ваш,
+         і вмикає Преміум сам. Тому вони мають бути на видноті. */
+      var auto = d.auto && d.exact;
       openSheet('Переказ ' + d.amount + ' USDT',
+        '<div class="hero" style="margin-bottom:12px">' +
+          '<div class="hero-top"><span>Надішліть рівно</span>' + ic('star', 18) + '</div>' +
+          '<b style="font-size:30px;line-height:1.15">' + d.amount + ' USDT</b>' +
+          '<small>' + (auto ? 'копійки важливі — за ними вас упізнають'
+                            : 'мережа TRC-20') + '</small></div>' +
         '<div class="card" style="text-align:center">' +
           (same ? '<img src="usdt-qr.png" alt="QR гаманця" ' +
             'style="width:190px;max-width:60%;border-radius:16px;display:block;margin:2px auto 14px">' : '') +
@@ -3641,17 +3650,24 @@ var DO = {
           '<div class="addr" id="usdtAddr">' + esc(d.address) + '</div>' +
           '<button class="btn sec" style="margin-top:11px" data-do="sendSelf" ' +
             'data-w="wallet" data-amount="' + d.amount + '">Надіслати адресу в бот</button>' +
-          '<button class="btn sec" data-do="copyAddr" data-a="' + esc(d.address) + '">Скопіювати</button>' +
+          '<button class="btn sec" data-do="copyAddr" data-a="' + esc(d.address) + '">Скопіювати адресу</button>' +
+          '<button class="btn sec" data-do="copyAddr" data-a="' + d.amount + '">Скопіювати суму</button>' +
         '</div>' +
         '<div class="card"><div class="kv"><span>Сума</span><b>' + d.amount + ' USDT</b></div>' +
           (uah ? '<div class="kv"><span>У гривні</span><b>' + uah + '</b></div>' : '') +
           '<div class="kv"><span>Мережа</span><b>TRC-20 (Tron)</b></div></div>' +
+        (auto
+          ? '<div class="msg ok">Преміум увімкнеться <b>сам</b>, щойно переказ дійде — ' +
+            'зазвичай за одну–дві хвилини. Нічого нікому писати не треба.</div>'
+          : '') +
         '<div class="note">Надсилайте <b>саме USDT у мережі TRC-20</b>. Інша мережа — ' +
-          'гроші втрачаються, повернути їх неможливо.</div>' +
+          'гроші втрачаються, повернути їх неможливо.' +
+          (auto ? ' І не округляйте суму: копійки — це ваш підпис.' : '') + '</div>' +
         '<div id="payErr2"></div>' +
         '<button class="btn" data-do="paidDone" data-plan="' + p + '">Я оплатив</button>' +
-        '<div class="note" style="margin-bottom:0">Після натискання <b>обовʼязково надішліть ' +
-          'скрін переказу в чат бота</b> — інакше ми не звіримо платіж.</div>');
+        (auto ? '' :
+          '<div class="note" style="margin-bottom:0">Після натискання <b>обовʼязково надішліть ' +
+          'скрін переказу в чат бота</b> — інакше ми не звіримо платіж.</div>'));
     }).catch(function () {
       if (box) box.innerHTML = '<div class="msg er">Немає звʼязку</div>';
     });
@@ -3662,28 +3678,40 @@ var DO = {
   paidDone: function (t) {
     var box = document.getElementById('payErr2');
     if (box) box.innerHTML = '<div class="msg inf">Передаю…</div>';
-    api('/api/paid', { order: window.__ord, plan: t.dataset.plan }).then(function (d) {
+    var auto = !!window.__payAuto;
+    api('/api/paid', { order: window.__ord, plan: t.dataset.plan }).then(function () {
       openSheet('Дякуємо',
         '<div class="hero" style="margin-bottom:14px">' +
           '<div class="hero-top"><span>Що далі</span>' + ic('check', 18) + '</div>' +
-          '<b style="font-size:24px;line-height:1.25">Надішліть скрін переказу в чат бота</b></div>' +
-        '<div class="msg er" style="margin-bottom:14px">Без скріншота Преміум не ввімкнеться — ' +
-        'ми не побачимо, що платіж саме ваш.</div>' +
-        '<div class="steps">' +
-          '<div><i>1</i><div><b>Відкрийте чат із ботом</b>' +
-            '<p>Той самий, звідки заходили в застосунок.</p></div></div>' +
-          '<div><i>2</i><div><b>Надішліть скріншот переказу</b>' +
-            '<p>Прикріпіть картинку — ми одразу побачимо її разом із вашим номером.</p></div></div>' +
-          '<div><i>3</i><div><b>Чекайте кілька хвилин</b>' +
-            '<p>Щойно ввімкнемо — Преміум зʼявиться сам, застосунок відкривати не треба.</p></div></div>' +
-        '</div>' +
+          '<b style="font-size:24px;line-height:1.25">' +
+          (auto ? 'Чекаю на переказ' : 'Надішліть скрін переказу в чат бота') + '</b></div>' +
+        (auto
+          ? '<div class="msg ok" style="margin-bottom:14px">Преміум увімкнеться сам, ' +
+            'щойно переказ підтвердиться в мережі. Зазвичай це одна–дві хвилини.</div>' +
+            '<div class="steps">' +
+              '<div><i>1</i><div><b>Переказ уже в дорозі</b>' +
+                '<p>Мережа TRC-20 зазвичай підтверджує за хвилину.</p></div></div>' +
+              '<div><i>2</i><div><b>Бот упізнає його за сумою</b>' +
+                '<p>Ті самі копійки, які ви надсилали — це ваш підпис.</p></div></div>' +
+              '<div><i>3</i><div><b>Преміум зʼявиться сам</b>' +
+                '<p>Застосунок відкривати не треба, бот напише в чат.</p></div></div>' +
+            '</div>'
+          : '<div class="msg er" style="margin-bottom:14px">Без скріншота Преміум не ввімкнеться — ' +
+            'ми не побачимо, що платіж саме ваш.</div>' +
+            '<div class="steps">' +
+              '<div><i>1</i><div><b>Відкрийте чат із ботом</b>' +
+                '<p>Той самий, звідки заходили в застосунок.</p></div></div>' +
+              '<div><i>2</i><div><b>Надішліть скріншот переказу</b>' +
+                '<p>Прикріпіть картинку — ми одразу побачимо її разом із вашим номером.</p></div></div>' +
+              '<div><i>3</i><div><b>Чекайте кілька хвилин</b>' +
+                '<p>Щойно ввімкнемо — Преміум зʼявиться сам.</p></div></div>' +
+            '</div>') +
         '<button class="btn" style="margin-top:14px" data-do="payCheck">Перевірити зараз</button>' +
         '<button class="btn sec" data-close="1">Закрити</button>');
       watchPayment();
-    }).catch(function () {
-      if (box) box.innerHTML = '<div class="msg er">Немає звʼязку</div>';
     });
   },
+
 
   payGo: function (t) {
     var box = document.getElementById('payErr');

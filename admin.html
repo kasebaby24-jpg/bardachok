@@ -7,7 +7,7 @@
 <meta name="robots" content="noindex, nofollow">
 <title>Бардачок — керування</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="styles.css?v=20260823-0620">
+<link rel="stylesheet" href="styles.css?v=20260823-0730">
 <style>
   body{overflow:auto}
   .wrap{max-width:620px;margin:0 auto;padding:26px 16px 60px}
@@ -73,7 +73,7 @@
     <button data-t="t-set">Налаштування</button>
   </div>
   <div class="msg inf" id="info">Завантаження…</div>
-  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260823-0620</div>
+  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260823-0730</div>
 
   <div class="pane on" id="t-home">
   <div id="stCount"></div>
@@ -145,6 +145,8 @@
       <input type="number" id="freeCars"></div>
     <div class="rw"><div class="lb">Безкоштовних перевірок VIN<small>0 — перевірка лише у Преміумі</small></div>
       <input type="number" id="freeVin"></div>
+    <div class="rw"><div class="lb">Зараховувати USDT автоматично<small>1 — бот сам вмикає Преміум, 0 — тільки вручну кнопками</small></div>
+      <input type="number" id="autoPay" min="0" max="1"></div>
     <div class="rw"><div class="lb">Попереджати про страховку<small>За скільки днів</small></div>
       <input type="number" id="remindInsurance"></div>
     <div class="rw"><div class="lb">Попереджати про ТО<small>За скільки кілометрів</small></div>
@@ -157,6 +159,26 @@
     <div class="sect">Контакт для клієнтів</div>
     <div class="rw"><div class="lb">Telegram<small>Без «@». Сюди пишуть щодо оплати</small></div>
       <input type="text" id="contactTg" style="text-align:left"></div>
+  </div>
+
+  <div class="card">
+    <div class="sect">Як працює автозарахування USDT</div>
+    <div class="note">
+      Гаманець (Trust чи будь-який інший) для цього не потрібен — бот читає не
+      його, а сам блокчейн TRON. Ключі й доступи не потрібні теж.
+      <br><br>
+      Коли людина відкриває оплату, застосунок видає їй суму з <b>унікальними
+      копійками</b> — наприклад <code>5.17</code> замість <code>5.00</code>.
+      За цими копійками бот упізнає, чий саме переказ прийшов, і вмикає Преміум
+      сам, зазвичай за одну–дві хвилини.
+      <br><br>
+      Якщо сума не збіглася (людина округлила або платила не через застосунок) —
+      вам прийде повідомлення, і ви видасте Преміум вручну, як раніше.
+      <b>Нічого не губиться.</b>
+      <br><br>
+      Щоб вимкнути й повернутись до ручного підтвердження — поставте
+      <b>0</b> у полі «Зараховувати USDT автоматично».
+    </div>
   </div>
 
   <div class="card">
@@ -298,7 +320,7 @@
 /* ⚠️ Та сама адреса, що і в app.js */
 var API = 'https://bardachok.kasebaby24.workers.dev';
 
-var NUM = ['premiumMonth','premiumHalf','premiumYear','freeCars','freeVin','remindInsurance','remindService','oilInterval'];
+var NUM = ['premiumMonth','premiumHalf','premiumYear','freeCars','freeVin','autoPay','remindInsurance','remindService','oilInterval'];
 var TXT = ['contactTg','wfpMerchant','wfpDomain','usdtAddress','adminId'];
 var KEY = '';
 var $ = function (s) { return document.querySelector(s); };
