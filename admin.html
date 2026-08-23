@@ -7,7 +7,7 @@
 <meta name="robots" content="noindex, nofollow">
 <title>Бардачок — керування</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="styles.css?v=20260823-1330">
+<link rel="stylesheet" href="styles.css?v=20260823-1430">
 <style>
   body{overflow:auto}
   .wrap{max-width:620px;margin:0 auto;padding:26px 16px 60px}
@@ -36,6 +36,7 @@
   .sparkbox .lb small{display:block;font-size:10.5px;opacity:.5;margin-top:1px}
   .spark{display:flex;align-items:flex-end;gap:2px;height:54px;margin-top:7px}
   .spark i{flex:1;background:var(--lime,#C6F32C);border-radius:2px;min-height:2px;opacity:.85}
+  .axis{display:flex;justify-content:space-between;font-size:10px;opacity:.45;margin-top:4px}
   .st div{background:var(--surf);border-radius:18px;padding:14px 10px;text-align:center}
   .st b{display:block;font-family:var(--disp);font-weight:800;font-size:21px;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .st small{color:var(--mut);font-size:10.5px;font-weight:600}
@@ -77,7 +78,7 @@
     <button data-t="t-set">Налаштування</button>
   </div>
   <div class="msg inf" id="info">Завантаження…</div>
-  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260823-1330</div>
+  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260823-1430</div>
 
   <div class="pane on" id="t-home">
   <div id="stCount"></div>
@@ -100,8 +101,19 @@
   </div>
 
   <div class="card">
+    <div class="sect">Хто платив</div>
+    <div id="logBox"><div class="note">Завантажую…</div></div>
+    <div class="quickrow">
+      <button class="btn sec" onclick="pays()">Оновити</button>
+      <button class="btn sec" onclick="paysMore()">Показати ще</button>
+      <button class="btn sec" onclick="paysClear()">Очистити журнал</button>
+    </div>
+    <div id="logOut"></div>
+  </div>
+
+  <div class="card">
     <div class="sect">Звіт і чистка</div>
-    <button class="btn sec" onclick="report()">Скачати звіт</button>
+    <div class="quickrow" style="margin-top:0"><button class="btn sec" onclick="report()">Скачати звіт</button><button class="btn sec" onclick="report(1)">Показати тут</button></div>
     <div class="note" style="margin:8px 0 12px">Файл із зведенням, рухом по днях,
       оплатами, помилками й найчастішими моделями. Персональних даних людей
       і знімків документів у ньому немає.</div>
@@ -410,7 +422,7 @@ function doLogin() {
         var host = $('#panel');
         host.insertBefore(w, host.firstChild);
       }
-      load(); stats(); errors();
+      load(); stats(); errors(); pays();
     })
     .catch(function () { $('#login').disabled = false; show('gErr', 'Сервер не відповідає.', true); });
 }
@@ -650,7 +662,8 @@ function drawAna(st, d) {
         ['Зароблено за день', '$' + delta(last.sum, prev.sum), ''],
       ]);
     h += spark(hist, 'users', 'Люди за ' + hist.length + ' днів') +
-         spark(hist, 'sum', 'Гроші за ' + hist.length + ' днів');
+         spark(hist, 'pro', 'Преміуми за ' + hist.length + ' днів') +
+         spark(hist, 'sum', 'Гроші за ' + hist.length + ' днів', true);
   }
 
   /* --- здоровʼя розпізнавання --- */
@@ -680,38 +693,116 @@ function drawAna(st, d) {
     'Підрахунок іде пачками, тому цифри оновлюються протягом дня.</div>';
 }
 
-/* Проста смужка руху — щоб напрямок було видно оком, без графіків. */
-function spark(hist, field, title) {
+/* Діаграма руху: стовпчики з підписами країв і приростом за день —
+   щоб можна було не просто дивитись, а робити висновки. */
+function spark(hist, field, title, money) {
   var vals = hist.map(function (r) { return r[field] || 0; });
   var max = Math.max.apply(null, vals), min = Math.min.apply(null, vals);
   if (max <= 0) return '';
+  var d = function (n) { return (money ? '$' : '') + nfm(n); };
+
+  /* середній приріст за добу — головне, що каже ця картинка */
+  var grow = vals.length > 1 ? Math.round((vals[vals.length - 1] - vals[0]) / (vals.length - 1)) : 0;
+
   var bars = vals.map(function (v, i) {
-    var hgt = max === min ? 60 : Math.round(((v - min) / (max - min)) * 88) + 12;
-    return '<i style="height:' + hgt + '%" title="' + (hist[i].d || '') + ': ' + v + '"></i>';
+    var hgt = max === min ? 60 : Math.round(((v - min) / (max - min)) * 84) + 16;
+    var day = String(hist[i].d || '').slice(5);
+    return '<i style="height:' + hgt + '%" title="' + day + ': ' + d(v) + '"></i>';
   }).join('');
+
+  var first = String(hist[0].d || '').slice(5);
+  var last = String(hist[hist.length - 1].d || '').slice(5);
+
   return '<div class="sparkbox"><div class="lb">' + title +
-    '<small>від ' + nfm(min) + ' до ' + nfm(max) + '</small></div>' +
-    '<div class="spark">' + bars + '</div></div>';
+    '<small>' + d(min) + ' → ' + d(max) +
+    (grow ? '  ·  у середньому ' + (grow > 0 ? '+' : '') + d(grow) + ' за добу' : '') +
+    '</small></div>' +
+    '<div class="spark">' + bars + '</div>' +
+    '<div class="axis"><span>' + first + '</span><span>' + last + '</span></div></div>';
+}
+
+/* Скільки грошей дає кожен тариф — видно, що насправді купують. */
+function planBars(hist) {
+  return '';
+}
+
+/* Журнал оплат: хто, коли, який тариф. Вантажимо по 25 — тисячі записів
+   не мають ні гортатись, ні тягнутись разом. */
+var PAY_CUR = null, PAY_ROWS = [];
+
+function payRow(r) {
+  var d = new Date(r.at);
+  var when = d.toLocaleDateString('uk-UA') + ' ' +
+             d.toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' });
+  var who = esc(r.name || 'Без імені') + (r.nick ? ' · @' + esc(r.nick) : '');
+  var plan = r.days >= 365 ? 'Рік' : r.days >= 182 ? 'Півроку' : 'Місяць';
+  return '<div class="rw"><div class="lb">' + who +
+    '<small>ID ' + esc(r.userId) + ' · ' + when + ' · ' + esc(r.how || '') + '</small></div>' +
+    '<b>' + plan + '<button class="btn sec" style="padding:4px 9px;margin-left:8px;font-size:11px" ' +
+    'onclick="payDrop(\'' + esc(r.key) + '\')">×</button></b></div>';
+}
+
+function paysDraw() {
+  var box = $('#logBox'); if (!box) return;
+  if (!PAY_ROWS.length) { box.innerHTML = '<div class="note">Оплат поки не було.</div>'; return; }
+  box.innerHTML = '<div class="lb" style="margin-bottom:6px">Показано ' + PAY_ROWS.length +
+    (PAY_CUR ? ' — є ще' : '') + '</div>' + PAY_ROWS.map(payRow).join('');
+}
+
+function pays() {
+  PAY_CUR = null; PAY_ROWS = [];
+  post('/admin/pays', {}).then(function (d) {
+    if (!d.ok) { $('#logBox').innerHTML = '<div class="note">' + esc(d.error || '') + '</div>'; return; }
+    PAY_ROWS = d.rows || []; PAY_CUR = d.cursor; paysDraw();
+  }).catch(function () {});
+}
+
+function paysMore() {
+  if (!PAY_CUR) { $('#logOut').innerHTML = '<div class="msg inf">Це вже всі записи.</div>'; return; }
+  post('/admin/pays', { cursor: PAY_CUR }).then(function (d) {
+    if (!d.ok) return;
+    PAY_ROWS = PAY_ROWS.concat(d.rows || []); PAY_CUR = d.cursor; paysDraw();
+  }).catch(function () {});
+}
+
+function payDrop(key) {
+  if (!confirm('Прибрати цей запис із журналу? На Преміум людини це не вплине.')) return;
+  post('/admin/pays', { remove: key }).then(function () { pays(); }).catch(function () {});
+}
+
+function paysClear() {
+  if (!confirm('Очистити ВЕСЬ журнал оплат? Преміуми людей лишаться, зникне тільки історія.')) return;
+  post('/admin/pays', { clear: 1 }).then(function (d) {
+    $('#logOut').innerHTML = '<div class="msg ok">' + esc(d.message || '') + '</div>';
+    pays();
+  }).catch(function () {});
 }
 
 /* Звіт файлом — щоб можна було глянути спокійно або переслати. */
-function report() {
+function report(show) {
   var out = $('#cleanOut');
   if (out) out.innerHTML = '<div class="msg inf">Збираю…</div>';
   post('/admin/export', {}).then(function (d) {
     if (!d.ok) { if (out) out.innerHTML = '<div class="msg er">' + esc(d.error || '') + '</div>'; return; }
-    var txt = JSON.stringify(d.report, null, 2);
-    var name = 'bardachok-zvit-' + new Date().toISOString().slice(0, 10) + '.json';
+    /* Звіт має читатись очима, а не бути купою дужок. */
+    var txt = d.text || '';
+    var name = 'bardachok-zvit-' + new Date().toISOString().slice(0, 10) + '.txt';
+    if (show) {
+      out.innerHTML = '<textarea style="width:100%;height:320px;font-size:11px;' +
+        'font-family:ui-monospace,monospace">' + esc(txt) + '</textarea>';
+      return;
+    }
     try {
       var a = document.createElement('a');
-      a.href = URL.createObjectURL(new Blob([txt], { type: 'application/json' }));
+      a.href = URL.createObjectURL(new Blob(['\ufeff' + txt], { type: 'text/plain;charset=utf-8' }));
       a.download = name;
       document.body.appendChild(a); a.click();
       setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
       if (out) out.innerHTML = '<div class="msg ok">Звіт збережено: ' + name + '</div>';
     } catch (e) {
       if (out) out.innerHTML = '<div class="msg inf">Не вдалось зберегти файл — ось звіт:</div>' +
-        '<textarea style="width:100%;height:220px;font-size:11px">' + esc(txt) + '</textarea>';
+        '<textarea style="width:100%;height:260px;font-size:11px;font-family:ui-monospace,monospace">' +
+        esc(txt) + '</textarea>';
     }
   }).catch(function () {
     if (out) out.innerHTML = '<div class="msg er">Сервер не відповідає.</div>';
@@ -749,15 +840,19 @@ function drawPay(d) {
   if (!w.length) {
     h += '<div class="note">Зараз ніхто не чекає переказу.</div>';
   } else {
-    h += '<div class="lb" style="margin:4px 0 6px">Чекають переказу: ' + w.length + '</div>' +
-      w.slice(0, 12).map(function (x) {
+    /* Це НЕ гроші й не оплати — це люди, які щойно відкрили вікно оплати.
+       У «зароблено» вони не входять, інакше статистика брехала б. */
+    h += '<div class="lb" style="margin:4px 0 2px">Відкрили оплату просто зараз: ' + w.length + '</div>' +
+      '<div class="note" style="margin:0 0 8px">Це ще не гроші — у «зароблено» не рахуються. ' +
+      'Записи зникають самі через три години, якщо переказ так і не прийшов.</div>' +
+      w.slice(0, 5).map(function (x) {
         return '<div class="rw"><div class="lb">' + esc(x.amount) + ' USDT' +
           '<small>' + esc(x.plan === 'year' ? 'рік' : x.plan === 'half' ? 'півроку' : 'місяць') +
           ' · ID ' + esc(x.userId) + ' · ' + x.mins + ' хв тому</small></div>' +
           '<b>$' + esc(x.base) + '</b></div>';
       }).join('') +
-      '<div class="note" style="margin-top:8px">Щойно переказ дійде — Преміум увімкнеться сам. ' +
-      'Якщо людина округлила суму, вам прийде повідомлення в бот.</div>';
+      (w.length > 5 ? '<div class="note" style="margin-top:6px">…і ще ' + (w.length - 5) +
+        '. Список навмисно короткий: гортати їх нема сенсу.</div>' : '');
   }
   box.innerHTML = h;
 }

@@ -13,7 +13,7 @@ var API = 'https://bardachok.kasebaby24.workers.dev';
 var QR_FOR = 'TWqHKxsLAdGMPC7kY4i3r2GQxNJ2U6vQXv';   // до цієї адреси намальовано usdt-qr.png
 var USDT_CONTRACT = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';   // USDT у мережі TRON
 
-var BUILD = '20260823-1330';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
+var BUILD = '20260823-1430';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
 var BOOT_T0 = Date.now();
 
 var tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
@@ -1289,20 +1289,9 @@ function drawMore() {
     '</div>';
 
 
-  /* Тому, хто вже платить, обіцяти «і місяць ваш» безглуздо — він і так у
-     Преміумі. Але забирати можливість поділитись не варто: саме такі люди й
-     радять застосунок. Тому їм — короткий рядок замість великої пропозиції. */
-  if (PRO) {
-    h += '<div class="card" style="margin-top:12px"><div class="card-h"><b>Поділитися</b>' +
-      '<span>' + (REF.count ? 'привели ' + REF.count : '+30 днів за друга') + '</span></div>' +
-      '<p style="margin:0 0 12px;font-size:12.5px;color:var(--mut);line-height:1.5">' +
-      'За кожного, хто вперше зайде за вашим посиланням, ваш Преміум подовжується ' +
-      'на 30 днів.</p>' +
-      (REF.link
-        ? '<button class="btn sec" data-do="share">Надіслати посилання</button>'
-        : '<div class="note" style="margin:0">Посилання зʼявиться, щойно бота буде підключено.</div>') +
-      '</div>';
-  } else {
+  /* Тому, хто вже платить, пропозиція «передай другові і отримай місяць» не
+     показується взагалі: він уже в Преміумі, і це для нього просто шум. */
+  if (!PRO) {
     h += '<div class="promo" style="margin-top:12px">' +
       '<b>Передайте далі — <em>і місяць ваш</em></b>' +
       '<p>За кожного, хто вперше зайде за вашим посиланням, вам +30 днів Преміуму. ' +
@@ -3761,10 +3750,18 @@ var DO = {
         '<div class="card">' +
           '<div class="lb" style="margin-bottom:9px">Звідки платите</div>' +
           '<div class="steps">' +
-            '<div><i>1</i><div><b>З біржі — Binance, OKX, Bybit</b>' +
+            '<div><i>1</i><div><b>З біржі</b>' +
               '<p>Виведення → USDT → мережа <b>TRC-20 (Tron)</b> → вставте адресу і суму. ' +
               'Біржа візьме комісію мережі окремо — переказуйте так, щоб дійшло не менше ' +
-              shown + ' USDT.</p></div></div>' +
+              shown + ' USDT.</p>' +
+              '<div class="grid2" style="margin-top:9px">' +
+                '<button class="btn sec" data-do="openEx" data-x="binance">Binance</button>' +
+                '<button class="btn sec" data-do="openEx" data-x="bybit">Bybit</button>' +
+              '</div>' +
+              '<div class="grid2" style="margin-top:7px">' +
+                '<button class="btn sec" data-do="openEx" data-x="okx">OKX</button>' +
+                '<button class="btn sec" data-do="openEx" data-x="whitebit">WhiteBIT</button>' +
+              '</div></div></div>' +
             '<div><i>2</i><div><b>З гаманця на телефоні</b>' +
               '<p>Trust, TronLink, SafePal — вставте адресу і суму вручну, ' +
               'або натисніть кнопку нижче: у Trust усе підставиться саме.</p></div></div>' +
@@ -3799,6 +3796,25 @@ var DO = {
 
       watchPayment();
     });
+  },
+
+  /* Сторінки виведення на біржах. Підставити суму туди неможливо — біржі
+     не приймають такі посилання, тому адресу й суму людина копіює кнопками
+     вище. Але сама сторінка відкриється одразу на потрібному розділі. */
+  openEx: function (t) {
+    var links = {
+      binance:  'https://www.binance.com/uk-UA/my/wallet/account/main/withdrawal/crypto/USDT',
+      bybit:    'https://www.bybit.com/user/assets/withdraw?coin=USDT',
+      okx:      'https://www.okx.com/balance/withdrawal/usdt-tron',
+      whitebit: 'https://whitebit.com/main-wallet',
+    };
+    var u = links[t.dataset.x];
+    if (!u) return;
+    toast('Адреса й сума — у кнопках вище');
+    try {
+      if (tg && tg.openLink) tg.openLink(u);
+      else window.open(u, '_blank');
+    } catch (e) { copy(u); toast('Скопіював посилання'); }
   },
 
   /* Відкриває гаманець із заповненими полями. Працює з Trust та іншими, що
