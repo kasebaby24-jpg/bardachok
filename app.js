@@ -13,7 +13,7 @@ var API = 'https://bardachok.kasebaby24.workers.dev';
 var QR_FOR = 'TWqHKxsLAdGMPC7kY4i3r2GQxNJ2U6vQXv';   // до цієї адреси намальовано usdt-qr.png
 var USDT_CONTRACT = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';   // USDT у мережі TRON
 
-var BUILD = '20260823-1200';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
+var BUILD = '20260823-1330';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
 var BOOT_T0 = Date.now();
 
 var tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
@@ -586,7 +586,14 @@ function nudges(car) {
       do: 'editThis', btn: 'Додати' });
 
   if (!(S.rem || []).filter(function (r) { return r.carId === car.id; }).length && fr.length)
-    out.push({ t: 'Додайте нагадування', p: 'ГРМ, антифриз, техогляд — усе, що легко забути.',
+    out.push({ t: 'Додайте нагадування',
+      p: (car.fuel === 'electric'
+            ? 'Гальмівна рідина, салонний фільтр, техогляд — усе, що легко забути.'
+            : car.fuel === 'diesel'
+            ? 'Паливний фільтр, антифриз, техогляд — усе, що легко забути.'
+            : car.fuel === 'gas'
+            ? 'Фільтр ГБО, освідчення балона, техогляд — усе, що легко забути.'
+            : 'ГРМ, антифриз, техогляд — усе, що легко забути.'),
       go: 'tab:s-rem', btn: 'Створити' });
 
   return out.slice(0, 1);                 // одна підказка за раз — дві вже гамірно
@@ -710,13 +717,13 @@ function paint(id) {
   }
 }
 
-function ringSvg(pct, color) {
+function ringSvg(pct, color, empty) {
   var C = 232.5, off = C * (1 - Math.max(0, Math.min(1, pct)));
   return '<div class="gauge"><svg width="84" height="84" viewBox="0 0 88 88">' +
     '<circle cx="44" cy="44" r="37" stroke="#252C30" stroke-width="9" fill="none"/>' +
     '<circle cx="44" cy="44" r="37" stroke="' + color + '" stroke-width="9" fill="none" ' +
     'stroke-linecap="round" stroke-dasharray="' + C + '" stroke-dashoffset="' + off + '"/>' +
-    '</svg><div class="lab" style="color:' + color + '">' + Math.round(pct * 100) + '%</div></div>';
+    '</svg><div class="lab" style="color:' + color + '">' + (empty ? '—' : Math.round(pct * 100) + '%') + '</div></div>';
 }
 
 /* ------------------------------------------------------------------ */
@@ -995,7 +1002,7 @@ function drawService() {
 
   if (isEV) {
     h += '<div class="card"><div class="ring"><div class="v"><b>' + (car.soh ? car.soh + '%' : '—') + '</b>' +
-      '<small>здоров’я батареї (SOH)</small></div>' + ringSvg(car.soh ? car.soh / 100 : 0, '#3ED598') + '</div>' +
+      '<small>здоров’я батареї (SOH)</small></div>' + ringSvg(car.soh ? car.soh / 100 : 0, '#3ED598', !car.soh) + '</div>' +
       '<div class="note">Це головна цифра для електрокара: саме вона визначає ціну при перепродажі. ' +
       'Дані беруться з діагностики — оновіть після кожної перевірки.</div>' +
       '<button class="btn sec" style="margin-top:12px" data-do="editCar" data-id="' + car.id + '">Оновити SOH</button></div>';
@@ -1312,6 +1319,15 @@ function drawMore() {
           '<button class="btn sec" data-do="copyRef">Скопіювати</button>'
         : '<div class="note" style="margin:0">Посилання зʼявиться, щойно бота буде підключено.</div>') +
       '</div>';
+  }
+
+  if (CFG.contactTg) {
+    h += '<div class="card" style="margin-top:12px"><div class="card-h"><b>Щось не працює?</b>' +
+      '<span>відповідаємо швидко</span></div>' +
+      '<p style="margin:0 0 12px;font-size:12.5px;color:var(--mut);line-height:1.5">' +
+      'Не зарахувалась оплата, зник запис, незрозуміло як щось зробити — ' +
+      'напишіть, розберемось.</p>' +
+      '<button class="btn" data-do="support">Написати в підтримку</button></div>';
   }
 
   h += '<div class="card" style="margin-top:12px"><div class="card-h"><b>Підтримати розробника</b>' +
@@ -2476,18 +2492,35 @@ function docOpen(id) {
 /* Усе, чого немає в стандартних строках: ТО, ГРМ, кредит, техогляд.   */
 /* ------------------------------------------------------------------ */
 var REM_SUG = [];
+/* Підказки залежать від того, що саме під капотом. Пропонувати дизелю
+   «заміну свічок» — виказати себе з головою: свічок запалювання там немає.
+   Поле `for` перелічує, кому пункт підходить; без нього — підходить усім. */
 var REM_PRESETS = [
   { t: 'Заміна ременя ГРМ', every: 90000, ice: true },
   { t: 'Заміна гальмівної рідини', every: 40000 },
   { t: 'Заміна антифризу', every: 60000 },
-  { t: 'Заміна свічок', every: 30000, ice: true },
+  { t: 'Заміна свічок запалювання', every: 30000, on: ['petrol', 'gas', 'hybrid'] },
+  { t: 'Заміна свічок розжарювання', every: 100000, on: ['diesel'] },
+  { t: 'Заміна паливного фільтра', every: 30000, on: ['diesel'] },
+  { t: 'Чистка сажового фільтра', every: 120000, on: ['diesel'] },
+  { t: 'Заміна фільтра ГБО', every: 10000, on: ['gas'] },
+  { t: 'Освідчення балона', every: null, on: ['gas'] },
   { t: 'Заміна повітряного фільтра', every: 15000, ice: true },
   { t: 'Заміна салонного фільтра', every: 20000 },
-  { t: 'Перевірка батареї (SOH)', every: 20000, ev: true },
+  { t: 'Перевірка батареї (SOH)', every: 20000, on: ['electric', 'hybrid'] },
   { t: 'Технічний огляд', every: null },
   { t: 'Оплата кредиту', every: null },
   { t: 'Сезонна зміна гуми', every: null },
 ];
+
+/* Чи підходить підказка цьому авто. */
+function presetFits(p, fuel) {
+  var f = fuel || 'petrol';
+  if (p.on) return p.on.indexOf(f) > -1;
+  if (p.ice) return f !== 'electric';
+  if (p.ev) return f === 'electric';
+  return true;
+}
 
 function remList(carId) {
   return (S.rem || []).filter(function (r) { return r.carId === carId && !r.done; });
@@ -2608,9 +2641,7 @@ function remSuggest(car) {
 function remForm() {
   var car = activeCar(); if (!car) return;
   var isEV = car.fuel === 'electric';
-  var presets = REM_PRESETS.filter(function (p) {
-    return isEV ? !p.ice : !p.ev;
-  });
+  var presets = REM_PRESETS.filter(function (p) { return presetFits(p, car.fuel); });
   openSheet('Нове нагадування',
     '<div class="field"><label>Що саме</label>' +
       '<div class="seg wrap" id="rPreset">' + presets.map(function (p) {
@@ -2817,32 +2848,47 @@ function weatherCard(car) {
 
 function seasonCard(car) {
   var m = new Date().getMonth() + 1;
-  var isEV = car.fuel === 'electric';
+  var f = car.fuel || 'petrol';
+  var isEV = f === 'electric';
   var title, list;
 
+  /* Порада має бути про конкретне авто. Дизелю взимку важливе зовсім інше,
+     ніж бензину: літня солярка на морозі парафінується, і машина просто не
+     заводиться — це найчастіша зимова біда, про яку згадують надто пізно. */
   if (m >= 10 || m <= 2) {
     title = 'Готовність до зими';
     list = ['Зимова гума — від +7 °C гальмівний шлях на літній довший на третину',
             isEV ? 'Батарея на морозі втрачає до 30% запасу — плануйте зарядку'
-                 : 'Акумулятор: на холоді слабкий помирає першим',
-            'Незамерзайка і щітки склоочисника',
-            'Антифриз — перевірити температуру замерзання',
-            'Скребок, трос і рукавички в багажник'];
+                 : 'Акумулятор: на холоді слабкий помирає першим'];
+    if (f === 'diesel')
+      list.push('Заправляйтесь зимовою соляркою — літня на морозі густішає, ' +
+                'і вранці авто не заведеться',
+                'Свічки розжарювання: якщо запуск став довшим — перевірте до морозів');
+    if (f === 'gas')
+      list.push('У мороз заводьте на бензині, газ — після прогріву',
+                'Редуктор ГБО: перевірити перед холодами');
+    list.push('Незамерзайка і щітки склоочисника',
+              'Антифриз — перевірити температуру замерзання',
+              'Скребок, трос і рукавички в багажник');
   } else if (m >= 3 && m <= 5) {
     title = 'Після зими';
     list = ['Літня гума — після стабільних +7 °C',
             'Кондиціонер: заправка й салонний фільтр',
             'Мийка днища від реагентів',
-            'Гальмівні колодки після зими',
-            isEV ? 'Перевірити стан батареї після морозів' : 'Рівень масла після зимових пусків'];
+            'Гальмівні колодки після зими'];
+    if (isEV) list.push('Перевірити стан батареї після морозів');
+    else if (f === 'diesel') list.push('Паливний фільтр після зими — у ньому осідає вода');
+    else list.push('Рівень масла після зимових пусків');
   } else {
     title = 'Літня спека і дорога';
     list = ['Тиск у шинах — на гарячому асфальті він росте',
             isEV ? 'На спеці зарядка повільніша — закладайте час у маршрут'
-                 : 'Рівень антифризу й стан радіатора',
-            'Кондиціонер: якщо дує тепле — не тягніть до липня',
-            'Аптечка, вогнегасник і знак — перед довгою поїздкою',
-            'Щітки після зими зазвичай уже дубові'];
+                 : 'Рівень антифризу й стан радіатора'];
+    if (f === 'diesel')
+      list.push('Довгі траси — добре для сажового фільтра: він випалюється на швидкості');
+    list.push('Кондиціонер: якщо дує тепле — не тягніть до липня',
+              'Аптечка, вогнегасник і знак — перед довгою поїздкою',
+              'Щітки після зими зазвичай уже дубові');
   }
 
   return '<div class="h2">' + title + '</div>' +
@@ -3691,32 +3737,52 @@ var DO = {
         '<div class="hero" style="margin-bottom:12px">' +
           '<div class="hero-top"><span>До сплати</span>' + ic('star', 18) + '</div>' +
           '<b style="font-size:30px;line-height:1.15">' + exact + ' USDT</b>' +
-          '<small>' + (uah ? uah + ' за курсом НБУ · ' : '') + 'мережа TRC-20</small></div>' +
+          '<small>' + (uah ? uah + ' за курсом НБУ · ' : '') + 'мережа TRC-20 (Tron)</small></div>' +
 
+        /* Спершу те, що потрібно всім без винятку: куди і скільки. */
         '<div class="card">' +
+          '<div class="lb" style="margin-bottom:6px">Адреса гаманця</div>' +
           '<div class="addr" id="usdtAddr">' + esc(d.address) + '</div>' +
-          '<div class="grid2" style="margin-top:10px">' +
-            '<button class="btn sec" data-do="copyAddr" data-a="' + esc(d.address) + '">Адреса</button>' +
-            '<button class="btn sec" data-do="copyAddr" data-a="' + exact + '">Сума</button>' +
-          '</div>' +
-          '<button class="btn sec" style="margin-top:8px" data-do="payOpen" ' +
-            'data-a="' + esc(d.address) + '" data-amount="' + exact + '">Відкрити гаманець</button>' +
-          (same ? '<img src="usdt-qr.png" alt="QR гаманця" ' +
-            'style="width:148px;max-width:46%;border-radius:14px;display:block;margin:13px auto 2px">' : '') +
+          '<button class="btn sec" style="margin-top:9px" data-do="copyAddr" ' +
+            'data-a="' + esc(d.address) + '">Скопіювати адресу</button>' +
+          '<div class="lb" style="margin:14px 0 6px">Сума</div>' +
+          '<div class="addr" style="text-align:center;font-size:17px">' + exact + '</div>' +
+          '<button class="btn sec" style="margin-top:9px" data-do="copyAddr" ' +
+            'data-a="' + exact + '">Скопіювати суму</button>' +
         '</div>' +
 
         (odd
-          ? '<div class="note">Сума з хвостиком — це не помилка: зараз платять кілька людей ' +
-            'одразу, і за цими цифрами я розрізняю перекази. Різниця — частка копійки.</div>'
+          ? '<div class="note">Сума з хвостиком — не помилка: зараз платять кілька людей ' +
+            'одразу, і за цими цифрами я розрізняю перекази. Різниця — частка копійки. ' +
+            'Якщо ваш гаманець її округлить, теж не страшно: нижче є точна звірка.</div>'
           : '') +
 
+        /* А далі — по-різному, залежно від того, звідки людина платить. */
         '<div class="card">' +
-          '<div class="lb" style="margin-bottom:7px">Уже переказали?</div>' +
+          '<div class="lb" style="margin-bottom:9px">Звідки платите</div>' +
+          '<div class="steps">' +
+            '<div><i>1</i><div><b>З біржі — Binance, OKX, Bybit</b>' +
+              '<p>Виведення → USDT → мережа <b>TRC-20 (Tron)</b> → вставте адресу і суму. ' +
+              'Біржа візьме комісію мережі окремо — переказуйте так, щоб дійшло не менше ' +
+              shown + ' USDT.</p></div></div>' +
+            '<div><i>2</i><div><b>З гаманця на телефоні</b>' +
+              '<p>Trust, TronLink, SafePal — вставте адресу і суму вручну, ' +
+              'або натисніть кнопку нижче: у Trust усе підставиться саме.</p></div></div>' +
+          '</div>' +
+          '<button class="btn sec" style="margin-top:4px" data-do="payOpen" ' +
+            'data-a="' + esc(d.address) + '" data-amount="' + exact + '">Відкрити Trust Wallet</button>' +
+          (same ? '<div class="lb" style="margin:14px 0 6px">Або наведіть камеру</div>' +
+            '<img src="usdt-qr.png" alt="QR гаманця" ' +
+            'style="width:148px;max-width:46%;border-radius:14px;display:block;margin:0 auto">' : '') +
+        '</div>' +
+
+        '<div class="card">' +
+          '<div class="lb" style="margin-bottom:7px">Після переказу</div>' +
           (d.auto
             ? '<p style="margin:0 0 11px;font-size:12.5px;color:var(--mut);line-height:1.5">' +
-              'Зазвичай Преміум вмикається сам за одну–дві хвилини. ' +
-              'Якщо платили з біржі або змінили суму — вставте номер переказу, ' +
-              'і я перевірю його прямо в мережі.</p>' +
+              'Преміум увімкнеться <b>сам</b> за одну–дві хвилини — застосунок можна не тримати ' +
+              'відкритим. Якщо не увімкнувся (платили з біржі, сума округлилась) — ' +
+              'вставте номер переказу, і я звірю його прямо в мережі.</p>' +
               '<button class="btn" data-do="payHash">Ввести номер переказу</button>' +
               '<button class="btn sec" data-do="payCheck">Просто перевірити</button>'
             : '<p style="margin:0 0 11px;font-size:12.5px;color:var(--mut);line-height:1.5">' +
@@ -3725,10 +3791,11 @@ var DO = {
               '<button class="btn sec" data-do="payHash">Ввести номер переказу</button>') +
         '</div>' +
 
-        '<div class="note">Надсилайте <b>саме USDT у мережі TRC-20</b>. Інша мережа — ' +
-        'гроші втрачаються, повернути їх неможливо. Біржі беруть комісію мережі ' +
-        'окремо — переказуйте так, щоб дійшло не менше ' + shown + ' USDT.</div>' +
-        '<div id="payErr2"></div>');
+        '<div class="msg er">Надсилайте <b>саме USDT у мережі TRC-20</b>. ' +
+        'Інша мережа — гроші втрачаються назавжди, повернути їх не може ніхто.</div>' +
+        '<div id="payErr2"></div>' +
+        (CFG.contactTg ? '<button class="btn sec" data-do="support">Написати в підтримку</button>' : ''));
+
 
       watchPayment();
     });
