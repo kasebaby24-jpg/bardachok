@@ -7,7 +7,7 @@
 <meta name="robots" content="noindex, nofollow">
 <title>Бардачок — керування</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="styles.css?v=20260823-1600">
+<link rel="stylesheet" href="styles.css?v=20260823-1730">
 <style>
   body{overflow:auto}
   .wrap{max-width:620px;margin:0 auto;padding:26px 16px 60px}
@@ -84,7 +84,7 @@
     <button data-t="t-set">Налаштування</button>
   </div>
   <div class="msg inf" id="info">Завантаження…</div>
-  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260823-1600</div>
+  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260823-1730</div>
 
   <div class="pane on" id="t-home">
   <div id="stCount"></div>
@@ -275,6 +275,18 @@
     <div class="sect">Оплата в USDT</div>
     <div class="rw"><div class="lb">Гаманець TRC-20<small>На нього переказують</small></div>
       <input type="text" id="usdtAddress" style="text-align:left"></div>
+    <div class="note" style="margin-top:8px">Змінили гаманець — обовʼязково замініть і QR-код нижче,
+      інакше люди наведуть камеру й переказ піде на стару адресу.</div>
+
+    <div class="sect" style="margin-top:18px">QR-код гаманця</div>
+    <div id="qrNow"></div>
+    <input type="file" id="qrFile" accept="image/*" style="display:none">
+    <button class="btn sec" onclick="document.getElementById('qrFile').click()">Завантажити свій QR</button>
+    <button class="btn sec" style="margin-top:8px" onclick="qrClear()">Прибрати свій QR</button>
+    <div class="note" style="margin-top:8px">Зробіть QR у своєму гаманці (Отримати → USDT → TRC-20)
+      і збережіть картинку. До 400 КБ. Якщо свого немає — показується вбудований,
+      але тільки для початкової адреси.</div>
+    <div id="qrOut"></div>
     <div class="rw"><div class="lb">Ваш Telegram ID<small>Сюди бот пише про оплати</small></div>
       <input type="text" id="adminId" style="text-align:left" placeholder="123456789"></div>
     <div class="note"><b>Як це працює.</b> Людина тисне «Я оплатив» — вам у бот приходить
@@ -450,6 +462,7 @@ function doLogin() {
         host.insertBefore(w, host.firstChild);
       }
       load(); stats(); errors(); pays();
+      var qf = $('#qrFile'); if (qf) qf.addEventListener('change', qrPick);
     })
     .catch(function () { $('#login').disabled = false; show('gErr', 'Сервер не відповідає.', true); });
 }
@@ -459,6 +472,7 @@ function load() {
     .then(function (r) { return r.json(); }).then(function (d) {
     NUM.concat(TXT).forEach(function (k) { if (d[k] !== undefined && $('#' + k)) $('#' + k).value = d[k]; });
     if ($('#meId')) $('#meId').textContent = d.adminId || 'не вказано';
+    qrDraw(d.qrOwn || 0);
     if (d._storage === false) { show('info', 'Сховище не підключене — зберегти не вийде.', true); $('#info').className = 'msg er'; }
     else { show('info', 'Налаштування завантажено.', true); $('#info').className = 'msg inf'; }
   }).catch(function () { show('info', 'Не вдалося завантажити налаштування.', true); $('#info').className = 'msg er'; });
@@ -611,6 +625,48 @@ function resetUser(mode, d) {
 /* Обнулення власного профілю — щоб побачити застосунок як новачок.
    Питаємо двічі: спершу пояснюємо, потім вимагаємо вписати слово. Це
    незворотно, і випадкове натискання не має цього робити. */
+/* QR гаманця: завантаження й прибирання. Картинку читаємо тут, у браузері,
+   і шлемо готовим рядком — на сервері нема чого возитись із формами. */
+function qrDraw(has) {
+  var box = $('#qrNow'); if (!box) return;
+  box.innerHTML = has
+    ? '<img src="' + API.replace(/\/+$/, '') + '/qr?v=' + has +
+      '" alt="QR" style="width:130px;border-radius:12px;display:block;margin:2px 0 10px">'
+    : '<div class="note" style="margin:0 0 10px">Свій QR не завантажено — ' +
+      'показується вбудований.</div>';
+}
+
+function qrPick(ev) {
+  var f = ev.target.files && ev.target.files[0];
+  var out = $('#qrOut');
+  if (!f) return;
+  if (f.size > 300 * 1024) {
+    out.innerHTML = '<div class="msg er">Картинка завелика (' +
+      Math.round(f.size / 1024) + ' КБ). Треба до 300 КБ.</div>';
+    return;
+  }
+  out.innerHTML = '<div class="msg inf">Завантажую…</div>';
+  var r = new FileReader();
+  r.onload = function () {
+    post('/admin/qr', { data: r.result }).then(function (d) {
+      out.innerHTML = '<div class="msg ' + (d.ok ? 'ok' : 'er') + '">' +
+        esc(d.message || d.error || '') + '</div>';
+      if (d.ok) { qrDraw(Date.now()); load(); }
+    }).catch(function () { out.innerHTML = '<div class="msg er">Сервер не відповідає.</div>'; });
+  };
+  r.onerror = function () { out.innerHTML = '<div class="msg er">Не вдалось прочитати файл.</div>'; };
+  r.readAsDataURL(f);
+}
+
+function qrClear() {
+  if (!confirm('Прибрати свій QR? Показуватиметься вбудований — він підходить лише для початкової адреси.')) return;
+  post('/admin/qr', { clear: 1 }).then(function (d) {
+    $('#qrOut').innerHTML = '<div class="msg ' + (d.ok ? 'ok' : 'er') + '">' +
+      esc(d.message || d.error || '') + '</div>';
+    qrDraw(0);
+  }).catch(function () {});
+}
+
 function resetMe() {
   var el = $('#adminId');
   var id = ((el && el.value) || '').replace(/[^0-9]/g, '');
