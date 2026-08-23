@@ -12,7 +12,7 @@ var API = 'https://bardachok.kasebaby24.workers.dev';
 
 var QR_FOR = 'TWqHKxsLAdGMPC7kY4i3r2GQxNJ2U6vQXv';   // до цієї адреси намальовано usdt-qr.png
 
-var BUILD = '20260823-0730';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
+var BUILD = '20260823-0830';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
 var BOOT_T0 = Date.now();
 
 var tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
@@ -34,6 +34,12 @@ function esc(s) {
     return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
   });
 }
+/* Сума USDT: показуємо стільки знаків, скільки треба, без хвоста з нулів. */
+function fmtUsdt(n) {
+  var s = Number(n).toFixed(6).replace(/0+$/, '').replace(/\.$/, '');
+  return s;
+}
+
 function nfmt(n) { return Math.round(n || 0).toLocaleString('uk-UA').replace(/ /g, ' '); }
 function money(n) { return nfmt(n) + ' ₴'; }
 function usd(n) { return '$' + (Math.round(n * 100) / 100).toFixed(2).replace(/\.00$/, ''); }
@@ -1272,22 +1278,37 @@ function drawMore() {
     '</div>';
 
 
-  h += '<div class="promo" style="margin-top:12px">' +
-    '<b>Передайте далі — <em>і місяць ваш</em></b>' +
-    '<p>За кожного, хто вперше зайде за вашим посиланням, вам +30 днів Преміуму. ' +
-    'Одразу і без умов. Скільки людей — стільки й місяців. ' +
-    'Другові нічого не обіцяємо — місяць отримуєте ви.</p>' +
-    (REF.count
-      ? '<div class="kv" style="border:0;padding:0 0 12px"><span>Уже привели</span><b>' +
-        REF.count + ' ' + plural(REF.count, 'людину', 'людей', 'людей') + ' · +' +
-        (REF.count * 30) + ' днів</b></div>'
-      : '<div class="kv" style="border:0;padding:0 0 12px"><span>Приведено</span>' +
-        '<b>поки нікого</b></div>') +
-    (REF.link
-      ? '<button class="btn" data-do="share">Надіслати посилання</button>' +
-        '<button class="btn sec" data-do="copyRef">Скопіювати</button>'
-      : '<div class="note" style="margin:0">Посилання зʼявиться, щойно бота буде підключено.</div>') +
-    '</div>';
+  /* Тому, хто вже платить, обіцяти «і місяць ваш» безглуздо — він і так у
+     Преміумі. Але забирати можливість поділитись не варто: саме такі люди й
+     радять застосунок. Тому їм — короткий рядок замість великої пропозиції. */
+  if (PRO) {
+    h += '<div class="card" style="margin-top:12px"><div class="card-h"><b>Поділитися</b>' +
+      '<span>' + (REF.count ? 'привели ' + REF.count : '+30 днів за друга') + '</span></div>' +
+      '<p style="margin:0 0 12px;font-size:12.5px;color:var(--mut);line-height:1.5">' +
+      'За кожного, хто вперше зайде за вашим посиланням, ваш Преміум подовжується ' +
+      'на 30 днів.</p>' +
+      (REF.link
+        ? '<button class="btn sec" data-do="share">Надіслати посилання</button>'
+        : '<div class="note" style="margin:0">Посилання зʼявиться, щойно бота буде підключено.</div>') +
+      '</div>';
+  } else {
+    h += '<div class="promo" style="margin-top:12px">' +
+      '<b>Передайте далі — <em>і місяць ваш</em></b>' +
+      '<p>За кожного, хто вперше зайде за вашим посиланням, вам +30 днів Преміуму. ' +
+      'Одразу і без умов. Скільки людей — стільки й місяців. ' +
+      'Другові нічого не обіцяємо — місяць отримуєте ви.</p>' +
+      (REF.count
+        ? '<div class="kv" style="border:0;padding:0 0 12px"><span>Уже привели</span><b>' +
+          REF.count + ' ' + plural(REF.count, 'людину', 'людей', 'людей') + ' · +' +
+          (REF.count * 30) + ' днів</b></div>'
+        : '<div class="kv" style="border:0;padding:0 0 12px"><span>Приведено</span>' +
+          '<b>поки нікого</b></div>') +
+      (REF.link
+        ? '<button class="btn" data-do="share">Надіслати посилання</button>' +
+          '<button class="btn sec" data-do="copyRef">Скопіювати</button>'
+        : '<div class="note" style="margin:0">Посилання зʼявиться, щойно бота буде підключено.</div>') +
+      '</div>';
+  }
 
   h += '<div class="card" style="margin-top:12px"><div class="card-h"><b>Підтримати розробника</b>' +
     '<span>за бажанням</span></div>' +
@@ -3636,11 +3657,13 @@ var DO = {
       /* Копійки в сумі — не примха: саме за ними бот упізнає, що переказ ваш,
          і вмикає Преміум сам. Тому вони мають бути на видноті. */
       var auto = d.auto && d.exact;
-      openSheet('Переказ ' + d.amount + ' USDT',
+      var shown = d.base || d.amount;                 // ціна, яку людина бачила в тарифах
+      var exact = fmtUsdt(d.amount);                  // те, що треба надіслати
+      openSheet('Переказ ' + shown + ' USDT',
         '<div class="hero" style="margin-bottom:12px">' +
-          '<div class="hero-top"><span>Надішліть рівно</span>' + ic('star', 18) + '</div>' +
-          '<b style="font-size:30px;line-height:1.15">' + d.amount + ' USDT</b>' +
-          '<small>' + (auto ? 'копійки важливі — за ними вас упізнають'
+          '<div class="hero-top"><span>До сплати</span>' + ic('star', 18) + '</div>' +
+          '<b style="font-size:30px;line-height:1.15">' + shown + ' USDT</b>' +
+          '<small>' + (auto ? 'точна сума нижче — скопіюйте її'
                             : 'мережа TRC-20') + '</small></div>' +
         '<div class="card" style="text-align:center">' +
           (same ? '<img src="usdt-qr.png" alt="QR гаманця" ' +
@@ -3651,9 +3674,17 @@ var DO = {
           '<button class="btn sec" style="margin-top:11px" data-do="sendSelf" ' +
             'data-w="wallet" data-amount="' + d.amount + '">Надіслати адресу в бот</button>' +
           '<button class="btn sec" data-do="copyAddr" data-a="' + esc(d.address) + '">Скопіювати адресу</button>' +
-          '<button class="btn sec" data-do="copyAddr" data-a="' + d.amount + '">Скопіювати суму</button>' +
         '</div>' +
-        '<div class="card"><div class="kv"><span>Сума</span><b>' + d.amount + ' USDT</b></div>' +
+        '<div class="card">' +
+          (auto
+            ? '<div class="lb" style="margin-bottom:7px">Надішліть рівно цю суму</div>' +
+              '<div class="addr" style="text-align:center;font-size:18px">' + exact + '</div>' +
+              '<button class="btn" style="margin-top:10px" data-do="copyAddr" data-a="' + exact + '">' +
+              'Скопіювати суму</button>' +
+              '<div class="note" style="margin:9px 0 0">Останні цифри — це ваш підпис. ' +
+              'За ними бот упізнає переказ. На ціну вони не впливають: це ' +
+              (Math.round((d.amount - shown) * 1e6) / 1e6) + ' долара.</div>'
+            : '<div class="kv"><span>Сума</span><b>' + exact + ' USDT</b></div>') +
           (uah ? '<div class="kv"><span>У гривні</span><b>' + uah + '</b></div>' : '') +
           '<div class="kv"><span>Мережа</span><b>TRC-20 (Tron)</b></div></div>' +
         (auto
@@ -3661,8 +3692,7 @@ var DO = {
             'зазвичай за одну–дві хвилини. Нічого нікому писати не треба.</div>'
           : '') +
         '<div class="note">Надсилайте <b>саме USDT у мережі TRC-20</b>. Інша мережа — ' +
-          'гроші втрачаються, повернути їх неможливо.' +
-          (auto ? ' І не округляйте суму: копійки — це ваш підпис.' : '') + '</div>' +
+          'гроші втрачаються, повернути їх неможливо.</div>' +
         '<div id="payErr2"></div>' +
         '<button class="btn" data-do="paidDone" data-plan="' + p + '">Я оплатив</button>' +
         (auto ? '' :
@@ -3673,7 +3703,38 @@ var DO = {
     });
   },
 
-  copyAddr: function (t) { copy(t.dataset.a); toast('Адресу скопійовано'); },
+  copyAddr: function (t) { copy(t.dataset.a); toast('Скопійовано'); },
+
+  /* Точна звірка: дивимось конкретний переказ у блокчейні. Потрібно, коли
+     автоматика не спрацювала — людина округлила суму або платила з біржі. */
+  payHash: function () {
+    openSheet('Номер переказу',
+      '<p style="margin:0 0 13px;font-size:12.5px;color:var(--mut);line-height:1.55">' +
+      'Якщо Преміум не зʼявився сам — вставте номер переказу, і я перевірю його ' +
+      'просто в мережі. Це точна звірка: видно, кому й скільки надіслано.</p>' +
+      '<div class="steps" style="margin-bottom:13px">' +
+        '<div><i>1</i><div><b>Відкрийте переказ у гаманці</b>' +
+          '<p>Історія операцій — потрібний переказ.</p></div></div>' +
+        '<div><i>2</i><div><b>Скопіюйте Transaction ID</b>' +
+          '<p>Довгий рядок із 64 символів. У Trust Wallet — «Більше деталей».</p></div></div>' +
+      '</div>' +
+      '<div class="field"><input id="txIn" type="text" placeholder="64 символи" autocomplete="off"></div>' +
+      '<div id="txOut"></div>' +
+      '<button class="btn" data-do="payHashGo">Перевірити переказ</button>');
+  },
+
+  payHashGo: function () {
+    var out = document.getElementById('txOut');
+    var v = val('txIn').trim();
+    if (v.length < 60) { out.innerHTML = '<div class="msg er">Номер має 64 символи. Скопіюйте його повністю.</div>'; return; }
+    out.innerHTML = '<div class="msg inf">Дивлюсь у мережі…</div>';
+    api('/api/pay-hash', { hash: v }).then(function (d) {
+      if (!d.ok) { out.innerHTML = '<div class="msg er">' + esc(d.message || d.error || 'Не вдалося') + '</div>'; return; }
+      out.innerHTML = '<div class="msg ok">Знайшов і зарахував. Преміум діє до ' + esc(fmtDate(d.until)) + '.</div>';
+      haptic('medium');
+      setTimeout(function () { location.reload(); }, 1600);
+    });
+  },
 
   paidDone: function (t) {
     var box = document.getElementById('payErr2');
@@ -3707,6 +3768,7 @@ var DO = {
                 '<p>Щойно ввімкнемо — Преміум зʼявиться сам.</p></div></div>' +
             '</div>') +
         '<button class="btn" style="margin-top:14px" data-do="payCheck">Перевірити зараз</button>' +
+        '<button class="btn sec" data-do="payHash">Ввести номер переказу</button>' +
         '<button class="btn sec" data-close="1">Закрити</button>');
       watchPayment();
     });
