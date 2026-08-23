@@ -7,7 +7,7 @@
 <meta name="robots" content="noindex, nofollow">
 <title>Бардачок — керування</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="styles.css?v=20260823-2030">
+<link rel="stylesheet" href="styles.css?v=20260823-2130">
 <style>
   body{overflow:auto}
   .wrap{max-width:620px;margin:0 auto;padding:26px 16px 60px}
@@ -84,7 +84,7 @@
     <button data-t="t-set">Налаштування</button>
   </div>
   <div class="msg inf" id="info">Завантаження…</div>
-  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260823-2030</div>
+  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260823-2130</div>
 
   <div class="pane on" id="t-home">
   <div id="stCount"></div>
@@ -480,7 +480,13 @@ function load() {
 
 function stats(fresh) {
   post('/admin/stats', fresh ? { fresh: 1 } : {}).then(function (d) {
-    if (!d.ok) return;
+    /* Мовчазна відмова — найгірше: видно порожню панель і незрозуміло чому. */
+    if (!d.ok) {
+      var box = $('#stCount');
+      if (box) box.innerHTML = '<div class="msg er">Не вдалося отримати цифри: ' +
+        esc(d.error || 'сервер не пояснив') + '</div>';
+      return;
+    }
     /* Підрахунок по всій базі йде пачками — поки він не дійшов до кінця,
        чесно кажемо, що цифри ще неповні, а не показуємо їх як остаточні. */
     var ct = $('#stCount');
