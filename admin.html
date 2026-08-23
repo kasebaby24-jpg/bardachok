@@ -7,7 +7,7 @@
 <meta name="robots" content="noindex, nofollow">
 <title>Бардачок — керування</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="styles.css?v=20260823-0430">
+<link rel="stylesheet" href="styles.css?v=20260823-0530">
 <style>
   body{overflow:auto}
   .wrap{max-width:620px;margin:0 auto;padding:26px 16px 60px}
@@ -23,9 +23,17 @@
   .rw input{width:120px;flex:0 0 120px;padding:11px 13px;border-radius:14px;background:var(--surf2);
     border:1.5px solid transparent;font-size:15px;font-weight:600;text-align:right;outline:none}
   .rw input:focus{border-color:var(--lime)}
-  .st{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-bottom:12px}
+  /* чотири колонки на телефоні не влазять — великі числа обрізало */
+  .st{display:grid;grid-template-columns:repeat(2,1fr);gap:9px;margin-bottom:12px}
+  @media (min-width:560px){.st{grid-template-columns:repeat(4,1fr)}}
+  .big{display:grid;grid-template-columns:repeat(2,1fr);gap:9px}
+  .big b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .big>div{background:var(--surf2,#171A18);border-radius:14px;padding:12px 13px}
+  .big b{display:block;font-size:22px;font-weight:800;line-height:1.15}
+  .big small{display:block;margin-top:3px;font-size:11px;opacity:.6}
+  .rw .lb small{display:block;font-size:11px;opacity:.55;margin-top:2px;font-weight:400}
   .st div{background:var(--surf);border-radius:18px;padding:14px 10px;text-align:center}
-  .st b{display:block;font-family:var(--disp);font-weight:800;font-size:21px;font-variant-numeric:tabular-nums}
+  .st b{display:block;font-family:var(--disp);font-weight:800;font-size:21px;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .st small{color:var(--mut);font-size:10.5px;font-weight:600}
   .gate{max-width:380px;margin:14vh auto 0;padding:0 16px}
   .gate input{width:100%;padding:14px 16px;border-radius:16px;background:var(--surf2);
@@ -65,7 +73,7 @@
     <button data-t="t-set">Налаштування</button>
   </div>
   <div class="msg inf" id="info">Завантаження…</div>
-  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260823-0430</div>
+  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260823-0530</div>
 
   <div class="pane on" id="t-home">
   <div id="stCount"></div>
@@ -74,6 +82,11 @@
     <div><b id="stP">—</b><small>преміум</small></div>
     <div><b id="stC">—</b><small>авто</small></div>
     <div><b id="stD">—</b><small>з авто</small></div>
+  </div>
+
+  <div class="card">
+    <div class="sect">Помилки в застосунку</div>
+    <div id="errBox"><div class="note">Завантажую…</div></div>
   </div>
 
   <div class="card">
@@ -144,6 +157,22 @@
     <div class="sect">Контакт для клієнтів</div>
     <div class="rw"><div class="lb">Telegram<small>Без «@». Сюди пишуть щодо оплати</small></div>
       <input type="text" id="contactTg" style="text-align:left"></div>
+  </div>
+
+  <div class="card">
+    <div class="sect">Дешеве сховище для документів</div>
+    <div class="note">
+      Знімки документів зараз лежать у KV. Це працює, але при 30 тисячах
+      користувачів коштуватиме близько <b>$30 на місяць</b> замість менш ніж долара.
+      <br><br>
+      1. Cloudflare → <b>R2</b> → <b>Create bucket</b>, назва будь-яка (напр. <code>bardachok-docs</code>).<br>
+      2. Ваш Worker → <b>Settings</b> → <b>Bindings</b> → <b>Add</b> → <b>R2 bucket</b>,
+         назва змінної рівно <code>DOCS</code>, оберіть створене сховище.<br>
+      3. <b>Deploy</b>.
+      <br><br>
+      Переносити нічого не треба: старі знімки перекладуться самі, коли їх
+      відкриють. Поки привʼязки немає, усе працює як раніше.
+    </div>
   </div>
 
   <div class="card">
@@ -259,6 +288,7 @@
     <div class="rw"><div class="lb">Оплата карткою</div><b id="hPC">—</b></div>
     <div class="rw"><div class="lb">Оплата криптою</div><b id="hPY">—</b></div>
     <div class="rw"><div class="lb">Успішних оплат</div><b id="hPN">—</b></div>
+    <div class="rw"><div class="lb">Сховище знімків</div><b id="hR2">—</b></div>
     <div class="rw"><div class="lb">Версія сервера</div><b id="hV">—</b></div>
   </div>
   </div><!-- /t-set-b -->
@@ -302,6 +332,9 @@ function doLogin() {
       $('#hS').textContent = d.storage ? 'працює' : 'НЕ підключено';
       $('#hB').textContent = d.bot ? 'є' : 'немає';
       $('#hA').textContent = d.ai ? 'увімкнено' : 'вимкнено';
+      if ($('#hR2')) $('#hR2').textContent = d.r2
+        ? 'R2 — дешеве, все гаразд'
+        : 'поки KV — дорожче в 33 рази';
       $('#hPC').textContent = d.payCard ? 'ключ є' : 'нема ключа WFP_SECRET';
       $('#hPY').textContent = d.payCrypto ? 'ключ є' : 'нема ключа CRYPTO_TOKEN';
       $('#hV').textContent = d.version || 'стара збірка — оновіть worker';
@@ -320,7 +353,7 @@ function doLogin() {
         var host = $('#panel');
         host.insertBefore(w, host.firstChild);
       }
-      load(); stats();
+      load(); stats(); errors();
     })
     .catch(function () { $('#login').disabled = false; show('gErr', 'Сервер не відповідає.', true); });
 }
@@ -347,10 +380,10 @@ function stats(fresh) {
     if (!d.users && d.message) { if (ct) ct.innerHTML = '<div class="msg inf">' + d.message + '</div>'; return; }
     if (d.bcast && ct) ct.innerHTML += '<div class="msg inf">Розсилка йде: доставлено ' +
       d.bcast.sent + (d.bcast.failed ? ', не дійшло ' + d.bcast.failed : '') + '.</div>';
-    $('#stU').textContent = d.users; $('#stP').textContent = d.pro;
-    $('#stC').textContent = d.cars;  $('#stD').textContent = d.withData;
+    $('#stU').textContent = nfm(d.users); $('#stP').textContent = nfm(d.pro);
+    $('#stC').textContent = nfm(d.cars);  $('#stD').textContent = nfm(d.withData);
     if ($('#hPN')) $('#hPN').textContent = (d.paid || 0) + (d.revenue ? ' · $' + d.revenue : '');
-    drawAna(d.stats);
+    drawAna(d.stats, d);
     var nn = $('#ntNow');
     if (nn) nn.innerHTML = d.notice
       ? '<div class="msg inf">Зараз показується: <b>' + (d.notice.title || '') + '</b> — ' +
@@ -475,33 +508,107 @@ function resetUser(mode, d) {
   }).catch(function () { show('uEr', 'Сервер не відповідає.', true); });
 }
 
-function drawAna(st) {
-  if (!st) { $('#anaBox').innerHTML = '<div class="note">Поки нема даних.</div>'; return; }
-  var groups = [
-    ['Люди', [
-      ['Усього', st.users], ['З преміумом', st.pro],
-      ['Активні за тиждень', st.active7], ['Активні за місяць', st.active30],
-      ['Сплять понад місяць', st.sleeping],
-      ['Нових за тиждень', st.newWeek], ['Нових за місяць', st.newMonth],
-    ]],
-    ['Авто і записи', [
-      ['Авто всього', st.cars], ['З них електро', st.ev],
-      ['Людей з авто', st.withCars],
-      ['Записів сервісу', st.service], ['Заправок', st.fuel], ['Штрафів', st.fines],
-    ]],
-    ['Можливості', [
-      ['Документів', st.docs], ['Нагадувань', st.rem],
-      ['Перевірок VIN', st.vin], ['Звітів PDF', st.reports],
-      ['Ключів для ярлика', st.tokens], ['Приведено друзів', st.refs],
-    ]],
-  ];
-  $('#anaBox').innerHTML = groups.map(function (g) {
-    return '<div class="lb" style="margin:12px 0 6px">' + g[0] + '</div>' +
-      g[1].map(function (r) {
-        return '<div class="rw"><div class="lb">' + r[0] + '</div><b>' + (r[1] == null ? '—' : r[1]) + '</b></div>';
-      }).join('');
-  }).join('') + '<div class="note" style="margin-top:10px">Пораховано ' + (st.day || '—') + '</div>';
+function pct(a, b) { return b > 0 ? Math.round(a * 100 / b) + '%' : '—'; }
+function nfm(n) { return (n == null) ? '—' : String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ' '); }
+
+/* Головні цифри — великими, решта — списком. Мета: за п'ять секунд зрозуміти,
+   як ідуть справи, не рахуючи нічого в голові. */
+function bigRow(items) {
+  return '<div class="big">' + items.map(function (i) {
+    return '<div><b>' + i[0] + '</b><small>' + i[1] + '</small></div>';
+  }).join('') + '</div>';
 }
+function listRows(rows) {
+  return rows.map(function (r) {
+    return '<div class="rw"><div class="lb">' + r[0] +
+      (r[2] ? '<small>' + r[2] + '</small>' : '') + '</div><b>' + r[1] + '</b></div>';
+  }).join('');
+}
+
+function drawAna(st, d) {
+  if (!st) { $('#anaBox').innerHTML = '<div class="note">Поки нема даних.</div>'; return; }
+  d = d || {};
+  var alive = (st.active7 || 0) + (st.active30 || 0);
+  var paid = d.paid || 0, rev = d.revenue || 0;
+
+  var h = '';
+
+  h += '<div class="lb" style="margin:2px 0 8px">Головне</div>' +
+    bigRow([
+      [nfm(st.users), 'усього людей'],
+      [pct(st.pro, st.users), 'із преміумом'],
+      [pct(st.active7, st.users), 'живі за тиждень'],
+      ['$' + nfm(rev), 'зароблено'],
+    ]);
+
+  h += '<div class="lb" style="margin:16px 0 6px">Люди</div>' +
+    listRows([
+      ['Активні за тиждень', nfm(st.active7), pct(st.active7, st.users) + ' від усіх'],
+      ['Активні за місяць', nfm(st.active30), 'заходили, але не цього тижня'],
+      ['Сплять понад місяць', nfm(st.sleeping), pct(st.sleeping, st.users) + ' — їх уже майже втрачено'],
+      ['Нових за тиждень', nfm(st.newWeek), ''],
+      ['Нових за місяць', nfm(st.newMonth), ''],
+      ['Дійшли до додавання авто', nfm(st.withCars),
+        pct(st.withCars, st.users) + ' — решта пішла, нічого не внісши'],
+    ]);
+
+  h += '<div class="lb" style="margin:16px 0 6px">Гроші</div>' +
+    listRows([
+      ['Оплат усього', nfm(paid), ''],
+      ['Зароблено', '$' + nfm(rev), paid ? 'у середньому $' + (Math.round(rev / paid * 100) / 100) + ' за оплату' : ''],
+      ['Платять зараз', nfm(st.pro), pct(st.pro, st.users) + ' від усіх'],
+      ['Платять серед живих', pct(st.pro, alive),
+        'чесніша цифра: серед тих, хто справді користується'],
+      ['Приведено друзями', nfm(st.refs), 'кожен дає запрошувачу 30 днів'],
+    ]);
+
+  h += '<div class="lb" style="margin:16px 0 6px">Чим користуються</div>' +
+    listRows([
+      ['Авто в гаражах', nfm(st.cars), (st.ev ? nfm(st.ev) + ' електричних' : '')],
+      ['Записів сервісу', nfm(st.service), ''],
+      ['Заправок', nfm(st.fuel), ''],
+      ['Штрафів', nfm(st.fines), ''],
+      ['Документів', nfm(st.docs), ''],
+      ['Нагадувань', nfm(st.rem), ''],
+      ['Перевірок VIN', nfm(st.vin), ''],
+      ['Звітів PDF', nfm(st.reports), ''],
+      ['Увімкнули кнопку «Дія»', nfm(st.tokens), 'ярлик на iPhone'],
+      ['Нагадувань надіслано', nfm(st.notified), 'за останній обхід'],
+    ]);
+
+  $('#anaBox').innerHTML = h +
+    '<div class="note" style="margin-top:12px">Пораховано ' + (st.day || '—') + '. ' +
+    'Підрахунок іде пачками, тому цифри оновлюються протягом дня.</div>';
+}
+
+/* Помилки в застосунку — щоб не дізнаватись про них зі скарг. */
+function errors(clear) {
+  post('/admin/errors', clear ? { clear: 1 } : {}).then(function (d) {
+    var box = $('#errBox');
+    if (!box) return;
+    if (!d.ok) { box.innerHTML = '<div class="note">' + (d.error || 'Не вдалося.') + '</div>'; return; }
+    var list = d.errors || [];
+    if (!list.length) {
+      box.innerHTML = '<div class="msg ok">Помилок немає. За останні 30 днів жоден застосунок не впав.</div>';
+      return;
+    }
+    box.innerHTML = '<div class="msg er">Помилок різних видів: ' + list.length + '</div>' +
+      list.slice(0, 20).map(function (e) {
+        var when = e.last ? new Date(e.last).toLocaleString('uk-UA') : '';
+        return '<div class="rw"><div class="lb">' + esc(e.msg) +
+          '<small>' + esc(e.where || '') + (e.screen ? ' · ' + esc(e.screen) : '') +
+          ' · ' + when + (e.build ? ' · версія ' + esc(e.build) : '') + '</small></div>' +
+          '<b>' + e.people + (e.people >= 40 ? '+' : '') + ' люд.</b></div>';
+      }).join('') +
+      '<button class="btn sec" style="margin-top:10px" onclick="errors(1)">Очистити список</button>';
+  }).catch(function () {});
+}
+function esc(x) {
+  return String(x == null ? '' : x).replace(/[&<>"]/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+  });
+}
+
 
 function notice(clear) {
   show('ntOk', '', false); show('ntEr', '', false);

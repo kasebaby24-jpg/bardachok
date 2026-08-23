@@ -12,7 +12,7 @@ var API = 'https://bardachok.kasebaby24.workers.dev';
 
 var QR_FOR = 'TWqHKxsLAdGMPC7kY4i3r2GQxNJ2U6vQXv';   // до цієї адреси намальовано usdt-qr.png
 
-var BUILD = '20260823-0430';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
+var BUILD = '20260823-0530';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
 var BOOT_T0 = Date.now();
 
 var tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
@@ -646,8 +646,23 @@ function paint(id) {
   var f = PAINT[id];
   if (!f) return;
   if (DIRTY[id]) return;            // вже намальовано з останніми даними
-  f();
-  DIRTY[id] = 1;
+  try {
+    f();
+    DIRTY[id] = 1;
+  } catch (e) {
+    /* Одна зіпсована цифра не має лишати людину перед порожнім екраном.
+       Показуємо, що сталось, даємо вихід — і повідомляємо розробнику. */
+    reportErr(e, 'екран ' + id);
+    var el = $('#' + id);
+    if (el) el.innerHTML =
+      '<div class="card"><div class="h3">Цей екран не відкрився</div>' +
+      '<p style="margin:0 0 12px;font-size:12.5px;color:var(--mut);line-height:1.5">' +
+      'Схоже, у записах є щось, чого я не очікував. Ваші дані на місці — ' +
+      'їм нічого не загрожує. Про помилку вже знаю і полагоджу.</p>' +
+      '<button class="btn" data-do="reload">Перезапустити</button>' +
+      '<button class="btn sec" data-go="tab:s-home">На головну</button></div>';
+    DIRTY[id] = 1;
+  }
 }
 
 function ringSvg(pct, color) {
@@ -2270,7 +2285,7 @@ function docPick() {
   if (DOCS && DOCS.length >= DOC_LIMIT && !PRO) { needPro('docs'); return; }
   if (!hasKey()) { ensureKey(function () { docPick(); }); return; }
   openSheet('Новий документ',
-    '<div class="field"><label>Що це</label><div class="seg" id="dKind" style="flex-wrap:wrap">' +
+    '<div class="field"><label>Що це</label><div class="seg wrap" id="dKind">' +
       Object.keys(DOC_UA).map(function (k, i) {
         return '<button type="button" data-v="' + k + '" class="' + (i === 0 ? 'on' : '') + '">' + DOC_UA[k] + '</button>';
       }).join('') + '</div></div>' +
@@ -3272,6 +3287,7 @@ var DO = {
     }
   },
 
+  reload: function () { try { location.reload(); } catch (e) {} },
   tokCopy: function () { if (VTOKEN) { copy(VTOKEN.token); toast('Ключ скопійовано', 'ok'); } },
   urlCopy: function () { if (VTOKEN) { copy(VTOKEN.url); toast('Адресу скопійовано', 'ok'); } },
   openBot: function () {
@@ -3358,7 +3374,7 @@ var DO = {
     var car = activeCar(); if (!car) { toast('Спочатку додайте авто'); return; }
     var kinds = Object.keys(KIND_UA);
     openSheet('Запис у сервісну книжку',
-      '<div class="field"><label>Що робили</label><div class="seg" id="sKind">' +
+      '<div class="field"><label>Що робили</label><div class="seg wrap" id="sKind">' +
         kinds.map(function (k, i) {
           return '<button type="button" data-v="' + k + '" class="' + (i === 0 ? 'on' : '') + '">' + KIND_UA[k] + '</button>';
         }).join('') + '</div></div>' +
@@ -3381,7 +3397,7 @@ var DO = {
     var car = activeCar(); if (!car) { toast('Спочатку додайте авто'); return; }
     var cats = Object.keys(CAT_UA).filter(function (c) { return c !== 'fine'; });
     openSheet('Витрата',
-      '<div class="field"><label>Категорія</label><div class="seg" id="eCat">' +
+      '<div class="field"><label>Категорія</label><div class="seg wrap" id="eCat">' +
         cats.map(function (c, i) {
           return '<button type="button" data-v="' + c + '" class="' + (i === 0 ? 'on' : '') + '">' + CAT_UA[c] + '</button>';
         }).join('') + '</div></div>' +
@@ -3689,6 +3705,34 @@ function fallbackCopy(t) {
 /* ------------------------------------------------------------------ */
 var PARENT = { 's-vin': 's-more', 's-ask': 's-more', 's-crash': 's-more', 's-cars': 's-more' };
 
+/* ------------------------------------------------------------------ */
+/* ПОМИЛКИ                                                             */
+/* Якщо десь щось падає, людина має бачити людський текст, а власник —  */
+/* знати про це в панелі. Мовчазні падіння найгірші: вони виглядають як */
+/* «застосунок не працює», і ніхто не може сказати чому.                */
+/* ------------------------------------------------------------------ */
+var ERR_SENT = {};                 // одну й ту саму помилку не шлемо двічі
+
+function reportErr(e, where) {
+  try {
+    var msg = (e && (e.message || e.toString())) || 'невідомо';
+    var line = (e && e.stack ? String(e.stack).split('\n')[1] || '' : '').trim().slice(0, 120);
+    var sig = where + '|' + msg;
+    if (ERR_SENT[sig]) return;
+    ERR_SENT[sig] = 1;
+    if (typeof console !== 'undefined' && console.error) console.error(where, e);
+    api('/api/err', { where: where, msg: String(msg).slice(0, 300), at: line,
+                      build: BUILD, screen: TAB || '' }).catch(function () {});
+  } catch (x) { /* повідомити про помилку теж не вийшло — мовчимо */ }
+}
+
+window.addEventListener('error', function (ev) {
+  reportErr(ev.error || { message: ev.message }, 'сторінка');
+});
+window.addEventListener('unhandledrejection', function (ev) {
+  reportErr(ev.reason || { message: 'обірваний запит' }, 'запит');
+});
+
 function show(id) {
   TAB = id;
   paint(id);
@@ -3744,7 +3788,11 @@ document.addEventListener('click', function (e) {
   }
 
   var d = e.target.closest('[data-do]');
-  if (d && DO[d.dataset.do]) { haptic('light'); DO[d.dataset.do](d); }
+  if (d && DO[d.dataset.do]) {
+    haptic('light');
+    try { DO[d.dataset.do](d); }
+    catch (e) { reportErr(e, 'дія ' + d.dataset.do); toast('Не вдалося виконати. Спробуйте ще раз.'); }
+  }
 });
 
 if (tg && tg.BackButton) {
