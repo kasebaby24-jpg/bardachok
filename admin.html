@@ -7,7 +7,8 @@
 <meta name="robots" content="noindex, nofollow">
 <title>Бардачок — керування</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="styles.css?v=20260824-0130">
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="stylesheet" href="styles.css?v=20260824-0300">
 <style>
   body{overflow:auto}
   .wrap{max-width:620px;margin:0 auto;padding:26px 16px 60px}
@@ -90,7 +91,7 @@
     <button data-t="t-set">Налаштування</button>
   </div>
   <div class="msg inf" id="info">Завантаження…</div>
-  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260824-0130</div>
+  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260824-0300</div>
 
   <div class="pane on" id="t-home">
   <div id="stCount"></div>
@@ -418,6 +419,28 @@
       онови́ться опис і кнопка меню.</div>
   </div>
 
+  <div class="card" style="margin-top:14px">
+    <div class="sect">Ця панель як застосунок у Telegram</div>
+    <div id="abState" class="note" style="margin-bottom:10px">—</div>
+    <button class="btn sec" id="abHook">Підключити адмін-бота</button>
+    <div class="msg ok hidden" id="abOk" style="margin-top:10px"></div>
+    <div class="msg er hidden" id="abEr" style="margin-top:10px"></div>
+    <div class="note">
+      Щоб відкривати цю панель прямо з Telegram, як звичайний застосунок,
+      і без пароля.
+      <br><br>
+      1. Створіть окремого бота в <b>@BotFather</b> (у вас уже є
+         <code>bardachokadminkaforme_bot</code>).<br>
+      2. Cloudflare → Worker → <b>Settings</b> → <b>Variables and secrets</b> →
+         <b>Add</b>, тип <b>Secret</b>, назва <code>ADMIN_BOT_TOKEN</code>,
+         значення — токен цього бота. <b>Deploy</b>.<br>
+      3. Натисніть кнопку вище.
+      <br><br>
+      Далі відкривайте бота й тисніть «Панель». Вас упізнає сам Telegram —
+      за вашим ID із налаштувань. Чужим бот не відповідає взагалі.
+    </div>
+  </div>
+
   <div class="card">
     <div class="sect">Стан сервера</div>
     <div class="rw"><div class="lb">Сховище</div><b id="hS">—</b></div>
@@ -441,10 +464,32 @@ var TXT = ['contactTg','wfpMerchant','wfpDomain','usdtAddress','adminId'];
 var KEY = '';
 var $ = function (s) { return document.querySelector(s); };
 function show(id, t, on) { var e = $('#' + id); e.textContent = t || ''; e.classList.toggle('hidden', !on); }
+
+/* Панель відкривається двома способами: як застосунок усередині Telegram —
+   тоді Telegram сам підтверджує, хто це, і пароль не потрібен; або зі
+   звичайного браузера — тоді пароль, як раніше. */
+var TG = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
+var TG_DATA = (TG && TG.initData) ? TG.initData : '';
+if (TG) {
+  try {
+    TG.ready(); TG.expand();
+    if (TG.setHeaderColor) TG.setHeaderColor('#0B0D0C');
+    if (TG.setBackgroundColor) TG.setBackgroundColor('#0B0D0C');
+    if (TG.disableVerticalSwipes) TG.disableVerticalSwipes();
+  } catch (e) {}
+}
+
+function heads(extra) {
+  var h = extra || {};
+  if (KEY) h['X-Admin-Key'] = KEY;
+  if (TG_DATA) h['X-Init-Data'] = TG_DATA;
+  return h;
+}
+
 function post(path, body) {
   return fetch(API.replace(/\/+$/, '') + path, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Admin-Key': KEY },
+    headers: heads({ 'Content-Type': 'application/json' }),
     body: JSON.stringify(body || {}),
   }).then(function (r) { return r.json(); });
 }
@@ -452,19 +497,29 @@ function post(path, body) {
 $('#login').addEventListener('click', doLogin);
 $('#pass').addEventListener('keydown', function (e) { if (e.key === 'Enter') doLogin(); });
 
-function doLogin() {
-  var p = $('#pass').value;
-  if (!p) { show('gErr', 'Введіть пароль', true); return; }
+function doLogin(fromTelegram) {
+  var p = fromTelegram ? '' : $('#pass').value;
+  if (!fromTelegram && !p) { show('gErr', 'Введіть пароль', true); return; }
   KEY = p;
-  $('#login').disabled = true;
+  if ($('#login')) $('#login').disabled = true;
   show('gErr', '', false);
-  fetch(API.replace(/\/+$/, '') + '/admin-check', { headers: { 'X-Admin-Key': p } })
+  fetch(API.replace(/\/+$/, '') + '/admin-check', { headers: heads() })
     .then(function (r) { return r.json(); })
     .then(function (d) {
-      $('#login').disabled = false;
-      if (!d.configured) { show('gErr', 'На сервері не заданий ADMIN_PASSWORD.', true); return; }
+      if ($('#login')) $('#login').disabled = false;
+      if (!d.ok && fromTelegram) {
+        /* Telegram нас не впізнав — покажемо звичайний вхід і пояснимо чому */
+        show('gErr', 'Telegram не впізнав вас як власника. Перевірте, що ваш ' +
+          'Telegram ID вписаний у налаштуваннях панелі.', true);
+        return;
+      }
+      if (!d.configured && !fromTelegram) { show('gErr', 'На сервері не заданий ADMIN_PASSWORD.', true); return; }
       if (!d.ok) { show('gErr', 'Невірний пароль', true); return; }
-      try { sessionStorage.setItem('bKey', p); } catch (e) {}
+      if (!fromTelegram) { try { sessionStorage.setItem('bKey', p); } catch (e) {} }
+      var abs = $('#abState');
+      if (abs) abs.innerHTML = fromTelegram
+        ? '<b style="color:var(--lime,#C6F32C)">Відкрито з Telegram</b> — пароль не потрібен.'
+        : 'Зараз відкрито у браузері, через пароль.';
       $('#gate').classList.add('hidden');
       $('#panel').classList.remove('hidden');
       $('#hS').textContent = d.storage ? 'працює' : 'НЕ підключено';
@@ -547,7 +602,7 @@ function doLogin() {
 }
 
 function load() {
-  fetch(API.replace(/\/+$/, '') + '/settings', { headers: { 'X-Admin-Key': KEY } })
+  fetch(API.replace(/\/+$/, '') + '/settings', { headers: heads() })
     .then(function (r) { return r.json(); }).then(function (d) {
     NUM.concat(TXT).forEach(function (k) { if (d[k] !== undefined && $('#' + k)) $('#' + k).value = d[k]; });
     if ($('#meId')) $('#meId').textContent = d.adminId || 'не вказано';
@@ -1337,7 +1392,33 @@ $('#hook').addEventListener('click', function () {
   }).catch(function () { b.disabled = false; b.textContent = 'Підключити бота'; show('hEr', 'Сервер не відповідає.', true); });
 });
 
+$('#abHook').addEventListener('click', function () {
+  var b = this;
+  b.disabled = true; b.textContent = 'Підключаю…';
+  show('abOk', '', false); show('abEr', '', false);
+  post('/tga-setup', {}).then(function (d) {
+    b.disabled = false; b.textContent = 'Підключити адмін-бота';
+    if (d.ok) show('abOk', 'Готово' + (d.bot ? ': ' + d.bot : '') +
+      '. Відкрийте цього бота — там буде кнопка «Панель».', true);
+    else show('abEr', d.error || 'Не вдалося.', true);
+  }).catch(function () {
+    b.disabled = false; b.textContent = 'Підключити адмін-бота';
+    show('abEr', 'Сервер не відповідає.', true);
+  });
+});
+
 (function () {
+  /* Відкрили з Telegram — заходимо одразу, без пароля. */
+  if (TG_DATA) {
+    var g = $('#gate');
+    if (g) {
+      var pw = $('#passRow') || ($('#pass') ? $('#pass').parentNode : null);
+      if (pw) pw.style.display = 'none';
+      if ($('#login')) $('#login').style.display = 'none';
+    }
+    doLogin(true);
+    return;
+  }
   var k = ''; try { k = sessionStorage.getItem('bKey') || ''; } catch (e) {}
   if (k) { $('#pass').value = k; doLogin(); }
 })();
