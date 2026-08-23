@@ -13,7 +13,7 @@ var API = 'https://bardachok.kasebaby24.workers.dev';
 var QR_FOR = 'TWqHKxsLAdGMPC7kY4i3r2GQxNJ2U6vQXv';   // до цієї адреси намальовано usdt-qr.png
 var USDT_CONTRACT = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';   // USDT у мережі TRON
 
-var BUILD = '20260823-1000';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
+var BUILD = '20260823-1100';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
 var BOOT_T0 = Date.now();
 
 var tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
@@ -1773,12 +1773,23 @@ function watchPayment() {
         premiumWelcome(d.until);
         return;
       }
+      /* Через дві з половиною хвилини переказ мав би вже дійти. Якщо тихо —
+         найчастіше людина округлила суму, і сама вона про це не здогадається.
+         Тому не чекаємо мовчки, а пропонуємо точний шлях: номер переказу. */
+      if (tries === 50) {
+        var hint = document.getElementById('payErr2') || document.getElementById('payErr');
+        if (hint) hint.innerHTML =
+          '<div class="msg inf">Переказу ще не бачу. Якщо ви вже надіслали — ' +
+          'найімовірніше, сума трохи інша (гаманці й біржі округлюють). ' +
+          'Вставте номер переказу, і я зарахую його точно.</div>' +
+          '<button class="btn" data-do="payHash">Ввести номер переказу</button>';
+      }
       if (tries < delays.length) PAY_TIMER = setTimeout(tick, delays[tries++]);
       else {
-        var box = document.getElementById('payErr');
-        if (box) box.innerHTML = '<div class="msg er">Оплата ще не дійшла. ' +
-          'Натисніть «Перевірити оплату» — або напишіть нам, розберемось.</div>' +
-          '<button class="btn sec" data-do="payCheck">Перевірити оплату</button>';
+        var box = document.getElementById('payErr2') || document.getElementById('payErr');
+        if (box) box.innerHTML = '<div class="msg er">Оплата ще не дійшла.</div>' +
+          '<button class="btn" data-do="payHash">Ввести номер переказу</button>' +
+          '<button class="btn sec" data-do="payCheck">Перевірити ще раз</button>';
       }
     }).catch(function () {
       if (tries < delays.length) PAY_TIMER = setTimeout(tick, delays[tries++]);
