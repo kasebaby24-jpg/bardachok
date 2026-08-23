@@ -11,8 +11,9 @@
 var API = 'https://bardachok.kasebaby24.workers.dev';
 
 var QR_FOR = 'TWqHKxsLAdGMPC7kY4i3r2GQxNJ2U6vQXv';   // до цієї адреси намальовано usdt-qr.png
+var USDT_CONTRACT = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';   // USDT у мережі TRON
 
-var BUILD = '20260823-0830';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
+var BUILD = '20260823-1000';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
 var BOOT_T0 = Date.now();
 
 var tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
@@ -3651,57 +3652,75 @@ var DO = {
         return;
       }
       window.__ord = d.order;
-      window.__payAuto = !!(d.auto && d.exact);
+      window.__payAuto = !!d.auto;
+      window.__payPlan = p;
+
+      var shown = d.base || d.amount;
+      var exact = fmtUsdt(d.amount);
+      var odd = exact !== String(shown);        // підпис зʼявляється лише коли платять кілька людей одразу
       var uah = uahOf(d.amount);
       var same = d.address === QR_FOR;
-      /* Копійки в сумі — не примха: саме за ними бот упізнає, що переказ ваш,
-         і вмикає Преміум сам. Тому вони мають бути на видноті. */
-      var auto = d.auto && d.exact;
-      var shown = d.base || d.amount;                 // ціна, яку людина бачила в тарифах
-      var exact = fmtUsdt(d.amount);                  // те, що треба надіслати
-      openSheet('Переказ ' + shown + ' USDT',
+      var name = p === 'year' ? 'Рік' : p === 'half' ? 'Півроку' : 'Місяць';
+
+      openSheet('Оплата · ' + name,
         '<div class="hero" style="margin-bottom:12px">' +
           '<div class="hero-top"><span>До сплати</span>' + ic('star', 18) + '</div>' +
-          '<b style="font-size:30px;line-height:1.15">' + shown + ' USDT</b>' +
-          '<small>' + (auto ? 'точна сума нижче — скопіюйте її'
-                            : 'мережа TRC-20') + '</small></div>' +
-        '<div class="card" style="text-align:center">' +
-          (same ? '<img src="usdt-qr.png" alt="QR гаманця" ' +
-            'style="width:190px;max-width:60%;border-radius:16px;display:block;margin:2px auto 14px">' : '') +
-          '<div style="font-size:11.5px;color:var(--mut);font-weight:600;letter-spacing:.06em;' +
-            'text-transform:uppercase;margin-bottom:6px">Мережа TRC-20 · Tron</div>' +
-          '<div class="addr" id="usdtAddr">' + esc(d.address) + '</div>' +
-          '<button class="btn sec" style="margin-top:11px" data-do="sendSelf" ' +
-            'data-w="wallet" data-amount="' + d.amount + '">Надіслати адресу в бот</button>' +
-          '<button class="btn sec" data-do="copyAddr" data-a="' + esc(d.address) + '">Скопіювати адресу</button>' +
-        '</div>' +
+          '<b style="font-size:30px;line-height:1.15">' + exact + ' USDT</b>' +
+          '<small>' + (uah ? uah + ' за курсом НБУ · ' : '') + 'мережа TRC-20</small></div>' +
+
         '<div class="card">' +
-          (auto
-            ? '<div class="lb" style="margin-bottom:7px">Надішліть рівно цю суму</div>' +
-              '<div class="addr" style="text-align:center;font-size:18px">' + exact + '</div>' +
-              '<button class="btn" style="margin-top:10px" data-do="copyAddr" data-a="' + exact + '">' +
-              'Скопіювати суму</button>' +
-              '<div class="note" style="margin:9px 0 0">Останні цифри — це ваш підпис. ' +
-              'За ними бот упізнає переказ. На ціну вони не впливають: це ' +
-              (Math.round((d.amount - shown) * 1e6) / 1e6) + ' долара.</div>'
-            : '<div class="kv"><span>Сума</span><b>' + exact + ' USDT</b></div>') +
-          (uah ? '<div class="kv"><span>У гривні</span><b>' + uah + '</b></div>' : '') +
-          '<div class="kv"><span>Мережа</span><b>TRC-20 (Tron)</b></div></div>' +
-        (auto
-          ? '<div class="msg ok">Преміум увімкнеться <b>сам</b>, щойно переказ дійде — ' +
-            'зазвичай за одну–дві хвилини. Нічого нікому писати не треба.</div>'
+          '<div class="addr" id="usdtAddr">' + esc(d.address) + '</div>' +
+          '<div class="grid2" style="margin-top:10px">' +
+            '<button class="btn sec" data-do="copyAddr" data-a="' + esc(d.address) + '">Адреса</button>' +
+            '<button class="btn sec" data-do="copyAddr" data-a="' + exact + '">Сума</button>' +
+          '</div>' +
+          '<button class="btn sec" style="margin-top:8px" data-do="payOpen" ' +
+            'data-a="' + esc(d.address) + '" data-amount="' + exact + '">Відкрити гаманець</button>' +
+          (same ? '<img src="usdt-qr.png" alt="QR гаманця" ' +
+            'style="width:148px;max-width:46%;border-radius:14px;display:block;margin:13px auto 2px">' : '') +
+        '</div>' +
+
+        (odd
+          ? '<div class="note">Сума з хвостиком — це не помилка: зараз платять кілька людей ' +
+            'одразу, і за цими цифрами я розрізняю перекази. Різниця — частка копійки.</div>'
           : '') +
+
+        '<div class="card">' +
+          '<div class="lb" style="margin-bottom:7px">Уже переказали?</div>' +
+          (d.auto
+            ? '<p style="margin:0 0 11px;font-size:12.5px;color:var(--mut);line-height:1.5">' +
+              'Зазвичай Преміум вмикається сам за одну–дві хвилини. ' +
+              'Якщо платили з біржі або змінили суму — вставте номер переказу, ' +
+              'і я перевірю його прямо в мережі.</p>' +
+              '<button class="btn" data-do="payHash">Ввести номер переказу</button>' +
+              '<button class="btn sec" data-do="payCheck">Просто перевірити</button>'
+            : '<p style="margin:0 0 11px;font-size:12.5px;color:var(--mut);line-height:1.5">' +
+              'Натисніть, і ми звіримо платіж вручну.</p>' +
+              '<button class="btn" data-do="paidDone" data-plan="' + p + '">Я оплатив</button>' +
+              '<button class="btn sec" data-do="payHash">Ввести номер переказу</button>') +
+        '</div>' +
+
         '<div class="note">Надсилайте <b>саме USDT у мережі TRC-20</b>. Інша мережа — ' +
-          'гроші втрачаються, повернути їх неможливо.</div>' +
-        '<div id="payErr2"></div>' +
-        '<button class="btn" data-do="paidDone" data-plan="' + p + '">Я оплатив</button>' +
-        (auto ? '' :
-          '<div class="note" style="margin-bottom:0">Після натискання <b>обовʼязково надішліть ' +
-          'скрін переказу в чат бота</b> — інакше ми не звіримо платіж.</div>'));
-    }).catch(function () {
-      if (box) box.innerHTML = '<div class="msg er">Немає звʼязку</div>';
+        'гроші втрачаються, повернути їх неможливо. Біржі беруть комісію мережі ' +
+        'окремо — переказуйте так, щоб дійшло не менше ' + shown + ' USDT.</div>' +
+        '<div id="payErr2"></div>');
+
+      watchPayment();
     });
   },
+
+  /* Відкриває гаманець із заповненими полями. Працює з Trust та іншими, що
+     розуміють це посилання; біржі так не вміють — для них номер переказу. */
+  payOpen: function (t) {
+    var url = 'https://link.trustwallet.com/send?asset=c195_t' + USDT_CONTRACT +
+              '&address=' + encodeURIComponent(t.dataset.a) +
+              '&amount=' + encodeURIComponent(t.dataset.amount);
+    try {
+      if (tg && tg.openLink) tg.openLink(url);
+      else window.open(url, '_blank');
+    } catch (e) { toast('Не вдалося відкрити гаманець — скопіюйте адресу вручну'); }
+  },
+
 
   copyAddr: function (t) { copy(t.dataset.a); toast('Скопійовано'); },
 
