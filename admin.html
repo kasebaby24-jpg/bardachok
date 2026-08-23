@@ -7,7 +7,7 @@
 <meta name="robots" content="noindex, nofollow">
 <title>Бардачок — керування</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="styles.css?v=20260823-1430">
+<link rel="stylesheet" href="styles.css?v=20260823-1600">
 <style>
   body{overflow:auto}
   .wrap{max-width:620px;margin:0 auto;padding:26px 16px 60px}
@@ -37,6 +37,12 @@
   .spark{display:flex;align-items:flex-end;gap:2px;height:54px;margin-top:7px}
   .spark i{flex:1;background:var(--lime,#C6F32C);border-radius:2px;min-height:2px;opacity:.85}
   .axis{display:flex;justify-content:space-between;font-size:10px;opacity:.45;margin-top:4px}
+  .bars{margin:2px 0 4px}
+  .bar{display:flex;align-items:center;gap:9px;margin-bottom:7px;font-size:12.5px}
+  .bar span{flex:0 0 38%;opacity:.75;min-width:0}
+  .bar u{flex:1;min-width:0;display:block}
+  .bar i{display:block;height:15px;border-radius:5px;background:var(--lime,#C6F32C);min-width:3px}
+  .bar b{margin-left:auto;white-space:nowrap;font-size:12px;padding-left:8px}
   .st div{background:var(--surf);border-radius:18px;padding:14px 10px;text-align:center}
   .st b{display:block;font-family:var(--disp);font-weight:800;font-size:21px;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .st small{color:var(--mut);font-size:10.5px;font-weight:600}
@@ -78,7 +84,7 @@
     <button data-t="t-set">Налаштування</button>
   </div>
   <div class="msg inf" id="info">Завантаження…</div>
-  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260823-1430</div>
+  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260823-1600</div>
 
   <div class="pane on" id="t-home">
   <div id="stCount"></div>
@@ -95,8 +101,11 @@
     <div class="quickrow">
       <button class="btn sec" onclick="act('pay')">Перевірити зараз</button>
       <button class="btn sec" onclick="act('count')">Дорахувати</button>
-      <button class="btn sec" onclick="act('restart')">Перерахувати все</button>
+      <button class="btn sec" onclick="clean('pendall')">Очистити очікування</button>
     </div>
+    <div class="note" style="margin-top:8px">«Очистити очікування» прибирає список тих,
+      хто відкрив вікно оплати. Це не оплати й не гроші — на зароблене й на Преміум
+      людей це не впливає ніяк.</div>
     <div id="actOut"></div>
   </div>
 
@@ -113,10 +122,12 @@
 
   <div class="card">
     <div class="sect">Звіт і чистка</div>
-    <div class="quickrow" style="margin-top:0"><button class="btn sec" onclick="report()">Скачати звіт</button><button class="btn sec" onclick="report(1)">Показати тут</button></div>
-    <div class="note" style="margin:8px 0 12px">Файл із зведенням, рухом по днях,
-      оплатами, помилками й найчастішими моделями. Персональних даних людей
-      і знімків документів у ньому немає.</div>
+    <button class="btn" onclick="report()">Відкрити звіт</button>
+    <button class="btn sec" style="margin-top:8px" onclick="report(1)">Зберегти файлом</button>
+    <div class="note" style="margin:8px 0 12px">Готовий документ: воронка, гроші,
+      строки Преміуму, рух по днях, найчастіші авто, помилки. Відкриється в
+      сусідній вкладці — звідти Друк → Зберегти як PDF. Персональних даних
+      людей і знімків документів у ньому немає.</div>
     <div class="quickrow">
       <button class="btn sec" onclick="clean('pend')">Протухлі оплати</button>
       <button class="btn sec" onclick="clean('errors')">Помилки</button>
@@ -170,6 +181,22 @@
     <div id="uCard" style="margin-top:12px"></div>
     <div class="msg ok hidden" id="uOk" style="margin-top:10px"></div>
     <div class="msg er hidden" id="uEr" style="margin-top:10px"></div>
+  </div>
+
+  <div class="card">
+    <div class="sect">Подивитись очима новачка</div>
+    <div class="note">
+      Обнуляє <b>ваш власний</b> профіль і скидає позначку «знайомство вже бачив»
+      у телефоні. Застосунок відкриється так, як його бачить людина, що зайшла
+      вперше: вітальні екрани, порожній гараж, підказки.
+      <br><br>
+      <b>Преміум лишається</b> — тільки дані. Але авто, записи, витрати й
+      документи зникнуть назавжди. Якщо там щось потрібне — спершу зробіть звіт.
+    </div>
+    <div class="rw" style="margin-top:10px"><div class="lb">Ваш Telegram ID<small>береться з налаштувань</small></div>
+      <b id="meId">—</b></div>
+    <button class="btn sec" style="margin-top:12px" onclick="resetMe()">Обнулити мій профіль</button>
+    <div id="meOut"></div>
   </div>
 
   </div><!-- /t-users -->
@@ -431,6 +458,7 @@ function load() {
   fetch(API.replace(/\/+$/, '') + '/settings', { headers: { 'X-Admin-Key': KEY } })
     .then(function (r) { return r.json(); }).then(function (d) {
     NUM.concat(TXT).forEach(function (k) { if (d[k] !== undefined && $('#' + k)) $('#' + k).value = d[k]; });
+    if ($('#meId')) $('#meId').textContent = d.adminId || 'не вказано';
     if (d._storage === false) { show('info', 'Сховище не підключене — зберегти не вийде.', true); $('#info').className = 'msg er'; }
     else { show('info', 'Налаштування завантажено.', true); $('#info').className = 'msg inf'; }
   }).catch(function () { show('info', 'Не вдалося завантажити налаштування.', true); $('#info').className = 'msg er'; });
@@ -572,11 +600,42 @@ function resetUser(mode, d) {
   show('uOk', '', false); show('uEr', '', false);
   post('/admin/reset', { tgId: d.id, mode: mode }).then(function (r) {
     if (!r.ok) { show('uEr', r.error || 'Не вдалося.', true); return; }
-    show('uOk', mode === 'all' ? 'Профіль видалено.' :
-      'Дані очищено' + (r.docsGone ? ', документів прибрано: ' + r.docsGone : '') + '.', true);
+    show('uOk', (mode === 'all' ? 'Профіль видалено.' :
+      'Дані очищено' + (r.docsGone ? ', документів прибрано: ' + r.docsGone : '') + '.') +
+      ' Застосунок зустріне людину як новачка — знайомство покажеться заново.', true);
     $('#uCard').innerHTML = '';
     stats();
   }).catch(function () { show('uEr', 'Сервер не відповідає.', true); });
+}
+
+/* Обнулення власного профілю — щоб побачити застосунок як новачок.
+   Питаємо двічі: спершу пояснюємо, потім вимагаємо вписати слово. Це
+   незворотно, і випадкове натискання не має цього робити. */
+function resetMe() {
+  var el = $('#adminId');
+  var id = ((el && el.value) || '').replace(/[^0-9]/g, '');
+  var out = $('#meOut');
+  if (!id) {
+    if (out) out.innerHTML = '<div class="msg er">Спершу впишіть свій Telegram ID ' +
+      'у «Налаштуваннях» і збережіть.</div>';
+    return;
+  }
+  if (!confirm('Обнулити ВАШ профіль (ID ' + id + ')?\n\n' +
+      'Зникнуть: авто, сервіс, заправки, витрати, штрафи, документи, нагадування.\n' +
+      'Залишиться: Преміум і реферали.\n\nЦе незворотно.')) return;
+  var word = prompt('Щоб підтвердити — впишіть слово: обнулити');
+  if (!word || word.trim().toLowerCase() !== 'обнулити') {
+    if (out) out.innerHTML = '<div class="msg inf">Скасовано.</div>';
+    return;
+  }
+  if (out) out.innerHTML = '<div class="msg inf">Обнуляю…</div>';
+  post('/admin/reset', { tgId: id, mode: 'data', notify: false }).then(function (r) {
+    if (!r.ok) { out.innerHTML = '<div class="msg er">' + esc(r.error || '') + '</div>'; return; }
+    out.innerHTML = '<div class="msg ok">Готово. Відкрийте застосунок у Telegram — ' +
+      'він зустріне вас як новачка. Якщо застосунок був відкритий, закрийте його ' +
+      'і зайдіть заново.</div>';
+    stats();
+  }).catch(function () { out.innerHTML = '<div class="msg er">Сервер не відповідає.</div>'; });
 }
 
 function pct(a, b) { return b > 0 ? Math.round(a * 100 / b) + '%' : '—'; }
@@ -611,6 +670,47 @@ function drawAna(st, d) {
       [pct(st.active7, st.users), 'живі за тиждень'],
       ['$' + nfm(rev), 'зароблено'],
     ]);
+
+  /* Воронка — головна картинка. Видно не «скільки прийшло», а де зупинились. */
+  var funnel = [
+    ['Відкрили застосунок', st.users],
+    ['Додали авто', st.withCars],
+    ['Внесли хоч один запис', st.withRecords || 0],
+    ['Колись платили', st.everPaid || 0],
+  ];
+  var fmax = st.users || 1;
+  h += '<div class="lb" style="margin:16px 0 4px">Куди зникають люди</div>' +
+    '<div class="note" style="margin:0 0 9px">Найдорожче питання — не скільки прийшло, ' +
+    'а на якому кроці зупинились.</div>' +
+    '<div class="bars">' + funnel.map(function (f, i) {
+      var prev = i ? funnel[i - 1][1] : null;
+      return '<div class="bar"><span>' + f[0] + '</span>' +
+        '<u><i style="width:' + Math.round((f[1] || 0) * 100 / fmax) + '%"></i></u>' +
+        '<b>' + nfm(f[1]) + (prev ? ' · ' + pct(f[1], prev) : '') + '</b></div>';
+    }).join('') + '</div>';
+
+  /* Що саме купують — без цього незрозуміло, який тариф тягне гроші. */
+  var mix = d.mix;
+  if (mix && (mix.month || mix.half || mix.year)) {
+    var mm = Math.max(mix.month || 0, mix.half || 0, mix.year || 0) || 1;
+    h += '<div class="lb" style="margin:16px 0 6px">Що саме купують</div>' +
+      '<div class="bars">' + [['Місяць', mix.month || 0], ['Півроку', mix.half || 0],
+        ['Рік', mix.year || 0]].map(function (r) {
+        return '<div class="bar"><span>' + r[0] + '</span>' +
+          '<u><i style="width:' + Math.round(r[1] * 100 / mm) + '%"></i></u>' +
+          '<b>' + nfm(r[1]) + '</b></div>';
+      }).join('') + '</div>';
+  }
+
+  /* Строки — це список на продовження, поки не пізно. */
+  if (st.exp7 != null) {
+    h += '<div class="lb" style="margin:16px 0 6px">Що буде далі з грошима</div>' +
+      listRows([
+        ['Преміум спливає за тиждень', nfm(st.exp7 || 0), 'саме їм варто нагадати'],
+        ['Спливає за місяць', nfm(st.exp30 || 0), ''],
+        ['Уже сплив', nfm(st.lapsed || 0), 'платили колись, зараз ні'],
+      ]);
+  }
 
   h += '<div class="lb" style="margin:16px 0 6px">Люди</div>' +
     listRows([
@@ -779,31 +879,41 @@ function paysClear() {
 }
 
 /* Звіт файлом — щоб можна було глянути спокійно або переслати. */
-function report(show) {
+/* Звіт відкривається як документ у сусідній вкладці — там його видно
+   нормально і звідти ж друкується в PDF. Або зберігається файлом. */
+function report(save) {
   var out = $('#cleanOut');
   if (out) out.innerHTML = '<div class="msg inf">Збираю…</div>';
   post('/admin/export', {}).then(function (d) {
-    if (!d.ok) { if (out) out.innerHTML = '<div class="msg er">' + esc(d.error || '') + '</div>'; return; }
-    /* Звіт має читатись очима, а не бути купою дужок. */
-    var txt = d.text || '';
-    var name = 'bardachok-zvit-' + new Date().toISOString().slice(0, 10) + '.txt';
-    if (show) {
-      out.innerHTML = '<textarea style="width:100%;height:320px;font-size:11px;' +
-        'font-family:ui-monospace,monospace">' + esc(txt) + '</textarea>';
+    if (!d.ok || !d.html) {
+      if (out) out.innerHTML = '<div class="msg er">' + esc(d.error || 'Не вдалося') + '</div>';
       return;
     }
-    try {
-      var a = document.createElement('a');
-      a.href = URL.createObjectURL(new Blob(['\ufeff' + txt], { type: 'text/plain;charset=utf-8' }));
-      a.download = name;
-      document.body.appendChild(a); a.click();
-      setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
-      if (out) out.innerHTML = '<div class="msg ok">Звіт збережено: ' + name + '</div>';
-    } catch (e) {
-      if (out) out.innerHTML = '<div class="msg inf">Не вдалось зберегти файл — ось звіт:</div>' +
-        '<textarea style="width:100%;height:260px;font-size:11px;font-family:ui-monospace,monospace">' +
-        esc(txt) + '</textarea>';
+    var name = 'bardachok-zvit-' + new Date().toISOString().slice(0, 10) + '.html';
+    if (save) {
+      try {
+        var a = document.createElement('a');
+        a.href = URL.createObjectURL(new Blob([d.html], { type: 'text/html;charset=utf-8' }));
+        a.download = name;
+        document.body.appendChild(a); a.click();
+        setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+        if (out) out.innerHTML = '<div class="msg ok">Збережено: ' + name +
+          '. Відкрийте його — і за потреби роздрукуйте в PDF.</div>';
+      } catch (e) {
+        if (out) out.innerHTML = '<div class="msg er">Не вдалось зберегти. Спробуйте «Відкрити звіт».</div>';
+      }
+      return;
     }
+    var w = window.open('', '_blank');
+    if (!w) {
+      if (out) out.innerHTML = '<div class="msg er">Браузер заблокував вікно. ' +
+        'Дозвольте спливаючі вікна або натисніть «Зберегти файлом».</div>';
+      return;
+    }
+    w.document.write(d.html);
+    w.document.close();
+    if (out) out.innerHTML = '<div class="msg ok">Звіт відкрито в сусідній вкладці. ' +
+      'Щоб отримати PDF — Друк → Зберегти як PDF.</div>';
   }).catch(function () {
     if (out) out.innerHTML = '<div class="msg er">Сервер не відповідає.</div>';
   });
@@ -846,9 +956,11 @@ function drawPay(d) {
       '<div class="note" style="margin:0 0 8px">Це ще не гроші — у «зароблено» не рахуються. ' +
       'Записи зникають самі через три години, якщо переказ так і не прийшов.</div>' +
       w.slice(0, 5).map(function (x) {
-        return '<div class="rw"><div class="lb">' + esc(x.amount) + ' USDT' +
+        var who = (x.name || 'Без імені') + (x.nick ? ' · @' + x.nick : '');
+        return '<div class="rw"><div class="lb">' + esc(who) +
           '<small>' + esc(x.plan === 'year' ? 'рік' : x.plan === 'half' ? 'півроку' : 'місяць') +
-          ' · ID ' + esc(x.userId) + ' · ' + x.mins + ' хв тому</small></div>' +
+          ' · ' + esc(x.amount) + ' USDT · ID ' + esc(x.userId) +
+          ' · ' + x.mins + ' хв тому</small></div>' +
           '<b>$' + esc(x.base) + '</b></div>';
       }).join('') +
       (w.length > 5 ? '<div class="note" style="margin-top:6px">…і ще ' + (w.length - 5) +

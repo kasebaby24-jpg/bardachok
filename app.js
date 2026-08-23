@@ -13,7 +13,7 @@ var API = 'https://bardachok.kasebaby24.workers.dev';
 var QR_FOR = 'TWqHKxsLAdGMPC7kY4i3r2GQxNJ2U6vQXv';   // до цієї адреси намальовано usdt-qr.png
 var USDT_CONTRACT = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';   // USDT у мережі TRON
 
-var BUILD = '20260823-1430';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
+var BUILD = '20260823-1600';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
 var BOOT_T0 = Date.now();
 
 var tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
@@ -229,6 +229,23 @@ function act(payload, onOk) {
 }
 
 function seen(k) { try { return localStorage.getItem('b_' + k) === '1'; } catch (e) { return false; } }
+
+/* Якщо профіль обнулили з панелі — забуваємо все, що памʼятав телефон.
+   Інакше застосунок відкриється порожнім, але знайомства не покаже, і
+   побачити його очима новачка буде неможливо. */
+function applyReset(stamp) {
+  if (!stamp) return;
+  try {
+    if (localStorage.getItem('b_resetAt') === String(stamp)) return;
+    var kill = [];
+    for (var i = 0; i < localStorage.length; i++) {
+      var k = localStorage.key(i);
+      if (k && k.indexOf('b_') === 0) kill.push(k);
+    }
+    kill.forEach(function (k) { localStorage.removeItem(k); });
+    localStorage.setItem('b_resetAt', String(stamp));
+  } catch (e) {}
+}
 function markSeen(k) { try { localStorage.setItem('b_' + k, '1'); } catch (e) {} }
 
 /* Власна плашка замість системного вікна: те показувало адресу сайту
@@ -4098,6 +4115,7 @@ function start() {
         : 'Сервер відповів помилкою.<br>' + esc(d.error || ''));
       return;
     }
+    applyReset(d.data && d.data.resetAt);
     S = d.data; PRO = d.premium; CFG = d.cfg || {}; REF = d.ref || {};
 
     /* даємо заставці показатись хоча б раз — інакше вона блимає й це
