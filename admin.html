@@ -7,7 +7,7 @@
 <meta name="robots" content="noindex, nofollow">
 <title>Бардачок — керування</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="styles.css?v=20260823-0330">
+<link rel="stylesheet" href="styles.css?v=20260823-0430">
 <style>
   body{overflow:auto}
   .wrap{max-width:620px;margin:0 auto;padding:26px 16px 60px}
@@ -65,9 +65,10 @@
     <button data-t="t-set">Налаштування</button>
   </div>
   <div class="msg inf" id="info">Завантаження…</div>
-  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260823-0330</div>
+  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260823-0430</div>
 
   <div class="pane on" id="t-home">
+  <div id="stCount"></div>
   <div class="st" id="stats">
     <div><b id="stU">—</b><small>усього</small></div>
     <div><b id="stP">—</b><small>преміум</small></div>
@@ -335,6 +336,17 @@ function load() {
 function stats(fresh) {
   post('/admin/stats', fresh ? { fresh: 1 } : {}).then(function (d) {
     if (!d.ok) return;
+    /* Підрахунок по всій базі йде пачками — поки він не дійшов до кінця,
+       чесно кажемо, що цифри ще неповні, а не показуємо їх як остаточні. */
+    var ct = $('#stCount');
+    if (ct) ct.innerHTML = d.counting
+      ? '<div class="msg inf">Підрахунок ще йде: обійдено ' + (d.countSeen || 0) +
+        ' записів. Цифри нижче — за ' + (d.countDay || 'попередній день') + '.</div>'
+      : '';
+    if (d.counting && !d.users) return;
+    if (!d.users && d.message) { if (ct) ct.innerHTML = '<div class="msg inf">' + d.message + '</div>'; return; }
+    if (d.bcast && ct) ct.innerHTML += '<div class="msg inf">Розсилка йде: доставлено ' +
+      d.bcast.sent + (d.bcast.failed ? ', не дійшло ' + d.bcast.failed : '') + '.</div>';
     $('#stU').textContent = d.users; $('#stP').textContent = d.pro;
     $('#stC').textContent = d.cars;  $('#stD').textContent = d.withData;
     if ($('#hPN')) $('#hPN').textContent = (d.paid || 0) + (d.revenue ? ' · $' + d.revenue : '');
@@ -385,15 +397,39 @@ function broadcast(test) {
     .then(function (d) {
       b1.disabled = b2.disabled = false;
       if (!d.ok) { show('bcOk', '', false); show('bcEr', d.error || 'Не вдалося.', true); return; }
-      show('bcOk', d.test ? 'Надіслано вам. Подивіться в боті.'
-                          : 'Готово: доставлено ' + d.sent + ' із ' + d.total +
-                            (d.failed ? ', не дійшло ' + d.failed : ''), true);
-      if (!d.test) stats();
+      if (d.test) { show('bcOk', 'Надіслано вам. Подивіться в боті.', true); return; }
+      /* Тридцять тисяч повідомлень не влазять в один запит — сервер шле їх
+         пачками. Показуємо, скільки вже пішло, доки не закінчить. */
+      show('bcOk', 'Розсилка почалась. Можна закрити панель — вона піде далі сама.', true);
+      watchSend();
     })
     .catch(function () {
       b1.disabled = b2.disabled = false;
       show('bcOk', '', false); show('bcEr', 'Сервер не відповідає.', true);
     });
+}
+
+var SEND_TIMER = null;
+function watchSend() {
+  if (SEND_TIMER) clearInterval(SEND_TIMER);
+  var tick = function () {
+    post('/admin/send-status', {}).then(function (d) {
+      if (!d.ok || !d.job) return;
+      var j = d.job;
+      if (j.done) {
+        clearInterval(SEND_TIMER); SEND_TIMER = null;
+        show('bcOk', 'Розсилку завершено: доставлено ' + j.sent +
+                     (j.failed ? ', не дійшло ' + j.failed : ''), true);
+        stats();
+      } else {
+        show('bcOk', 'Розсилка йде: доставлено ' + j.sent +
+                     (j.failed ? ', не дійшло ' + j.failed : '') +
+                     '. Можна закрити панель.', true);
+      }
+    }).catch(function () {});
+  };
+  tick();
+  SEND_TIMER = setInterval(tick, 5000);
 }
 function userCard(d) {
   var rows = [
