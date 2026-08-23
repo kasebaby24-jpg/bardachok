@@ -7,7 +7,7 @@
 <meta name="robots" content="noindex, nofollow">
 <title>Бардачок — керування</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="styles.css?v=20260823-2330">
+<link rel="stylesheet" href="styles.css?v=20260824-0030">
 <style>
   body{overflow:auto}
   .wrap{max-width:620px;margin:0 auto;padding:26px 16px 60px}
@@ -90,15 +90,15 @@
     <button data-t="t-set">Налаштування</button>
   </div>
   <div class="msg inf" id="info">Завантаження…</div>
-  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260823-2330</div>
+  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260824-0030</div>
 
   <div class="pane on" id="t-home">
   <div id="stCount"></div>
   <div class="st" id="stats">
     <div><b id="stU">—</b><small>усього</small></div>
     <div><b id="stP">—</b><small>преміум</small></div>
-    <div><b id="stC">—</b><small>авто</small></div>
-    <div><b id="stD">—</b><small>з авто</small></div>
+    <div><b id="stR">—</b><small>по рефералу</small></div>
+    <div><b id="stI">—</b><small>запрошують</small></div>
   </div>
 
   <div class="card">
@@ -585,7 +585,9 @@ function stats(fresh) {
       d.bcast.sent + (d.bcast.failed ? ', не дійшло ' + d.bcast.failed : '') + '.</div>';
     drawPay(d);
     $('#stU').textContent = nfm(d.users); $('#stP').textContent = nfm(d.pro);
-    $('#stC').textContent = nfm(d.cars);  $('#stD').textContent = nfm(d.withData);
+    var _st = d.stats || {};
+    if ($('#stR')) $('#stR').textContent = nfm(_st.viaRef || 0);
+    if ($('#stI')) $('#stI').textContent = nfm(_st.inviters || 0);
     if ($('#hPN')) $('#hPN').textContent = (d.paid || 0) + (d.revenue ? ' · $' + d.revenue : '');
     drawAna(d.stats, d);
     var nn = $('#ntNow');
@@ -835,6 +837,23 @@ function drawAna(st, d) {
         '<u><i style="width:' + Math.round((f[1] || 0) * 100 / fmax) + '%"></i></u>' +
         '<b>' + nfm(f[1]) + (prev ? ' · ' + pct(f[1], prev) : '') + '</b></div>';
     }).join('') + '</div>';
+
+  /* Сарафанка. Найдешевший канал росту — і найважливіше, чи він узагалі йде. */
+  h += '<div class="lb" style="margin:16px 0 4px">Як росте сарафанка</div>' +
+    '<div class="note" style="margin:0 0 9px">Скільки людей прийшло за чиїмось ' +
+    'посиланням і скільки взагалі запрошують. Якщо друга цифра мала — ' +
+    'людям або нема чим ділитись, або вони не знають, що за це дають місяць.</div>' +
+    listRows([
+      ['Прийшли за посиланням', nfm(st.viaRef || 0),
+        pct(st.viaRef || 0, st.users) + ' від усіх'],
+      ['Запрошують інших', nfm(st.inviters || 0),
+        pct(st.inviters || 0, st.users) + ' від усіх — саме вони й ростять базу'],
+      ['Запрошень усього', nfm(st.refs || 0),
+        (st.inviters ? 'у середньому ' + (Math.round((st.refs || 0) / st.inviters * 10) / 10) +
+          ' на кожного, хто ділиться' : '')],
+      ['Місяців роздано за друзів', nfm(st.refs || 0),
+        'це ' + nfm((st.refs || 0) * 30) + ' днів Преміуму'],
+    ]);
 
   /* Що саме купують — без цього незрозуміло, який тариф тягне гроші. */
   var mix = d.mix;
