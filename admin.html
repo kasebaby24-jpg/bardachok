@@ -7,7 +7,7 @@
 <meta name="robots" content="noindex, nofollow">
 <title>Бардачок — керування</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="styles.css?v=20260823-2230">
+<link rel="stylesheet" href="styles.css?v=20260823-2330">
 <style>
   body{overflow:auto}
   .wrap{max-width:620px;margin:0 auto;padding:26px 16px 60px}
@@ -90,7 +90,7 @@
     <button data-t="t-set">Налаштування</button>
   </div>
   <div class="msg inf" id="info">Завантаження…</div>
-  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260823-2230</div>
+  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260823-2330</div>
 
   <div class="pane on" id="t-home">
   <div id="stCount"></div>
@@ -482,6 +482,27 @@ function doLogin() {
       var mine = ($('#ver').textContent.match(/[0-9]{8}-[0-9]{4}/) || [''])[0];
       /* Одного попередження досить: раніше кожен вхід додавав ще одне. */
       var old = $('#verWarn'); if (old) old.remove();
+      var oldR = $('#refWarn'); if (oldR) oldR.remove();
+
+      /* Реферальні посилання працюють лише коли в BotFather налаштований
+         Main Mini App. Без нього посилання веде людину в чат бота, застосунок
+         відкривається без мітки — і той, хто запросив, лишається ні з чим.
+         Мовчати про це не можна: збоку виглядає як «реферали не працюють». */
+      if (d.mainApp === false) {
+        var rw = document.createElement('div');
+        rw.id = 'refWarn';
+        rw.className = 'msg er';
+        rw.style.marginBottom = '12px';
+        rw.innerHTML = '<b>Реферальні посилання працюють наполовину.</b><br>' +
+          'У BotFather не налаштований Main Mini App, тому посилання відкриває ' +
+          'чат бота, а не застосунок. Мітка «хто привів» доходить лише якщо ' +
+          'людина натисне «START».<br><br>' +
+          'Полагодити: <b>@BotFather</b> → <b>/mybots</b> → ваш бот → ' +
+          '<b>Bot Settings</b> → <b>Configure Mini App</b> → <b>Enable Mini App</b> → ' +
+          'вставити адресу застосунку.';
+        var host2 = $('#panel');
+        host2.insertBefore(rw, host2.firstChild);
+      }
       if (!d.version || d.version !== mine) {
         var w = document.createElement('div');
         w.id = 'verWarn';
