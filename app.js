@@ -12,7 +12,7 @@ var API = 'https://bardachok.kasebaby24.workers.dev';
 
 var QR_FOR = 'TWqHKxsLAdGMPC7kY4i3r2GQxNJ2U6vQXv';   // до цієї адреси намальовано usdt-qr.png
 
-var BUILD = '20260823-0530';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
+var BUILD = '20260823-0620';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
 var BOOT_T0 = Date.now();
 
 var tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;

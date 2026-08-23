@@ -7,7 +7,7 @@
 <meta name="robots" content="noindex, nofollow">
 <title>Бардачок — керування</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="styles.css?v=20260823-0530">
+<link rel="stylesheet" href="styles.css?v=20260823-0620">
 <style>
   body{overflow:auto}
   .wrap{max-width:620px;margin:0 auto;padding:26px 16px 60px}
@@ -73,7 +73,7 @@
     <button data-t="t-set">Налаштування</button>
   </div>
   <div class="msg inf" id="info">Завантаження…</div>
-  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260823-0530</div>
+  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260823-0620</div>
 
   <div class="pane on" id="t-home">
   <div id="stCount"></div>
@@ -359,7 +359,8 @@ function doLogin() {
 }
 
 function load() {
-  fetch(API.replace(/\/+$/, '') + '/settings').then(function (r) { return r.json(); }).then(function (d) {
+  fetch(API.replace(/\/+$/, '') + '/settings', { headers: { 'X-Admin-Key': KEY } })
+    .then(function (r) { return r.json(); }).then(function (d) {
     NUM.concat(TXT).forEach(function (k) { if (d[k] !== undefined && $('#' + k)) $('#' + k).value = d[k]; });
     if (d._storage === false) { show('info', 'Сховище не підключене — зберегти не вийде.', true); $('#info').className = 'msg er'; }
     else { show('info', 'Налаштування завантажено.', true); $('#info').className = 'msg inf'; }
