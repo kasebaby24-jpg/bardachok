@@ -7,7 +7,7 @@
 <meta name="robots" content="noindex, nofollow">
 <title>Бардачок — керування</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="styles.css?v=20260824-0030">
+<link rel="stylesheet" href="styles.css?v=20260824-0130">
 <style>
   body{overflow:auto}
   .wrap{max-width:620px;margin:0 auto;padding:26px 16px 60px}
@@ -90,7 +90,7 @@
     <button data-t="t-set">Налаштування</button>
   </div>
   <div class="msg inf" id="info">Завантаження…</div>
-  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260824-0030</div>
+  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260824-0130</div>
 
   <div class="pane on" id="t-home">
   <div id="stCount"></div>
@@ -1051,8 +1051,9 @@ function people(more) {
       P_CUR = d.cursor;
       pDraw();
       if (d.partial && $('#pOut'))
-        $('#pOut').innerHTML = '<div class="msg inf">Людей стало багато — ' +
-          'пошук пройшов першу тисячу. За точним Telegram ID знайде будь-кого.</div>';
+        $('#pOut').innerHTML = '<div class="msg inf">Людей стало багато — пошук за ' +
+          'імʼям пройшов першу тисячу. За <b>ніком</b> або <b>Telegram ID</b> ' +
+          'знайде будь-кого й миттєво.</div>';
     }).catch(function () {
       $('#pBox').innerHTML = '<div class="msg er">Сервер не відповідає.</div>';
     });
