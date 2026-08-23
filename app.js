@@ -13,7 +13,7 @@ var API = 'https://bardachok.kasebaby24.workers.dev';
 var QR_FOR = 'TWqHKxsLAdGMPC7kY4i3r2GQxNJ2U6vQXv';   // до цієї адреси намальовано usdt-qr.png
 var USDT_CONTRACT = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';   // USDT у мережі TRON
 
-var BUILD = '20260823-1730';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
+var BUILD = '20260823-1830';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
 var BOOT_T0 = Date.now();
 
 var tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
@@ -2432,12 +2432,26 @@ function docShoot() {
         }
         if (!data) { toast('Знімок завеликий навіть після стиснення'); return; }
         toast('Шифрую й кладу в бардачок…');
-        var guard = setTimeout(function () {
-          toast('Шифрування не відповідає — зберігаю як є');
-        }, 4000);
+        /* Ми обіцяли людині, що знімок шифрується в її телефоні. Якщо
+           зашифрувати не вийшло — не можна «зберегти як є»: це той самий
+           паспорт, тільки відкритим, і людина про це не дізнається.
+           Краще чесно не зберегти, ніж тихо порушити обіцянку. */
         seal(data).catch(function () { return null; }).then(function (payload) {
-        clearTimeout(guard);
-        api('/api/doc', { kind: kind, title: title, data: payload || data }).then(function (d) {
+        if (!payload) {
+          openSheet('Не вдалося зашифрувати',
+            '<div class="msg er">Знімок <b>не збережено</b>. Ми не кладемо документи ' +
+            'на сервер у відкритому вигляді — навіть якщо шифрування дало збій.</div>' +
+            '<p style="margin:0 0 13px;font-size:12.5px;color:var(--mut);line-height:1.55">' +
+            'Найчастіше це означає, що не вдалось дістати ваш ключ. Спробуйте ще раз — ' +
+            'зазвичай з другого разу все виходить.</p>' +
+            '<button class="btn" data-do="docAdd">Спробувати ще раз</button>' +
+            (CFG.contactTg ? '<button class="btn sec" data-do="support">Написати в підтримку</button>' : '') +
+            '<button class="btn sec" data-close="1">Закрити</button>');
+          try { inp.remove(); } catch (e) {}
+          reportErr({ message: 'seal() не дав результату' }, 'документи');
+          return;
+        }
+        api('/api/doc', { kind: kind, title: title, data: payload }).then(function (d) {
           if (!d.ok) {
             if (d.error === 'limit') { needPro('docs'); return; }
             openSheet('Не вдалося зберегти',
