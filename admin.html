@@ -7,7 +7,7 @@
 <meta name="robots" content="noindex, nofollow">
 <title>Бардачок — керування</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="styles.css?v=20260823-2130">
+<link rel="stylesheet" href="styles.css?v=20260823-2230">
 <style>
   body{overflow:auto}
   .wrap{max-width:620px;margin:0 auto;padding:26px 16px 60px}
@@ -43,6 +43,12 @@
   .bar u{flex:1;min-width:0;display:block}
   .bar i{display:block;height:15px;border-radius:5px;background:var(--lime,#C6F32C);min-width:3px}
   .bar b{margin-left:auto;white-space:nowrap;font-size:12px;padding-left:8px}
+  /* фільтри списку людей — кнопки підганяються під свій текст і переносяться */
+  .seg{display:flex;flex-wrap:wrap;gap:5px;padding:5px;border-radius:16px;background:var(--surf2,#171A17)}
+  .seg button{flex:0 0 auto;padding:8px 12px;border:0;border-radius:12px;background:transparent;
+    color:var(--mut,#9AA096);font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap}
+  .seg button.on{background:var(--lime,#C6F32C);color:#10130E}
+  .ar{flex:0 0 auto;font-size:17px;padding-left:8px;opacity:.4}
   .st div{background:var(--surf);border-radius:18px;padding:14px 10px;text-align:center}
   .st b{display:block;font-family:var(--disp);font-weight:800;font-size:21px;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .st small{color:var(--mut);font-size:10.5px;font-weight:600}
@@ -84,7 +90,7 @@
     <button data-t="t-set">Налаштування</button>
   </div>
   <div class="msg inf" id="info">Завантаження…</div>
-  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260823-2130</div>
+  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260823-2230</div>
 
   <div class="pane on" id="t-home">
   <div id="stCount"></div>
@@ -155,6 +161,30 @@
   </div><!-- /t-home -->
 
   <div class="pane" id="t-users">
+  <div class="card">
+    <div class="sect">Усі користувачі</div>
+    <div class="field" style="margin-bottom:9px">
+      <input type="text" id="pQ" placeholder="Імʼя, нік або Telegram ID" autocomplete="off"
+             style="text-align:left">
+    </div>
+    <div class="seg wrap" id="pFilter">
+      <button type="button" data-v="" class="on">Усі</button>
+      <button type="button" data-v="pro">Преміум</button>
+      <button type="button" data-v="free">Без преміуму</button>
+      <button type="button" data-v="ref">Прийшли за посиланням</button>
+      <button type="button" data-v="own">Прийшли самі</button>
+      <button type="button" data-v="inviters">Запрошують інших</button>
+      <button type="button" data-v="lapsed">Преміум сплив</button>
+      <button type="button" data-v="sleep">Сплять</button>
+    </div>
+    <div id="pBox" style="margin-top:12px"><div class="note">Завантажую…</div></div>
+    <div class="quickrow">
+      <button class="btn sec" onclick="people()">Оновити</button>
+      <button class="btn sec" onclick="peopleMore()">Показати ще</button>
+    </div>
+    <div id="pOut"></div>
+  </div>
+
   <div class="card">
     <div class="sect">Преміум вручну</div>
     <div class="rw"><div class="lb">Telegram ID<small>Користувач має спершу відкрити застосунок</small></div>
@@ -450,8 +480,11 @@ function doLogin() {
       /* Панель і сервер мають бути однієї збірки. Інакше половина кнопок
          відповідає «невідомий маршрут», і незрозуміло чому. */
       var mine = ($('#ver').textContent.match(/[0-9]{8}-[0-9]{4}/) || [''])[0];
+      /* Одного попередження досить: раніше кожен вхід додавав ще одне. */
+      var old = $('#verWarn'); if (old) old.remove();
       if (!d.version || d.version !== mine) {
         var w = document.createElement('div');
+        w.id = 'verWarn';
         w.className = 'msg er';
         w.style.marginBottom = '12px';
         w.innerHTML = '<b>Сервер і панель різних збірок.</b><br>' +
@@ -463,6 +496,31 @@ function doLogin() {
       }
       load(); stats(); errors(); pays();
       var qf = $('#qrFile'); if (qf) qf.addEventListener('change', qrPick);
+      people();
+      var pq = $('#pQ');
+      if (pq) pq.addEventListener('input', function () {
+        /* Пошук — намір конкретніший за фільтр. Якщо не скинути фільтр, людина
+           шукає знайомого і не знаходить, бо той не підпадає під активний
+           перемикач. Тому шукаємо завжди по всіх. */
+        if (P_FILTER) {
+          P_FILTER = '';
+          var pf0 = $('#pFilter');
+          if (pf0) [].slice.call(pf0.children).forEach(function (x, i) {
+            x.classList.toggle('on', i === 0);
+          });
+        }
+        clearTimeout(P_T);
+        P_T = setTimeout(function () { people(); }, 400);   // не смикаємо сервер на кожну літеру
+      });
+      var pf = $('#pFilter');
+      if (pf) pf.addEventListener('click', function (e) {
+        var b = e.target.closest('button'); if (!b) return;
+        if (pq) pq.value = '';                 // фільтр і пошук не змішуємо
+        [].slice.call(pf.children).forEach(function (x) { x.classList.remove('on'); });
+        b.classList.add('on');
+        P_FILTER = b.dataset.v || '';
+        people();
+      });
     })
     .catch(function () { $('#login').disabled = false; show('gErr', 'Сервер не відповідає.', true); });
 }
@@ -895,6 +953,73 @@ function spark(hist, field, title, money) {
 /* Скільки грошей дає кожен тариф — видно, що насправді купують. */
 function planBars(hist) {
   return '';
+}
+
+/* Список людей: хто це, звідки прийшов, чи живий, чи платить.
+   Натиснути на людину — її Telegram ID підставиться в поля нижче,
+   щоб не переписувати руками. */
+var P_CUR = null, P_ROWS = [], P_FILTER = '', P_T = null;
+
+function personCard(r) {
+  var live = r.live === 'week' ? '<b style="color:var(--lime,#C6F32C)">активний</b>'
+           : r.live === 'month' ? 'заходив цього місяця'
+           : '<span style="opacity:.6">спить</span>';
+  var from = r.refBy
+    ? 'прийшов за посиланням <b>' + esc(r.refBy) + '</b>'
+    : 'прийшов сам';
+  var pro = r.pro ? '<b style="color:var(--lime,#C6F32C)">Преміум до ' + esc(r.until) + '</b>'
+          : (r.lapsed ? '<span style="opacity:.7">Преміум сплив ' + esc(r.until) + '</span>'
+                      : '<span style="opacity:.6">без преміуму</span>');
+
+  return '<div class="rw" style="cursor:pointer" onclick="pPick(\'' + esc(r.id) + '\')">' +
+    '<div class="lb">' + esc(r.name || 'Без імені') +
+      (r.nick ? ' · @' + esc(r.nick) : '') +
+      '<small>' + pro + ' · ' + live + '</small>' +
+      '<small>' + from +
+        (r.refCount ? ' · <b>привів ' + r.refCount + '</b>' : '') +
+        ' · з ' + esc(r.created) + '</small>' +
+      '<small>ID ' + esc(r.id) + ' · авто ' + r.cars + ' · записів ' + r.recs +
+        ' · документів ' + r.docs + (r.paid ? ' · оплат ' + r.paid : '') + '</small>' +
+    '</div><div class="ar" style="opacity:.4">›</div></div>';
+}
+
+function pPick(id) {
+  ['gid', 'uid', 'rsTg'].forEach(function (k) { if ($('#' + k)) $('#' + k).value = id; });
+  if ($('#uLook')) $('#uLook').click();
+  var box = $('#pOut');
+  if (box) box.innerHTML = '<div class="msg inf">Взяв ID ' + esc(id) +
+    ' — він підставлений у поля нижче.</div>';
+}
+
+function pDraw() {
+  var box = $('#pBox'); if (!box) return;
+  if (!P_ROWS.length) { box.innerHTML = '<div class="note">Нікого не знайшлось.</div>'; return; }
+  box.innerHTML = '<div class="lb" style="margin-bottom:6px">Показано ' + P_ROWS.length +
+    (P_CUR ? ' — є ще' : '') + '</div>' + P_ROWS.map(personCard).join('');
+}
+
+function people(more) {
+  var q = $('#pQ') ? $('#pQ').value.trim() : '';
+  if (!more) { P_CUR = null; P_ROWS = []; }
+  post('/admin/people', { q: q, filter: P_FILTER, cursor: more ? P_CUR : null })
+    .then(function (d) {
+      if (!d.ok) {
+        $('#pBox').innerHTML = '<div class="msg er">' + esc(d.error || 'Не вдалося') + '</div>';
+        return;
+      }
+      P_ROWS = more ? P_ROWS.concat(d.rows || []) : (d.rows || []);
+      P_CUR = d.cursor;
+      pDraw();
+      if (d.partial && $('#pOut'))
+        $('#pOut').innerHTML = '<div class="msg inf">Людей стало багато — ' +
+          'пошук пройшов першу тисячу. За точним Telegram ID знайде будь-кого.</div>';
+    }).catch(function () {
+      $('#pBox').innerHTML = '<div class="msg er">Сервер не відповідає.</div>';
+    });
+}
+function peopleMore() {
+  if (!P_CUR) { $('#pOut').innerHTML = '<div class="msg inf">Це вже всі.</div>'; return; }
+  people(true);
 }
 
 /* Журнал оплат: хто, коли, який тариф. Вантажимо по 25 — тисячі записів
