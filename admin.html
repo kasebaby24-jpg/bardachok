@@ -8,7 +8,7 @@
 <title>Бардачок — керування</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<link rel="stylesheet" href="styles.css?v=20260824-2235">
+<link rel="stylesheet" href="styles.css?v=20260824-2330">
 <style>
   body{overflow:auto}
   .wrap{max-width:620px;margin:0 auto;padding:26px 16px 60px}
@@ -91,7 +91,7 @@
     <button data-t="t-set">Налаштування</button>
   </div>
   <div class="msg inf" id="info">Завантаження…</div>
-  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260824-2235</div>
+  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260824-2330</div>
 
   <div class="pane on" id="t-home">
   <div id="stCount"></div>
@@ -168,7 +168,8 @@
     <div id="anaBox"><div class="note">Завантажую…</div></div>
     <button class="btn sec" id="anaFresh" style="margin-top:12px">Перерахувати зараз</button>
     <div class="note">Рахується раз на добу автоматично. «Перерахувати» пробігає
-      всіх користувачів — на великій базі це займе час.</div>
+      всіх користувачів пачками й показує рух — на великій базі це займе час.
+      Нагадування при цьому нікому не шлються.</div>
   </div>
 
   </div><!-- /t-home -->
@@ -1477,9 +1478,39 @@ function notice(clear) {
 }
 $('#ntSave').addEventListener('click', function () { notice(false); });
 $('#ntClear').addEventListener('click', function () { notice(true); });
+/* Перерахунок іде пачками: один запит бере стільки людей, скільки дозволяє
+   тариф, тому смикаємо доти, доки сервер не скаже «дійшов до кінця». Раніше
+   кнопка робила один запит — і на базі понад кілька десятків людей просто
+   не встигала нічого, а виглядало це як «нічого не сталось». */
+var RECOUNT = false;
+function recount() {
+  post('/admin/stats', { recount: 1 }).then(function (d) {
+    if (!d.ok) {
+      RECOUNT = false;
+      $('#anaBox').innerHTML = '<div class="msg er">Не вдалося перерахувати: ' +
+        esc(d.error || 'сервер не пояснив') + '</div>';
+      return;
+    }
+    if (d.done) {
+      RECOUNT = false;
+      $('#anaBox').innerHTML = '<div class="note">Готово, оновлюю цифри…</div>';
+      stats(false);
+      return;
+    }
+    $('#anaBox').innerHTML = '<div class="msg inf">Рахую: обійдено ' +
+      nfm(d.seen || 0) + '…</div>';
+    setTimeout(recount, 600);
+  }).catch(function () {
+    RECOUNT = false;
+    $('#anaBox').innerHTML = '<div class="msg er">Сервер не відповів. Спробуйте ще раз.</div>';
+  });
+}
+
 $('#anaFresh').addEventListener('click', function () {
-  $('#anaBox').innerHTML = '<div class="note">Перераховую…</div>';
-  stats(true);
+  if (RECOUNT) return;
+  RECOUNT = true;
+  $('#anaBox').innerHTML = '<div class="msg inf">Рахую…</div>';
+  recount();
 });
 
 $('#uLook').addEventListener('click', function () {
