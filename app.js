@@ -13,7 +13,7 @@ var API = 'https://bardachok.kasebaby24.workers.dev';
 var QR_FOR = 'TWqHKxsLAdGMPC7kY4i3r2GQxNJ2U6vQXv';   // до цієї адреси намальовано usdt-qr.png
 var USDT_CONTRACT = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';   // USDT у мережі TRON
 
-var BUILD = '20260824-2330';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
+var BUILD = '20260824-2350';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
 var BOOT_T0 = Date.now();
 
 var tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
@@ -4252,6 +4252,7 @@ function start() {
     if (m) ref = m[1];
   } catch (e) {}
 
+  LOADED = Date.now();
   api('/api/me', { ref: ref }).then(function (d) {
     if (!d.ok) {
       bootFail(d.error === 'auth'
@@ -4279,8 +4280,66 @@ function start() {
   });
 }
 
+/* ------------------------------------------------------------------ */
+/* ПОВЕРНЕННЯ ДО ЗАСТОСУНКУ                                            */
+/* ------------------------------------------------------------------ */
+/* Голос диктують у чаті з ботом, а не в застосунку. Поки людина говорить,
+   застосунок висить у памʼяті з тими даними, які прочитав при відкритті, —
+   і виглядало це так, ніби запис «дійшов із затримкою». Насправді він був
+   на сервері одразу, просто застосунок ніколи не перепитував.
+   Тепер перечитуємо, коли людина повертається на екран.
+
+   Двох речей робити не можна: смикати сервер підряд (на сотні тисяч людей
+   це зайві звернення) і перемальовувати екран, коли відкрите вікно або
+   людина щось вписує — інакше введене зникне під руками. */
+var LOADED = 0, RELOADING = false;
+
+function busyNow() {
+  try {
+    var sh = document.getElementById('sheet');
+    if (sh && !sh.classList.contains('hidden')) return true;      // відкрите вікно
+    var a = document.activeElement;
+    if (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return true;   // вписує
+  } catch (e) {}
+  return false;
+}
+
+function refresh(force) {
+  if (RELOADING || !initData()) return;
+  if (!force && Date.now() - LOADED < 3000) return;
+  if (busyNow()) return;
+  RELOADING = true;
+  api('/api/me', {}).then(function (d) {
+    RELOADING = false;
+    if (!d || !d.ok || !d.data) return;
+    LOADED = Date.now();
+    if (busyNow()) return;                 // почала вписувати, поки ми питали
+    var wasPro = PRO;
+    S = d.data; PRO = d.premium;
+    if (d.cfg) CFG = d.cfg;
+    if (d.ref) REF = d.ref;
+    CUR_SHOW = d.data.curr || 'UAH';
+    DIRTY = {};
+    render();
+    if (!wasPro && PRO) checkNewPremium();
+  }).catch(function () { RELOADING = false; });
+}
+
+try {
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden) refresh(false);
+  });
+  window.addEventListener('focus', function () { refresh(false); });
+  /* Telegram сам повідомляє, коли застосунок знову став активним (Bot API 8),
+     і це надійніше за visibilitychange у його вбудованому браузері. */
+  if (tg && tg.onEvent) {
+    tg.onEvent('activated', function () { refresh(false); });
+  }
+} catch (e) {}
+
 start();
 
 /* хуки для перевірки */
-window.__app = { get S() { return S; }, get PRO() { return PRO; }, show: show, render: render, DO: DO };
+window.__app = { get S() { return S; }, get PRO() { return PRO; }, show: show, render: render, DO: DO,
+  refresh: function (f) { return refresh(f); }, get loaded() { return LOADED; } };
 })();
