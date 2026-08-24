@@ -13,7 +13,7 @@ var API = 'https://bardachok.kasebaby24.workers.dev';
 var QR_FOR = 'TWqHKxsLAdGMPC7kY4i3r2GQxNJ2U6vQXv';   // до цієї адреси намальовано usdt-qr.png
 var USDT_CONTRACT = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';   // USDT у мережі TRON
 
-var BUILD = '20260824-1730';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
+var BUILD = '20260824-1830';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
 var BOOT_T0 = Date.now();
 
 var tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
@@ -3315,7 +3315,44 @@ function syncFuelBoxes() {
 /* ДІЇ                                                                 */
 /* ------------------------------------------------------------------ */
 var DO = {
-  tourDone: function () { markSeen('tour'); show('s-home'); render(); DO.addCar(); },
+  /* Наприкінці знайомства питаємо валюту. Раніше людина з Польщі вносила
+     злоті, а підсумки бачила в гривнях — і дізнавалась про це не одразу.
+     Питаємо один раз і тільки якщо курси вже завантажились. */
+  tourDone: function () {
+    markSeen('tour');
+    show('s-home'); render();
+    if (!seen('curr') && CFG.rates && CFG.rates.PLN) { DO.askCurr(); return; }
+    DO.addCar();
+  },
+
+  askCurr: function () {
+    markSeen('curr');
+    openSheet('Якою валютою вести облік?',
+      '<p style="margin:0 0 14px;font-size:13px;color:var(--mut);line-height:1.55">' +
+      'Вносити можна в будь-якій — а підсумки, витрата на кілометр і звіти ' +
+      'показуватимуться цією. Змінити можна будь-коли в розділі «Ще».</p>' +
+      '<div class="list">' +
+        [['UAH', '₴ Гривня', 'Україна'],
+         ['PLN', 'zł Злотий', 'Польща'],
+         ['EUR', '€ Євро', 'Європа'],
+         ['USD', '$ Долар', 'США та інші']].map(function (c) {
+          return '<button class="it" data-do="pickCurr" data-v="' + c[0] + '">' +
+            '<div class="tx"><b>' + c[1] + '</b><small>' + c[2] + '</small></div>' +
+            '<div class="ar">›</div></button>';
+        }).join('') +
+      '</div>');
+  },
+
+  pickCurr: function (t) {
+    var c = t.dataset.v;
+    CUR_SHOW = c;
+    api('/api/save', { action: 'setCurr', curr: c }).then(function (d) {
+      if (d && d.ok && d.data) S = d.data;
+    });
+    closeSheet();
+    DIRTY = {}; render();
+    setTimeout(function () { DO.addCar(); }, 260);
+  },
 
   addCar: function () { openSheet('Нове авто', formCar(null)); syncFuelBoxes(); },
 
@@ -4126,6 +4163,13 @@ document.addEventListener('click', function (e) {
       var od = document.getElementById('rOdo');
       var ac = activeCar();
       if (od && pr.every && ac) od.value = ac.odo + pr.every;
+    }
+    /* Кнопка в наборі може ще й виконувати дію. Без цього рядка вона
+       підсвічувалась як обрана, але нічого не робила — саме так тихо
+       не працював вибір валюти. */
+    if (seg.dataset.do && DO[seg.dataset.do]) {
+      try { DO[seg.dataset.do](seg); }
+      catch (e) { reportErr(e, 'дія ' + seg.dataset.do); }
     }
     return;
   }
