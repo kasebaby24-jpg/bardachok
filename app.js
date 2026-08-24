@@ -13,7 +13,7 @@ var API = 'https://bardachok.kasebaby24.workers.dev';
 var QR_FOR = 'TWqHKxsLAdGMPC7kY4i3r2GQxNJ2U6vQXv';   // до цієї адреси намальовано usdt-qr.png
 var USDT_CONTRACT = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';   // USDT у мережі TRON
 
-var BUILD = '20260824-2350';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
+var BUILD = '20260825-0010';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
 var BOOT_T0 = Date.now();
 
 var tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
@@ -249,18 +249,124 @@ function api(path, body, ms) {
 }
 
 /* Виконує дію на сервері, оновлює стан, показує помилку якщо є. */
+/* ------------------------------------------------------------------ */
+/* ЧЕРГА НА ВІДПРАВКУ                                                  */
+/* ------------------------------------------------------------------ */
+/* Сервер може не відповісти — обірватись мережа, впертись у межу тарифу,
+   що завгодно. Раніше в такий момент внесене просто зникало: людина
+   заповнила форму, натиснула «Зберегти» і побачила «Немає зв'язку».
+   Тепер запис лягає в чергу на телефоні й іде на сервер сам, щойно той
+   відповість. Нічого не губиться.
+
+   Чого черга НЕ робить: не повторює те, на що сервер відповів осмислено
+   («ліміт», «не знайдено»). Повторюємо лише обриви — коли відповіді не
+   було зовсім і ми не знаємо, чи дійшло. */
+var QKEY = 'b_queue';
+
+function qLoad() {
+  try { return JSON.parse(localStorage.getItem(QKEY) || '[]'); } catch (e) { return []; }
+}
+function qSave(list) {
+  try { localStorage.setItem(QKEY, JSON.stringify(list.slice(0, 60))); } catch (e) {}
+}
+function qAdd(payload) {
+  var list = qLoad();
+  list.push({ cid: 'q' + Date.now() + Math.random().toString(36).slice(2, 7),
+              at: Date.now(), payload: payload });
+  qSave(list);
+  return list.length;
+}
+function qCount() { return qLoad().length; }
+
+/* Обрив чи осмислена відмова. Осмислену повторювати не можна: сервер її
+   вже обробив і відповів, а обрив означає «невідомо». */
+function isBreak(d) {
+  if (!d) return true;
+  var e = String(d.error || '');
+  return e.indexOf('Немає зв') === 0 || e.indexOf('Сервер не відповіда') === 0 ||
+         e.indexOf('перевантажен') > -1 || e.indexOf('незрозуміло') > -1 ||
+         e.indexOf('Помилка сервера') === 0;
+}
+
+var QSENDING = false;
+function qFlush(quiet) {
+  if (QSENDING) return;
+  var list = qLoad();
+  if (!list.length) return;
+  QSENDING = true;
+
+  function step() {
+    var cur = qLoad();
+    if (!cur.length) {
+      QSENDING = false;
+      if (!quiet) toast('Усе відправлено на сервер');
+      refresh(true);
+      return;
+    }
+    var item = cur[0];
+    api('/api/save', item.payload).then(function (d) {
+      if (d && d.ok) {
+        cur.shift(); qSave(cur);
+        S = d.data; PRO = d.premium; DIRTY = {};
+        step();
+        return;
+      }
+      if (!isBreak(d)) { cur.shift(); qSave(cur); step(); return; }  // сервер відмовив по суті
+      QSENDING = false;                                             // знову обрив — чекаємо
+    }).catch(function () { QSENDING = false; });
+  }
+  step();
+}
+
+/* Показуємо внесене одразу, не чекаючи сервера: людина має бачити свій
+   запис, навіть якщо він поки лежить у черзі. */
+function localEcho(payload) {
+  try {
+    var p = payload || {}, a = p.action;
+    var mk = function (r) {
+      var o = JSON.parse(JSON.stringify(r || {}));
+      if (!o.id) o.id = 'loc' + Date.now();
+      if (!o.carId) o.carId = S.activeCar || (S.cars[0] && S.cars[0].id);
+      o.pending = 1;
+      return o;
+    };
+    if (a === 'addFuel')    { S.fuel.unshift(mk(p.rec)); return true; }
+    if (a === 'addService') { S.service.unshift(mk(p.rec)); return true; }
+    if (a === 'addExp')     { S.exp.unshift(mk(p.rec)); return true; }
+    if (a === 'addFine')    { S.fines.unshift(mk(p.rec)); return true; }
+  } catch (e) {}
+  return false;
+}
+
 function act(payload, onOk) {
   return api('/api/save', payload).then(function (d) {
     if (!d.ok) {
       if (d.error === 'limit') { needPro('cars'); return false; }
+      /* Обрив — не втрачаємо внесене, а відкладаємо. */
+      if (isBreak(d)) {
+        var n = qAdd(payload);
+        var shown = localEcho(payload);
+        if (shown) { DIRTY = {}; render(); }
+        toast(n > 1 ? ('Сервер не відповідає. Записав у чергу (' + n + ') — надішлю сам')
+                    : 'Сервер не відповідає. Записав у себе — надішлю, щойно відповість');
+        if (onOk) onOk();
+        return true;
+      }
       toast(d.message || d.error || 'Не вдалося зберегти');
       return false;
     }
     S = d.data; PRO = d.premium;
     render();
     if (onOk) onOk();
+    if (qCount()) qFlush(true);          // сервер ожив — доганяємо чергу
     return true;
-  }).catch(function () { toast('Немає зв’язку з сервером'); return false; });
+  }).catch(function () {
+    var n = qAdd(payload);
+    if (localEcho(payload)) { DIRTY = {}; render(); }
+    toast('Сервер не відповідає. Записав у чергу (' + n + ') — надішлю сам');
+    if (onOk) onOk();
+    return true;
+  });
 }
 
 function seen(k) { try { return localStorage.getItem('b_' + k) === '1'; } catch (e) { return false; } }
