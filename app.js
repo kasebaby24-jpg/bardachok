@@ -13,7 +13,7 @@ var API = 'https://bardachok.kasebaby24.workers.dev';
 var QR_FOR = 'TWqHKxsLAdGMPC7kY4i3r2GQxNJ2U6vQXv';   // до цієї адреси намальовано usdt-qr.png
 var USDT_CONTRACT = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';   // USDT у мережі TRON
 
-var BUILD = '20260824-1830';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
+var BUILD = '20260824-2140';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
 var BOOT_T0 = Date.now();
 
 var tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
@@ -987,6 +987,8 @@ function drawHome() {
     '<small>' + (sp.total ? (isEV ? 'зарядка' : 'паливо') + ' — ' + Math.round(pctFuel * 100) + '% від суми' : 'поки що записів немає') + '</small></div>' +
     ringSvg(pctFuel, '#D7FF3E') + '</div></div>';
 
+  h += refBlock();
+
   el.innerHTML = h;
 }
 
@@ -1341,24 +1343,18 @@ function drawMore() {
     '</div>';
 
 
-  /* Тому, хто вже платить, пропозиція «передай другові і отримай місяць» не
-     показується взагалі: він уже в Преміумі, і це для нього просто шум. */
-  if (!PRO) {
-    h += '<div class="promo" style="margin-top:12px">' +
-      '<b>Передайте далі — <em>і місяць ваш</em></b>' +
-      '<p>За кожного, хто вперше зайде за вашим посиланням, вам +30 днів Преміуму. ' +
-      'Одразу і без умов. Скільки людей — стільки й місяців. ' +
-      'Другові нічого не обіцяємо — місяць отримуєте ви.</p>' +
-      (REF.count
-        ? '<div class="kv" style="border:0;padding:0 0 12px"><span>Уже привели</span><b>' +
-          REF.count + ' ' + plural(REF.count, 'людину', 'людей', 'людей') + ' · +' +
-          (REF.count * 30) + ' днів</b></div>'
-        : '<div class="kv" style="border:0;padding:0 0 12px"><span>Приведено</span>' +
-          '<b>поки нікого</b></div>') +
-      (REF.link
-        ? '<button class="btn" data-do="share">Надіслати посилання</button>' +
-          '<button class="btn sec" data-do="copyRef">Скопіювати</button>'
-        : '<div class="note" style="margin:0">Посилання зʼявиться, щойно бота буде підключено.</div>') +
+  /* Той самий блок, що й на головному екрані: показується, лише поки
+     подарунок ще доступний. Хто вже в Преміумі або вже брав місяць —
+     не бачить нічого. Плюс окремо показуємо, скільком людина передала. */
+  h += refBlock();
+  if (REF.count) {
+    h += '<div class="card" style="margin-top:12px"><div class="card-h"><b>Ваше посилання</b>' +
+      '<span>' + REF.count + ' ' + plural(REF.count, 'людина', 'людей', 'людей') + '</span></div>' +
+      '<p style="margin:0 0 11px;font-size:12.5px;color:var(--mut);line-height:1.5">' +
+      'За вашим посиланням у Бардачку вже ' + REF.count + ' ' +
+      plural(REF.count, 'людина', 'людей', 'людей') + '. Дякую — це найкраще, ' +
+      'що можна зробити для застосунку.</p>' +
+      (REF.link ? '<button class="btn sec" data-do="share">Надіслати ще комусь</button>' : '') +
       '</div>';
   }
 
@@ -1476,6 +1472,23 @@ function vinCard(c, vin) {
 
   h += '<button class="btn sec" style="margin-top:10px" data-do="vinToCar">Додати це авто в гараж</button>';
   return h;
+}
+
+/* «Передайте другові — і місяць ваш». Показуємо лише тому, кому це справді
+   щось дає: у кого Преміуму нема І хто цей подарунок ще не брав. Щойно
+   Преміум зʼявився або місяць уже отриманий — блок зникає назовсім, щоб не
+   обіцяти те, чого більше не буде. */
+function refBlock() {
+  if (PRO || S.refBonus || S.refPaid > 0) return '';
+  if (!REF || !REF.link) return '';
+  return '<div class="promo" style="margin-top:12px">' +
+    '<b>Поділіться з другом — <em>і місяць ваш</em></b>' +
+    '<p>Перший, хто зайде за вашим посиланням, відкриває вам ' +
+    '<b>30 днів Преміуму</b> — безкоштовно й одразу. Голос, помічник, ' +
+    'кілька авто, звіти. Подарунок один на людину.</p>' +
+    '<button class="btn" data-do="share">Надіслати другові</button>' +
+    '<button class="btn sec" data-do="copyRef">Скопіювати посилання</button>' +
+    '</div>';
 }
 
 /* Скільки безкоштовних перевірок VIN дозволено налаштуваннями. 0 = лише Преміум. */
@@ -1873,15 +1886,15 @@ function watchPayment() {
   PAY_TIMER = setTimeout(tick, 4000);
 }
 
-/* Що саме людина щойно купила — коротко і по ділу */
+/* Людина щойно заплатила. Тут потрібне одне: подяка й підтвердження, що
+   гроші дійшли і Преміум працює. Екскурсію по можливостях сюди тулити не
+   треба — вона доречна потім, а в цю мить людина хоче почути «готово». */
 var WEL = 0;
 var WEL_UNTIL = '';
 var WELCOME = [
-  { tag: 'Готово', t: 'Преміум\nувімкнено', p: 'Дякуємо. Ось що зʼявилось — за хвилину пройдемось.', art: 'ok' },
-  { tag: 'Голос', t: 'Просто\nнадиктуйте', p: 'Затисніть мікрофон у чаті з ботом і скажіть «залив 40 літрів на 1800». Запис зʼявиться сам.', art: 'voice' },
-  { tag: 'Помічник', t: 'Питайте\nпро своє авто', p: 'Відповідає з вашою сервісною книжкою перед очима: коли міняли, скільки вклали, що вже пора.', art: 'brain' },
-  { tag: 'Перевірка', t: 'Що це за авто\nнасправді', p: 'Перевірка по VIN без обмежень — а якщо авто з американського аукціону, то ще й фото та ціна продажу.', art: 'vin' },
-  { tag: 'Документи', t: 'Усе під рукою', p: 'До двадцяти знімків, зашифрованих у телефоні. Плюс звіти для покупця й по витратах.', art: 'docs', last: true },
+  { tag: 'Дякуємо', t: 'Оплата пройшла\nПреміум увімкнено',
+    p: 'Дякую за довіру. Усе відкрито: голосове внесення, помічник, кілька авто, документи та звіти.',
+    art: 'ok', last: true },
 ];
 
 function welArt(kind) {
@@ -1917,11 +1930,14 @@ function premiumWelcome(until) {
 function drawWelcome() {
   var i = Math.min(WEL, WELCOME.length - 1);
   var w = WELCOME[i];
+  var many = WELCOME.length > 1;         // смужки кроків мають сенс лише коли кроків кілька
   openSheet('',
     '<div class="st-wrap" style="min-height:auto">' +
-      '<div class="st-bars">' + WELCOME.map(function (_, n) {
-        return '<i class="' + (n < i ? 'done' : n === i ? 'on' : '') + '"></i>';
-      }).join('') + '</div>' +
+      (many
+        ? '<div class="st-bars">' + WELCOME.map(function (_, n) {
+            return '<i class="' + (n < i ? 'done' : n === i ? 'on' : '') + '"></i>';
+          }).join('') + '</div>'
+        : '') +
       '<div class="st-top"><span class="st-tag">' + esc(w.tag) + '</span>' +
         (w.last ? '' : '<button class="st-skip" data-close="1">Пропустити</button>') + '</div>' +
       '<div class="st-body">' +
@@ -1932,7 +1948,7 @@ function drawWelcome() {
       '<div class="st-foot">' +
         (i > 0 ? '<button class="st-back" data-do="welBack">' + ic('back', 18) + '</button>' : '') +
         '<button class="btn" data-do="' + (w.last ? 'welDone' : 'welNext') + '">' +
-          (w.last ? 'Почати користуватись' : 'Далі') + '</button>' +
+          (w.last ? (many ? 'Почати користуватись' : 'Гаразд') : 'Далі') + '</button>' +
       '</div>' +
     '</div>');
 }
