@@ -13,7 +13,7 @@ var API = 'https://bardachok.kasebaby24.workers.dev';
 var QR_FOR = 'TWqHKxsLAdGMPC7kY4i3r2GQxNJ2U6vQXv';   // до цієї адреси намальовано usdt-qr.png
 var USDT_CONTRACT = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';   // USDT у мережі TRON
 
-var BUILD = '20260824-1600';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
+var BUILD = '20260824-1730';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
 var BOOT_T0 = Date.now();
 
 var tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
@@ -42,7 +42,29 @@ function fmtUsdt(n) {
 }
 
 function nfmt(n) { return Math.round(n || 0).toLocaleString('uk-UA').replace(/ /g, ' '); }
-function money(n) { return nfmt(n) + ' ₴'; }
+/* Усі суми зберігаються в гривні — це спільна одиниця, інакше не скласти
+   заправку в злотих із ремонтом у євро. Але показувати їх треба тією валютою,
+   якою людина живе: водієві в Польщі підсумок у гривнях нічого не каже, і
+   весь підрахунок стає для нього марним. */
+var CUR_SHOW = 'UAH';
+var CUR_SIGNS = { UAH: '₴', USD: '$', EUR: '€', PLN: 'zł' };
+
+function curRate() {
+  if (CUR_SHOW === 'UAH') return 1;
+  var r = (CFG.rates && CFG.rates[CUR_SHOW]) || 0;
+  return r > 0 ? r : 1;                  // курсу ще нема — не спотворюємо числа
+}
+function curSign() { return CUR_SIGNS[CUR_SHOW] || '₴'; }
+
+/* На вході завжди гривня, на виході — валюта людини. */
+function money(n) {
+  var v = (n || 0) / curRate();
+  if (CUR_SHOW !== 'UAH' && Math.abs(v) < 1000)
+    return (Math.round(v * 100) / 100).toFixed(2).replace(/\.00$/, '') + ' ' + curSign();
+  return nfmt(v) + ' ' + curSign();
+}
+/* для дрібних сум на кшталт вартості кілометра */
+function money2(n) { return ((n || 0) / curRate()).toFixed(2) + ' ' + curSign(); }
 function usd(n) { return '$' + (Math.round(n * 100) / 100).toFixed(2).replace(/\.00$/, ''); }
 function uahOf(n) {                       // скільки це в гривнях за курсом НБУ
   var r = (CFG.rates && CFG.rates.USD) || parseFloat(CFG.usd) || 0;
@@ -1189,7 +1211,7 @@ function drawMoney() {
         '<div><small>останній ' + (isEV ? 'заряд' : 'бак') + '</small><b>' + cons.last.toFixed(1) + '</b></div>' +
       '</div>' +
       (cons.perKm ? '<div class="kv"><span>' + (isEV ? 'Зарядка' : 'Паливо') +
-        ' на кілометр</span><b>' + cons.perKm.toFixed(2) + ' ₴</b></div>' : '') +
+        ' на кілометр</span><b>' + money2(cons.perKm) + '</b></div>' : '') +
       '</div>';
   } else if ((S.fuel || []).filter(function (r) { return r.carId === car.id; }).length) {
     h += '<div class="note">Витрату порахую, коли будуть дві заправки «' +
@@ -1205,7 +1227,7 @@ function drawMoney() {
         '<div><small>' + (own.short ? 'за ' + own.days + ' ' + dayWord(own.days) : 'на місяць') + '</small><b>' +
           money(own.short ? own.total : own.perMonth) + '</b></div>' +
         '<div><small>' + (own.perKm ? 'кілометр' : 'усього') + '</small><b>' +
-          (own.perKm ? own.perKm.toFixed(2) + ' ₴' : money(own.total)) + '</b></div>' +
+          (own.perKm ? money2(own.perKm) : money(own.total)) + '</b></div>' +
       '</div>' +
       (own.kmPerMonth && !own.short ? '<div class="kv"><span>Пробіг за місяць</span><b>' +
         nfmt(own.kmPerMonth) + ' км</b></div>' : '') +
@@ -1339,6 +1361,21 @@ function drawMore() {
         : '<div class="note" style="margin:0">Посилання зʼявиться, щойно бота буде підключено.</div>') +
       '</div>';
   }
+
+  /* Валюта підсумків. Потрібна тим, хто живе не в Україні: людина вносить
+     у злотих, а бачила підсумок у гривнях — і весь підрахунок ставав марним. */
+  h += '<div class="card" style="margin-top:12px"><div class="card-h"><b>Валюта підсумків</b>' +
+    '<span>' + esc(CUR_SIGNS[CUR_SHOW] || '₴') + '</span></div>' +
+    '<p style="margin:0 0 11px;font-size:12.5px;color:var(--mut);line-height:1.5">' +
+    'Вносити можна в будь-якій валюті — а підсумки, витрата на кілометр і звіти ' +
+    'показуються цією. Перерахунок за курсом НБУ.</p>' +
+    '<div class="seg wrap" id="curPick">' +
+      ['UAH', 'PLN', 'EUR', 'USD'].map(function (c) {
+        var t = { UAH: '₴ гривня', PLN: 'zł злотий', EUR: '€ євро', USD: '$ долар' }[c];
+        return '<button type="button" data-do="setCurr" data-v="' + c + '"' +
+               (CUR_SHOW === c ? ' class="on"' : '') + '>' + t + '</button>';
+      }).join('') +
+    '</div></div>';
 
   if (CFG.contactTg) {
     h += '<div class="card" style="margin-top:12px"><div class="card-h"><b>Щось не працює?</b>' +
@@ -1723,7 +1760,7 @@ function rpPages(car) {
     h2('Скільки коштувало', 200);
     rows([
       ['У середньому на місяць', money(own.perMonth)],
-      own.perKm ? ['Вартість кілометра', own.perKm.toFixed(2) + ' ₴'] : null,
+      own.perKm ? ['Вартість кілометра', money2(own.perKm)] : null,
       own.kmPerMonth ? ['Пробіг за місяць', nfmt(own.kmPerMonth) + ' км'] : null,
       ['Разом за весь облік', money(own.total)],
     ].filter(Boolean));
@@ -2017,12 +2054,12 @@ function rpMoneyPages(car) {
     h2('Показники', 200);
     var r2 = [];
     if (own) r2.push(['У середньому на місяць', money(own.perMonth)]);
-    if (own && own.perKm) r2.push(['Вартість кілометра', own.perKm.toFixed(2) + ' ₴']);
+    if (own && own.perKm) r2.push(['Вартість кілометра', money2(own.perKm)]);
     if (own && own.kmPerMonth) r2.push(['Пробіг за місяць', nfmt(own.kmPerMonth) + ' км']);
     if (cons) r2.push(['Витрата ' + (isEV ? 'енергії' : 'пального'),
       cons.per100.toFixed(1) + ' ' + (isEV ? 'кВт·год' : 'л') + '/100 км']);
     if (cons && cons.perKm) r2.push([(isEV ? 'Зарядка' : 'Паливо') + ' на кілометр',
-      cons.perKm.toFixed(2) + ' ₴']);
+      money2(cons.perKm)]);
     rows(r2);
   }
 
@@ -3440,6 +3477,22 @@ var DO = {
 
   reload: function () { try { location.reload(); } catch (e) {} },
 
+  setCurr: function (t) {
+    var c = t.dataset.v;
+    if (c === CUR_SHOW) return;
+    if (c !== 'UAH' && !(CFG.rates && CFG.rates[c] > 0)) {
+      toast('Курс ще не завантажився — спробуйте за хвилину');
+      return;
+    }
+    CUR_SHOW = c;
+    DIRTY = {}; render();
+    haptic('light');
+    api('/api/save', { action: 'setCurr', curr: c }).then(function (d) {
+      if (d && d.ok && d.data) S = d.data;
+      else toast('Не вдалося запамʼятати вибір');
+    });
+  },
+
   /* Підтримка має бути під рукою скрізь, де людині може стати незрозуміло. */
   support: function () {
     if (!CFG.contactTg) { toast('Контакт підтримки ще не вказано'); return; }
@@ -4147,6 +4200,7 @@ function start() {
       return;
     }
     applyReset(d.data && d.data.resetAt);
+    CUR_SHOW = (d.data && d.data.curr) || 'UAH';
     S = d.data; PRO = d.premium; CFG = d.cfg || {}; REF = d.ref || {};
 
     /* даємо заставці показатись хоча б раз — інакше вона блимає й це
