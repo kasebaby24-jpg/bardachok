@@ -8,7 +8,7 @@
 <title>Бардачок — керування</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<link rel="stylesheet" href="styles.css?v=20260825-0120">
+<link rel="stylesheet" href="styles.css?v=20260825-0230">
 <style>
   body{overflow:auto}
   .wrap{max-width:620px;margin:0 auto;padding:26px 16px 60px}
@@ -89,9 +89,10 @@
     <button data-t="t-users">Люди</button>
     <button data-t="t-msg">Зв'язок</button>
     <button data-t="t-set">Налаштування</button>
+    <button data-t="t-tech">Стан</button>
   </div>
   <div class="msg inf" id="info">Завантаження…</div>
-  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260825-0120</div>
+  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260825-0230</div>
 
   <div class="pane on" id="t-home">
   <div id="stCount"></div>
@@ -179,6 +180,47 @@
   </div>
 
   </div><!-- /t-home -->
+
+  <!-- ТЕХНІЧНИЙ СТАН. Сюди дивляться, коли «щось не працює»: за один погляд
+       має бути видно, що саме зламано, а не гадати дві години. -->
+  <div class="pane" id="t-tech">
+    <div class="card">
+      <div class="sect">Що зараз із сервером</div>
+      <div id="techBox"><div class="note">Перевіряю…</div></div>
+      <button class="btn sec" id="techGo" style="margin-top:12px">Перевірити ще раз</button>
+      <div class="note">Головний рядок тут — <b>запис у сховище</b>. Це не «мабуть
+        працює»: панель справді щось записує й читає назад просто зараз. Саме це
+        відмовило 24 серпня, коли застосунок дві години не давав нічого зберегти.</div>
+    </div>
+
+    <div class="card">
+      <div class="sect">Фото документів</div>
+      <p class="note" style="margin:0 0 12px">Знімки документів можуть лежати у двох
+        місцях. Разом із записами — тоді вони зʼїдають той самий добовий запас, що й
+        самі записи. Або в окремому сховищі R2 — там до 10 ГБ безкоштовно, і на запас
+        записів це не впливає взагалі.</p>
+      <button class="btn sec" id="mvDocs">Перенести фото в окреме сховище</button>
+      <div id="mvOut" class="msg inf hidden"></div>
+      <div class="note">Кожне натискання переносить пачку. Якщо ще щось лишилось —
+        панель скаже, і треба натиснути ще раз. Фото при цьому не змінюються й не
+        розшифровуються: вони просто переїжджають.</div>
+    </div>
+
+    <div class="card">
+      <div class="sect">Точні цифри тарифу</div>
+      <p class="note" style="margin:0 0 12px">Скільки місця й запасу з'їдено насправді
+        — знає лише Cloudflare. Тут прямі посилання, щоб не шукати.</p>
+      <a class="btn sec" style="display:block;text-align:center;text-decoration:none"
+         href="https://dash.cloudflare.com/?to=/:account/workers/services/view/bardachok/production/observability"
+         target="_blank" rel="noopener">Журнал запитів і помилок</a>
+      <a class="btn sec" style="display:block;text-align:center;text-decoration:none;margin-top:8px"
+         href="https://dash.cloudflare.com/?to=/:account/workers/kv/namespaces"
+         target="_blank" rel="noopener">Сховище: обсяг і запас</a>
+      <a class="btn sec" style="display:block;text-align:center;text-decoration:none;margin-top:8px"
+         href="https://dash.cloudflare.com/?to=/:account/workers/plans"
+         target="_blank" rel="noopener">Тариф і межі</a>
+    </div>
+  </div>
 
   <div class="pane" id="t-users">
   <div class="card">
@@ -1555,6 +1597,126 @@ $('#uLook').addEventListener('click', function () {
   }).catch(function () { show('uEr', 'Сервер не відповідає.', true); });
 });
 
+/* ------------------------------------------------------------------ */
+/* ТЕХНІЧНИЙ СТАН                                                      */
+/* ------------------------------------------------------------------ */
+function ago(ms) {
+  if (!ms) return 'не було';
+  var s = Math.round((Date.now() - ms) / 1000);
+  if (s < 60) return s + ' с тому';
+  if (s < 3600) return Math.round(s / 60) + ' хв тому';
+  if (s < 86400) return Math.round(s / 3600) + ' год тому';
+  return Math.round(s / 86400) + ' дн тому';
+}
+function row(label, value, good, hint) {
+  var mark = good === true ? '<b style="color:#8FE388">✓</b>'
+           : good === false ? '<b style="color:#FF6B6B">✕</b>' : '';
+  return '<div class="kv"><span>' + esc(label) + (hint ? '<i style="display:block;opacity:.5;' +
+    'font-style:normal;font-size:11px;margin-top:2px">' + esc(hint) + '</i>' : '') +
+    '</span><b>' + value + ' ' + mark + '</b></div>';
+}
+function nOf(k) {
+  if (!k) return '—';
+  return nfm(k.n) + (k.more ? '+' : '');
+}
+
+function tech() {
+  $('#techBox').innerHTML = '<div class="note">Перевіряю…</div>';
+  post('/admin/tech', {}).then(function (d) {
+    if (!d.ok) {
+      $('#techBox').innerHTML = '<div class="msg er">Не вдалося перевірити: ' +
+        esc(d.error || 'сервер не пояснив') + '</div>';
+      return;
+    }
+    var h = '';
+    var w = d.write || {};
+    h += w.ok
+      ? '<div class="msg ok">Запис у сховище працює (' + w.ms + ' мс). Люди можуть зберігати.</div>'
+      : '<div class="msg er"><b>ЗАПИС У СХОВИЩЕ НЕ ПРАЦЮЄ.</b><br>Люди зараз бачать ' +
+        '«Немає зв\'язку з сервером» і нічого не можуть зберегти. Внесене не пропаде — ' +
+        'застосунок тримає його в себе й дошле сам.<br>' +
+        (w.error ? '<br><i>' + esc(w.error) + '</i>' : '') +
+        '<br>Найімовірніше — вичерпано добовий запас записів. Перевірте тариф нижче.</div>';
+
+    var b = d.bind || {};
+    h += '<div class="h3" style="margin-top:14px">Що підключено</div>';
+    h += row('Сховище', b.storage ? 'так' : 'НЕМА', !!b.storage);
+    h += row('Окреме сховище для фото', b.r2 ? 'так' : 'нема', b.r2 ? true : null,
+             b.r2 ? '' : 'фото документів лежать разом із записами і з\'їдають запас');
+    h += row('Розпізнавання голосу', b.ai ? 'так' : 'НЕМА', !!b.ai);
+    h += row('Бот', b.bot ? 'так' : 'НЕМА', !!b.bot);
+    h += row('Адмін-бот', b.adminBot ? 'так' : 'нема', b.adminBot ? true : null);
+
+    var c = d.cap || {};
+    h += '<div class="h3" style="margin-top:14px">Запас на один запит</div>';
+    h += row('Виміряна межа', nfm(c.now) + ' звернень',
+             c.now >= 400 ? true : (c.now <= 40 ? false : null),
+             c.now <= 40 ? 'це мірки безкоштовного тарифу — натисніть «Переміряти межі» в Огляді'
+                         : (c.roof ? 'вище ' + c.roof + ' тариф не пускає' : ''));
+
+    h += '<div class="h3" style="margin-top:14px">Скільки чого лежить</div>';
+    var k = d.keys || {};
+    h += row('Людей', nOf(k.users));
+    h += row('Фото документів у сховищі записів', nOf(k.docsKv),
+             (k.docsKv && k.docsKv.n > 0 && !b.r2) ? false : null,
+             (k.docsKv && k.docsKv.n > 0 && !b.r2) ? 'варто перенести в окреме сховище' : '');
+    h += row('Записаних помилок', nOf(k.errors));
+    h += row('Чекають оплату', nOf(k.waiting));
+    h += row('Записів про оплати', nOf(k.pays));
+
+    h += '<div class="h3" style="margin-top:14px">Фонова робота</div>';
+    h += row('Останній рух', d.tick ? (ago(d.tick.at) + ' · ' + esc(d.tick.did)) : 'не бачу',
+             d.tick && Date.now() - d.tick.at < 3600000 ? true
+               : (d.tick ? null : false),
+             d.tick ? '' : 'перевірте розклад: Cloudflare → Settings → Trigger events');
+    var nt = d.night;
+    h += row('Нічний обхід', nt ? (nt.day + ' · обійдено ' + nfm(nt.seen) +
+             (nt.done ? ' · завершено' : ' · іде')) : 'ще не було',
+             nt && nt.day === d.today ? true : null);
+    var bc = d.bcast;
+    if (bc) h += row('Розсилка', 'доставлено ' + nfm(bc.sent) +
+             (bc.failed ? ', не дійшло ' + nfm(bc.failed) : '') +
+             (bc.done ? ' · завершено' : ' · іде'), bc.done ? true : null);
+    var a = d.ai;
+    if (a) h += row('Голос сьогодні', 'розпізнано ' + nfm(a.ok || 0) +
+             (a.fail ? ', не зрозумів ' + nfm(a.fail) : '') +
+             (a.busy ? ', було зайнято ' + nfm(a.busy) : ''),
+             (a.busy || 0) > (a.ok || 0) ? false : null);
+    h += row('Курс валют', d.rates ? d.rates.day : 'не оновлювався',
+             d.rates && d.rates.day === d.today ? true : null);
+    h += row('Версія сервера', esc(d.version));
+
+    $('#techBox').innerHTML = h;
+  }).catch(function () {
+    $('#techBox').innerHTML = '<div class="msg er">Сервер зовсім не відповів. ' +
+      'Це вже не «щось зламалось усередині» — це або немає зв\'язку у вас, ' +
+      'або воркер не працює. Відкрийте посилання нижче: журнал запитів.</div>';
+  });
+}
+$('#techGo').addEventListener('click', tech);
+
+/* Переносимо пачками, доки сервер каже «ще лишились». */
+var MV_BUSY = false;
+function moveDocs(step) {
+  step = step || 0;
+  if (step > 40) { MV_BUSY = false; return; }
+  post('/admin/act', { what: 'movedocs' }).then(function (d) {
+    if (!d.ok) { MV_BUSY = false; show('mvOut', d.error || 'Не вдалося.', true); return; }
+    show('mvOut', d.message, true);
+    if (d.more && d.moved > 0) setTimeout(function () { moveDocs(step + 1); }, 400);
+    else { MV_BUSY = false; tech(); }
+  }).catch(function () {
+    MV_BUSY = false;
+    show('mvOut', 'Сервер не відповів. Спробуйте ще раз.', true);
+  });
+}
+$('#mvDocs').addEventListener('click', function () {
+  if (MV_BUSY) return;
+  MV_BUSY = true;
+  show('mvOut', 'Переношу…', true);
+  moveDocs(0);
+});
+
 /* вкладки */
 [].forEach.call(document.querySelectorAll('#tabs button'), function (b) {
   b.addEventListener('click', function () {
@@ -1565,6 +1727,7 @@ $('#uLook').addEventListener('click', function () {
       var on = p.id === t || (t === 't-set' && p.id === 't-set-b');
       p.classList.toggle('on', on);
     });
+    if (t === 't-tech') tech();
     window.scrollTo(0, 0);
   });
 });

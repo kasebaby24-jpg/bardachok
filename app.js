@@ -13,7 +13,7 @@ var API = 'https://bardachok.kasebaby24.workers.dev';
 var QR_FOR = 'TWqHKxsLAdGMPC7kY4i3r2GQxNJ2U6vQXv';   // до цієї адреси намальовано usdt-qr.png
 var USDT_CONTRACT = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';   // USDT у мережі TRON
 
-var BUILD = '20260825-0120';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
+var BUILD = '20260825-0230';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
 var BOOT_T0 = Date.now();
 
 var tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
@@ -46,6 +46,45 @@ function nfmt(n) { return Math.round(n || 0).toLocaleString('uk-UA').replace(/ 
    заправку в злотих із ремонтом у євро. Але показувати їх треба тією валютою,
    якою людина живе: водієві в Польщі підсумок у гривнях нічого не каже, і
    весь підрахунок стає для нього марним. */
+/* ------------------------------------------------------------------ */
+/* МИЛІ Й ГАЛОНИ                                                        */
+/* ------------------------------------------------------------------ */
+/* Клієнт зі США просив милі. Пробіг як лежав у кілометрах, так і лежить,
+   обʼєм — у літрах: інакше не скласти заправку в Києві з заправкою в
+   Техасі, і всі підсумки поїхали б. Змінюється лише те, в чому показувати
+   й у чому людина вводить.
+
+   Витрата — окремий випадок. У милях звично не «літрів на сто», а «миль на
+   галон», і це не просто інші одиниці, а обернена величина: чим більше,
+   тим економніше. Тому там окремий перерахунок, а не множення. */
+var UNIT = 'km';                        // 'km' | 'mi'
+var MI_IN_KM = 0.621371;                // 1 км = стільки миль
+var L_IN_GAL = 3.785411784;             // 1 галон = стільки літрів
+
+function dOut(km) { return Math.round((km || 0) * (UNIT === 'mi' ? MI_IN_KM : 1)); }
+function dIn(v) {
+  var x = parseFloat(String(v == null ? '' : v).replace(',', '.').replace(/[^\d.\-]/g, '')) || 0;
+  return Math.round(UNIT === 'mi' ? x / MI_IN_KM : x);
+}
+function dU() { return UNIT === 'mi' ? 'миль' : 'км'; }
+/* Назва саме така, бо всередині підрахунку витрати є локальна змінна
+   dist — вона перекрила б помічника, і це знайшлось би не одразу. */
+function distTxt(km) { return nfmt(dOut(km)) + ' ' + dU(); }
+
+function vOut(l) { return (l || 0) / (UNIT === 'mi' ? L_IN_GAL : 1); }
+function vIn(v) {
+  var x = parseFloat(String(v == null ? '' : v).replace(',', '.').replace(/[^\d.\-]/g, '')) || 0;
+  return UNIT === 'mi' ? x * L_IN_GAL : x;
+}
+function vU(isEV) { return isEV ? 'кВт·год' : (UNIT === 'mi' ? 'гал' : 'л'); }
+
+function consText(per100, isEV) {
+  if (per100 == null || !isFinite(per100) || per100 <= 0) return null;
+  if (UNIT !== 'mi') return per100.toFixed(1) + ' ' + (isEV ? 'кВт·год' : 'л') + '/100 км';
+  if (isEV) return (per100 * 1.60934).toFixed(1) + ' кВт·год/100 миль';
+  return (235.215 / per100).toFixed(1) + ' миль/гал';
+}
+
 var CUR_SHOW = 'UAH';
 var CUR_SIGNS = { UAH: '₴', USD: '$', EUR: '€', PLN: 'zł' };
 
@@ -108,7 +147,11 @@ function plural(n, one, few, many) {
 }
 function dayWord(n) { return plural(n, 'день', 'дні', 'днів'); }
 
-var FUEL_UA  = { petrol: 'Бензин', diesel: 'Дизель', hybrid: 'Гібрид', electric: 'Електро', gas: 'Газ' };
+/* «Газ+бензин» — це ГБО на бензиновій машині. Раніше доводилось вибирати
+   одне з двох, хоч людина їздить на обох: газ у місті, бензин на морозі.
+   Обслуговування в такої машини подвійне, і підказки мають це знати. */
+var FUEL_UA  = { petrol: 'Бензин', diesel: 'Дизель', gaspetrol: 'Газ+бензин',
+                 gas: 'Газ', hybrid: 'Гібрид', electric: 'Електро' };
 var KIND_UA  = { oil: 'Заміна масла', brakes: 'Гальма', timing: 'Ремінь ГРМ', battery: 'Акумулятор',
                  tires: 'Шини', filter: 'Фільтри', diag: 'Діагностика', other: 'Інше' };
 var CAT_UA = { wash: 'Мийка', parking: 'Паркінг', toll: 'Платні дороги', insurance: 'Страхування',
@@ -749,7 +792,7 @@ function nudges(car) {
             ? 'Гальмівна рідина, салонний фільтр, техогляд — усе, що легко забути.'
             : car.fuel === 'diesel'
             ? 'Паливний фільтр, антифриз, техогляд — усе, що легко забути.'
-            : car.fuel === 'gas'
+            : (car.fuel === 'gas' || car.fuel === 'gaspetrol')
             ? 'Фільтр ГБО, освідчення балона, техогляд — усе, що легко забути.'
             : 'ГРМ, антифриз, техогляд — усе, що легко забути.'),
       go: 'tab:s-rem', btn: 'Створити' });
@@ -795,8 +838,8 @@ function attentionBase() {
       out.push({
         lvl: oil.left <= 0 ? 'hot' : 'warn', ic: 'oil',
         t: 'Заміна масла' + (S.cars.length > 1 ? ' · ' + nm : ''),
-        p: oil.left <= 0 ? 'Прострочено на ' + nfmt(-oil.left) + ' км.' : 'Залишилось ' + nfmt(oil.left) + ' км.',
-        d: oil.left <= 0 ? 'пора' : nfmt(oil.left) + ' км', go: 'tab:s-service',
+        p: oil.left <= 0 ? 'Прострочено на ' + distTxt(-oil.left) + '.' : 'Залишилось ' + distTxt(oil.left) + '.',
+        d: oil.left <= 0 ? 'пора' : distTxt(oil.left), go: 'tab:s-service',
       });
     }
   });
@@ -1037,7 +1080,7 @@ function drawHome() {
     }).join('') + '</div>' +
     '<div class="odo">' +
       '<div><small>ПРОБІГ' + (stale >= 21 ? ' · давно не оновлювали' : '') + '</small>' +
-      '<b>' + nfmt(car.odo) + ' <span style="font-size:13px;opacity:.6">км</span></b></div>' +
+      '<b>' + nfmt(dOut(car.odo)) + ' <span style="font-size:13px;opacity:.6">' + dU() + '</span></b></div>' +
       '<button class="cc-odo" data-do="odo">' + ic('plus', 16) + 'Оновити</button>' +
     '</div>' +
     '</div>';
@@ -1169,9 +1212,9 @@ function drawService() {
   } else if (oil) {
     var pct = Math.max(0, Math.min(1, 1 - oil.left / oil.interval));
     h += '<div class="card"><div class="ring"><div class="v"><b>' +
-      (oil.left > 0 ? nfmt(oil.left) + ' км' : 'Пора міняти') + '</b>' +
-      '<small>' + (oil.left > 0 ? 'до заміни масла · кожні ' + nfmt(oil.interval) + ' км'
-                                : 'прострочено на ' + nfmt(-oil.left) + ' км') + '</small></div>' +
+      (oil.left > 0 ? distTxt(oil.left) : 'Пора міняти') + '</b>' +
+      '<small>' + (oil.left > 0 ? 'до заміни масла · кожні ' + distTxt(oil.interval)
+                                : 'прострочено на ' + distTxt(-oil.left)) + '</small></div>' +
       ringSvg(pct, oil.left <= 0 ? '#FF5A4A' : (pct > 0.85 ? '#FFB340' : '#D7FF3E')) + '</div></div>';
   } else {
     h += '<div class="msg inf">Внесіть заміну масла — і я рахуватиму, коли наступна.</div>';
@@ -1194,7 +1237,7 @@ function drawService() {
   } else {
     h += '<div class="card list">' + recs.map(function (r) {
       return '<button class="it" data-do="delAsk" data-id="' + r.id + '"><div class="dt">' + ic(KIND_IC[r.kind] || 'wrench', 17) + '</div>' +
-        '<div class="tx"><b>' + esc(r.title) + '</b><small>' + nfmt(r.odo) + ' км · ' + fmtDate(r.date) + '</small></div>' +
+        '<div class="tx"><b>' + esc(r.title) + '</b><small>' + distTxt(r.odo) + ' · ' + fmtDate(r.date) + '</small></div>' +
         '<div class="vl">' + (r.cost ? money(r.cost) : '—') + '</div></button>';
     }).join('') + '</div>';
 
@@ -1313,7 +1356,7 @@ function drawMoney() {
   var cons = consumption(car.id);
   if (cons) {
     h += '<div class="card"><div class="card-h"><b>Витрата</b>' +
-      '<span>за ' + nfmt(cons.dist) + ' км</span></div>' +
+      '<span>за ' + distTxt(cons.dist) + '</span></div>' +
       '<div class="two-num">' +
         '<div><small>у середньому</small><b>' + cons.per100.toFixed(1) + '</b></div>' +
         '<div><small>останній ' + (isEV ? 'заряд' : 'бак') + '</small><b>' + cons.last.toFixed(1) + '</b></div>' +
@@ -1338,7 +1381,7 @@ function drawMoney() {
           (own.perKm ? money2(own.perKm) : money(own.total)) + '</b></div>' +
       '</div>' +
       (own.kmPerMonth && !own.short ? '<div class="kv"><span>Пробіг за місяць</span><b>' +
-        nfmt(own.kmPerMonth) + ' км</b></div>' : '') +
+        distTxt(own.kmPerMonth) + '</b></div>' : '') +
       '<div class="kv"><span>Рахую від</span><b>' + fmtDate(own.since) + '</b></div>' +
       '<div class="note" style="margin:10px 0 0">Сюди входить усе: паливо, ремонти, ' +
       'страховка, мийки й сплачені штрафи.</div></div>';
@@ -1389,7 +1432,7 @@ function drawMoney() {
         '<div class="dt">' + ic(isEV ? 'charge' : 'fuel', 17) + '</div>' +
         '<div class="tx"><b>' + (r.qty ? r.qty + ' ' + (r.unit === 'kwh' ? 'кВт·год' : 'л') : 'Заправка') + '</b>' +
         '<small>' + fmtDate(r.date) + (r.station ? ' · ' + esc(r.station) : '') +
-          (r.odo ? ' · ' + nfmt(r.odo) + ' км' : '') + (r.full === false ? ' · не повний' : '') + '</small></div>' +
+          (r.odo ? ' · ' + distTxt(r.odo) : '') + (r.full === false ? ' · не повний' : '') + '</small></div>' +
         '<div class="vl">' + amt(r) + '</div></button>';
     }).join('') + '</div>';
   }
@@ -1476,6 +1519,20 @@ function drawMore() {
         var t = { UAH: '₴ гривня', PLN: 'zł злотий', EUR: '€ євро', USD: '$ долар' }[c];
         return '<button type="button" data-do="setCurr" data-v="' + c + '"' +
                (CUR_SHOW === c ? ' class="on"' : '') + '>' + t + '</button>';
+      }).join('') +
+    '</div></div>';
+
+  /* Милі й галони. Пробіг лежить у кілометрах — змінюється лише те, в чому
+     показувати й у чому вводити. Клієнт зі США мав вводити кілометри й сам
+     перераховувати; тепер не має. */
+  h += '<div class="card" style="margin-top:12px"><div class="card-h"><b>Пробіг і обʼєм</b>' +
+    '<span>' + dU() + '</span></div>' +
+    '<p style="margin:0 0 11px;font-size:12.5px;color:var(--mut);line-height:1.5">' +
+    'У милях витрата показується як миль на галон — так, як звично у США.</p>' +
+    '<div class="seg wrap" id="uniPick">' +
+      [['km', 'км і літри'], ['mi', 'милі й галони']].map(function (c) {
+        return '<button type="button" data-do="setUnits" data-v="' + c[0] + '"' +
+               (UNIT === c[0] ? ' class="on"' : '') + '>' + c[1] + '</button>';
       }).join('') +
     '</div></div>';
 
@@ -1658,7 +1715,7 @@ function drawAsk() {
       '<div style="flex:1;min-width:0">' +
         '<b style="display:block;font-size:15px;font-weight:700">Помічник</b>' +
         '<small style="color:var(--mut);font-size:12px">' +
-          (car ? 'знає ваш ' + esc(carName(car)) + (car.odo ? ' · ' + nfmt(car.odo) + ' км' : '')
+          (car ? 'знає ваш ' + esc(carName(car)) + (car.odo ? ' · ' + distTxt(car.odo) : '')
                : 'додайте авто, щоб відповіді були точнішими') + '</small>' +
       '</div>' +
       (CHAT.length ? '<button class="chat-clear" data-do="chatClear">Очистити</button>' : '') +
@@ -1861,7 +1918,7 @@ function rpPages(car) {
   h2('Коротко');
   var months = st.since ? Math.max(1, Math.round((Date.now() - new Date(st.since + 'T12:00:00Z')) / 2629800000)) : 0;
   cells([
-    ['Пробіг', nfmt(car.odo) + ' км'],
+    ['Пробіг', distTxt(car.odo)],
     [isEV ? 'Батарея' : 'Двигун',
       isEV ? ((car.battery ? car.battery + ' кВт·год' : '—') + (car.soh ? ' · SOH ' + car.soh + '%' : ''))
            : (car.engine ? (car.engine / 1000).toFixed(1) + ' л' : '—')],
@@ -1869,7 +1926,7 @@ function rpPages(car) {
     ['Вкладено в обслуговування', money(st.spentSrv)],
     [isEV ? 'Здоровʼя батареї' : 'Остання заміна масла',
       isEV ? (car.soh ? car.soh + '%' : 'не вказано')
-           : (car.lastOilOdo ? nfmt(car.lastOilOdo) + ' км' : 'не вказано')],
+           : (car.lastOilOdo ? distTxt(car.lastOilOdo) : 'не вказано')],
     ['Книжка ведеться', st.since ? fmtDateY(st.since) : 'з сьогодні'],
   ]);
 
@@ -1880,7 +1937,7 @@ function rpPages(car) {
     rows([
       ['У середньому на місяць', money(own.perMonth)],
       own.perKm ? ['Вартість кілометра', money2(own.perKm)] : null,
-      own.kmPerMonth ? ['Пробіг за місяць', nfmt(own.kmPerMonth) + ' км'] : null,
+      own.kmPerMonth ? ['Пробіг за місяць', distTxt(own.kmPerMonth)] : null,
       ['Разом за весь облік', money(own.total)],
     ].filter(Boolean));
   }
@@ -1921,7 +1978,7 @@ function rpPages(car) {
     rows([
       [isEV ? 'Заряджань' : 'Заправок', String(st.fuel.length)],
       ['Загалом ' + (isEV ? 'енергії' : 'пального'), nfmt(st.qty) + ' ' + unit],
-      ['Середня витрата', st.cons ? st.cons.per100.toFixed(1) + ' ' + unit + '/100 км' : 'даних поки мало'],
+      ['Середня витрата', st.cons ? (consText(st.cons.per100, unit === 'кВт·год') || 'даних поки мало') : 'даних поки мало'],
       ['Витрачено на ' + (isEV ? 'зарядку' : 'паливо'),
         money(st.fuel.reduce(function (a, r) { return a + costUah(r); }, 0))],
     ]);
@@ -2177,9 +2234,9 @@ function rpMoneyPages(car) {
     var r2 = [];
     if (own) r2.push(['У середньому на місяць', money(own.perMonth)]);
     if (own && own.perKm) r2.push(['Вартість кілометра', money2(own.perKm)]);
-    if (own && own.kmPerMonth) r2.push(['Пробіг за місяць', nfmt(own.kmPerMonth) + ' км']);
+    if (own && own.kmPerMonth) r2.push(['Пробіг за місяць', distTxt(own.kmPerMonth)]);
     if (cons) r2.push(['Витрата ' + (isEV ? 'енергії' : 'пального'),
-      cons.per100.toFixed(1) + ' ' + (isEV ? 'кВт·год' : 'л') + '/100 км']);
+      consText(cons.per100, isEV) || 'даних поки мало']);
     if (cons && cons.perKm) r2.push([(isEV ? 'Зарядка' : 'Паливо') + ' на кілометр',
       money2(cons.perKm)]);
     rows(r2);
@@ -2691,12 +2748,12 @@ var REM_PRESETS = [
   { t: 'Заміна ременя ГРМ', every: 90000, ice: true },
   { t: 'Заміна гальмівної рідини', every: 40000 },
   { t: 'Заміна антифризу', every: 60000 },
-  { t: 'Заміна свічок запалювання', every: 30000, on: ['petrol', 'gas', 'hybrid'] },
+  { t: 'Заміна свічок запалювання', every: 30000, on: ['petrol', 'gas', 'gaspetrol', 'hybrid'] },
   { t: 'Заміна свічок розжарювання', every: 100000, on: ['diesel'] },
   { t: 'Заміна паливного фільтра', every: 30000, on: ['diesel'] },
   { t: 'Чистка сажового фільтра', every: 120000, on: ['diesel'] },
-  { t: 'Заміна фільтра ГБО', every: 10000, on: ['gas'] },
-  { t: 'Освідчення балона', every: null, on: ['gas'] },
+  { t: 'Заміна фільтра ГБО', every: 10000, on: ['gas', 'gaspetrol'] },
+  { t: 'Освідчення балона', every: null, on: ['gas', 'gaspetrol'] },
   { t: 'Заміна повітряного фільтра', every: 15000, ice: true },
   { t: 'Заміна салонного фільтра', every: 20000 },
   { t: 'Перевірка батареї (SOH)', every: 20000, on: ['electric', 'hybrid'] },
@@ -2721,7 +2778,7 @@ function remList(carId) {
 function remWhen(r, car) {
   if (r.odo && car) {
     var left = r.odo - car.odo;
-    return { txt: left <= 0 ? 'вже пора' : 'через ' + nfmt(left) + ' км', hot: left <= 500, sort: left };
+    return { txt: left <= 0 ? 'вже пора' : 'через ' + distTxt(left), hot: left <= 500, sort: left };
   }
   if (r.date) {
     var d = daysLeft(r.date);
@@ -2745,7 +2802,7 @@ function drawRem() {
     '<div class="chat-head" style="padding:0 0 12px">' +
       '<div class="ic-box">' + ic('alert', 20) + '</div>' +
       '<div style="flex:1;min-width:0"><b style="display:block;font-size:15px;font-weight:700">Нагадування</b>' +
-      '<small style="color:var(--mut);font-size:12px">' + carName(car) + ' · ' + nfmt(car.odo) + ' км</small></div></div>' +
+      '<small style="color:var(--mut);font-size:12px">' + carName(car) + ' · ' + distTxt(car.odo) + '</small></div></div>' +
     '<p style="margin:0 0 13px;font-size:12.5px;color:var(--mut);line-height:1.5">' +
       'Що завгодно — за датою або за пробігом. Я нагадаю в боті, навіть якщо ви сюди не заходите.</p>' +
     '<button class="btn" data-do="remAdd">Додати нагадування</button></div>';
@@ -2756,7 +2813,7 @@ function drawRem() {
       return '<div class="it" style="cursor:default">' +
         '<div class="dt">' + ic(w.hot ? 'alert' : 'check', 17) + '</div>' +
         '<div class="tx"><b>' + esc(r.title) + '</b><small' + (w.hot ? ' style="color:var(--hot)"' : '') + '>' +
-          esc(w.txt) + (r.every ? ' · кожні ' + nfmt(r.every) + ' км' : '') + '</small></div>' +
+          esc(w.txt) + (r.every ? ' · кожні ' + distTxt(r.every) : '') + '</small></div>' +
         '<button class="chip gh" data-do="remDone" data-id="' + r.id + '">Зроблено</button>' +
         '<button class="chip gh" data-do="remDel" data-id="' + r.id + '" ' +
           'style="margin-left:6px;color:var(--mut)">×</button>' +
@@ -2817,7 +2874,7 @@ function remSuggest(car) {
       var passed = car.odo - last.odo;
       if (passed >= r.every * 0.7)
         out.push({ t: r.t, odo: last.odo + r.every, every: r.every,
-                   why: 'востаннє на ' + nfmt(last.odo) + ' км, минуло ' + nfmt(passed) + ' км' });
+                   why: 'востаннє на ' + distTxt(last.odo) + ', минуло ' + distTxt(passed) });
     } else if (srv.length >= 2) {
       out.push({ t: r.t, odo: car.odo + Math.round(r.every * 0.3), every: r.every,
                  why: 'у книжці такого запису ще немає' });
@@ -2846,8 +2903,8 @@ function remForm() {
         '<button type="button" data-v="date">За датою</button>' +
       '</div></div>' +
     '<div id="rOdoBox">' +
-      fld('rOdo', 'На пробігу, км', { mode: 'numeric', val: car.odo + 10000 }) +
-      fld('rEvery', 'Повторювати кожні, км (не обовʼязково)', { mode: 'numeric', ph: '90000' }) +
+      fld('rOdo', 'На пробігу, ' + dU(), { mode: 'numeric', val: dOut(car.odo + 10000) }) +
+      fld('rEvery', 'Повторювати кожні, ' + dU() + ' (не обовʼязково)', { mode: 'numeric', ph: UNIT === 'mi' ? '56000' : '90000' }) +
     '</div>' +
     '<div id="rDateBox" class="hidden">' + fld('rDate', 'Дата', { type: 'date' }) + '</div>' +
     '<div id="rErr"></div>' +
@@ -2918,7 +2975,7 @@ function forecast(carId) {
       var leftKm = oil.next - car.odo;
       var months = kpm ? leftKm / kpm : null;
       if (months !== null && months <= 3)
-        out.push({ t: 'Заміна масла', when: 'через ' + nfmt(Math.max(0, leftKm)) + ' км',
+        out.push({ t: 'Заміна масла', when: 'через ' + distTxt(Math.max(0, leftKm)),
                    d: Math.round(months * 30), cost: 2500 });
     }
   }
@@ -2929,7 +2986,7 @@ function forecast(carId) {
       if (d !== null && d <= 95) out.push({ t: r.title, when: fmtDate(r.date), d: d, cost: 0 });
     } else if (r.odo && kpm) {
       var lk = r.odo - car.odo, m = lk / kpm;
-      if (m <= 3) out.push({ t: r.title, when: 'через ' + nfmt(Math.max(0, lk)) + ' км',
+      if (m <= 3) out.push({ t: r.title, when: 'через ' + distTxt(Math.max(0, lk)),
                              d: Math.round(m * 30), cost: 0 });
     }
   });
@@ -2971,7 +3028,7 @@ function benchCard(car) {
     rows += '<div class="kv"><span>Витрати за рік у таких же</span><b>' + money(BENCH.year) + '</b></div>' +
       (my ? '<div class="kv"><span>У вас</span><b>' + money(my) + '</b></div>' : '');
   }
-  if (BENCH.km) rows += '<div class="kv"><span>Типовий пробіг</span><b>' + nfmt(BENCH.km) + ' км</b></div>';
+  if (BENCH.km) rows += '<div class="kv"><span>Типовий пробіг</span><b>' + distTxt(BENCH.km) + '</b></div>';
   if (!rows) return '';
 
   return '<div class="h2">Як у інших власників</div><div class="card">' + rows +
@@ -3056,7 +3113,7 @@ function seasonCard(car) {
       list.push('Заправляйтесь зимовою соляркою — літня на морозі густішає, ' +
                 'і вранці авто не заведеться',
                 'Свічки розжарювання: якщо запуск став довшим — перевірте до морозів');
-    if (f === 'gas')
+    if (f === 'gas' || f === 'gaspetrol')
       list.push('У мороз заводьте на бензині, газ — після прогріву',
                 'Редуктор ГБО: перевірити перед холодами');
     list.push('Незамерзайка і щітки склоочисника',
@@ -3319,7 +3376,7 @@ function drawCars() {
       return '<button class="it" data-do="editCar" data-id="' + c.id + '">' +
         '<div class="dt">' + ic(c.fuel === 'electric' ? 'ev' : 'car', 17) + '</div>' +
         '<div class="tx"><b>' + esc(carName(c)) + '</b><small>' +
-        [c.plate, nfmt(c.odo) + ' км'].filter(Boolean).join(' · ') + '</small></div><div class="ar">›</div></button>';
+        [c.plate, distTxt(c.odo)].filter(Boolean).join(' · ') + '</small></div><div class="ar">›</div></button>';
     }).join('') + '</div>';
   }
   h += '<button class="btn" style="margin-top:11px" data-do="addCar">Додати авто</button>';
@@ -3346,7 +3403,7 @@ function numv(id) { var v = val(id).replace(',', '.').replace(/\s/g, ''); return
 function formCar(car) {
   FUEL_AUTO = false;
   var c = car || {};
-  var fuels = ['petrol', 'diesel', 'hybrid', 'electric', 'gas'];
+  var fuels = ['petrol', 'diesel', 'gaspetrol', 'gas', 'hybrid', 'electric'];
   return '<div id="carForm" data-id="' + (c.id || '') + '">' +
     '<div class="two">' + fld('cMake', 'Марка', { ph: 'Toyota', val: c.make, max: 40 }) +
                           fld('cModel', 'Модель', { ph: 'RAV4', val: c.model, max: 40 }) + '</div>' +
@@ -3366,7 +3423,7 @@ function formCar(car) {
     '<div id="cEvBox" class="hidden"><div class="two">' +
       fld('cBattery', 'Батарея, кВт·год', { mode: 'decimal', ph: '64', val: c.battery }) +
       fld('cSoh', 'Здоров’я батареї, %', { mode: 'numeric', ph: '92', val: c.soh }) + '</div></div>' +
-    fld('cOdo', 'Пробіг, км', { mode: 'numeric', ph: '87400', val: c.odo || '' }) +
+    fld('cOdo', 'Пробіг, ' + dU(), { mode: 'numeric', ph: UNIT === 'mi' ? '54000' : '87400', val: c.odo ? dOut(c.odo) : '' }) +
     fld('cVin', 'VIN (не обов’язково)', { ph: '17 символів', val: c.vin, max: 20 }) +
     '<div class="two">' + fld('cIns', 'ОСЦПВ діє до', { type: 'date', val: c.insuranceEnd }) +
                           fld('cGreen', 'Зелена карта до', { type: 'date', val: c.greenEnd }) + '</div>' +
@@ -3473,7 +3530,49 @@ var DO = {
     });
     closeSheet();
     DIRTY = {}; render();
+    /* Хто обрав долар — найімовірніше у США, а там милі й галони. Питаємо
+       одразу, поки людина в контексті, а не колись у налаштуваннях. */
+    if (c === 'USD') { setTimeout(function () { DO.askUnits(); }, 260); return; }
     setTimeout(function () { DO.addCar(); }, 260);
+  },
+
+  askUnits: function () {
+    markSeen('units');
+    openSheet('Милі чи кілометри?',
+      '<p style="margin:0 0 14px;font-size:13px;color:var(--mut);line-height:1.55">' +
+      'Пробіг, витрата й нагадування показуватимуться в тому, що виберете. ' +
+      'Змінити можна будь-коли в розділі «Ще».</p>' +
+      '<div class="list">' +
+        [['km', 'Кілометри й літри', 'Європа, Україна'],
+         ['mi', 'Милі й галони', 'США']].map(function (c) {
+          return '<button class="it" data-do="pickUnits" data-v="' + c[0] + '">' +
+            '<div class="tx"><b>' + c[1] + '</b><small>' + c[2] + '</small></div>' +
+            '<div class="ar">›</div></button>';
+        }).join('') +
+      '</div>');
+  },
+
+  pickUnits: function (t) {
+    var u = t.dataset.v === 'mi' ? 'mi' : 'km';
+    UNIT = u;
+    api('/api/save', { action: 'setUnits', units: u }).then(function (d) {
+      if (d && d.ok && d.data) S = d.data;
+    });
+    closeSheet();
+    DIRTY = {}; render();
+    setTimeout(function () { DO.addCar(); }, 260);
+  },
+
+  setUnits: function (t) {
+    var u = t.dataset.v === 'mi' ? 'mi' : 'km';
+    if (u === UNIT) return;
+    UNIT = u;
+    markSeen('units');
+    DIRTY = {}; render();
+    api('/api/save', { action: 'setUnits', units: u }).then(function (d) {
+      if (d && d.ok && d.data) { S = d.data; DIRTY = {}; render(); }
+      else toast('Не вдалося запамʼятати — показую, але сервер не підтвердив');
+    });
   },
 
   addCar: function () { openSheet('Нове авто', formCar(null)); syncFuelBoxes(); },
@@ -3494,7 +3593,7 @@ var DO = {
       engine: fuel === 'electric' ? null : (eng != null ? Math.round(eng < 20 ? eng * 1000 : eng) : null),
       battery: fuel === 'electric' ? numv('cBattery') : null,
       soh: fuel === 'electric' ? numv('cSoh') : null,
-      odo: numv('cOdo') || 0,
+      odo: dIn(val('cOdo')) || 0,
       insuranceEnd: val('cIns') || null,
       greenEnd: val('cGreen') || null,
       lastOilOdo: fuel === 'electric' ? null : numv('cOil'),
@@ -3541,8 +3640,8 @@ var DO = {
     if (!title) { document.getElementById('rErr').innerHTML =
       '<div class="msg er">Вкажіть, про що нагадати.</div>'; return; }
     act({ action: 'addRem', title: title,
-          odo: byOdo ? numv('rOdo') : null,
-          every: byOdo ? numv('rEvery') : null,
+          odo: byOdo ? dIn(val('rOdo')) : null,
+          every: byOdo ? dIn(val('rEvery')) : null,
           date: byOdo ? null : val('rDate') }, closeSheet);
   },
   remDone: function (t) { act({ action: 'doneRem', id: t.dataset.id }); },
@@ -3721,10 +3820,10 @@ var DO = {
     var ev = car.fuel === 'electric';
     openSheet(ev ? 'Зарядка' : 'Заправка',
       '<div class="two">' +
-        fld('fQty', ev ? 'кВт·год' : 'Літрів', { mode: 'decimal', ph: ev ? '32' : '40' }) +
+        fld('fQty', ev ? 'кВт·год' : (UNIT === 'mi' ? 'Галонів' : 'Літрів'), { mode: 'decimal', ph: ev ? '32' : (UNIT === 'mi' ? '11' : '40') }) +
         fld('fCost', 'Сума', { mode: 'decimal', ph: '1800' }) + '</div>' +
       curPicker('fCur') +
-      fld('fOdo', 'Пробіг, км', { mode: 'numeric', val: car.odo }) +
+      fld('fOdo', 'Пробіг, ' + dU(), { mode: 'numeric', val: dOut(car.odo) }) +
       '<div class="two">' + fld('fStation', ev ? 'Станція' : 'АЗС', { ph: ev ? 'YASNO' : 'OKKO', max: 40 }) +
                             fld('fDate', 'Дата', { type: 'date', val: today() }) + '</div>' +
       '<div class="field"><label>' + (ev ? 'Скільки зарядили' : 'Скільки залили') + '</label>' +
@@ -3738,9 +3837,9 @@ var DO = {
   },
   saveFuel: function () {
     var fullBtn = document.querySelector('#fFull button.on');
-    act({ action: 'addFuel', qty: numv('fQty') || 0, cost: numv('fCost') || 0,
+    act({ action: 'addFuel', qty: vIn(val('fQty')) || 0, cost: numv('fCost') || 0,
           cur: pickedCur('fCur'),
-          odo: numv('fOdo'), date: val('fDate'), station: val('fStation'),
+          odo: dIn(val('fOdo')), date: val('fDate'), station: val('fStation'),
           full: !fullBtn || fullBtn.dataset.v === '1' }, closeSheet);
   },
 
@@ -3754,7 +3853,7 @@ var DO = {
         }).join('') + '</div></div>' +
       fld('sTitle', 'Опис', { ph: 'Заміна масла та фільтра' }) +
       '<div class="two">' + fld('sCost', 'Вартість', { mode: 'decimal', ph: '2400' }) +
-                            fld('sOdo', 'Пробіг, км', { mode: 'numeric', val: car.odo }) + '</div>' +
+                            fld('sOdo', 'Пробіг, ' + dU(), { mode: 'numeric', val: dOut(car.odo) }) + '</div>' +
       curPicker('sCur') +
       fld('sDate', 'Дата', { type: 'date', val: today() }) +
       '<button class="btn" data-do="saveService">Зберегти</button>');
@@ -3764,7 +3863,7 @@ var DO = {
     var kind = on ? on.dataset.v : 'other';
     act({ action: 'addService', kind: kind, title: val('sTitle') || KIND_UA[kind],
           cost: numv('sCost') || 0, cur: pickedCur('sCur'),
-          odo: numv('sOdo'), date: val('sDate') }, closeSheet);
+          odo: dIn(val('sOdo')), date: val('sDate') }, closeSheet);
   },
 
   expense: function () {
@@ -4281,10 +4380,10 @@ document.addEventListener('click', function (e) {
     if (seg.parentNode.id === 'rPreset') {
       var pr = REM_PRESETS[+seg.dataset.v];
       var ti = document.getElementById('rTitle'); if (ti) ti.value = pr.t;
-      var ev = document.getElementById('rEvery'); if (ev && pr.every) ev.value = pr.every;
+      var ev = document.getElementById('rEvery'); if (ev && pr.every) ev.value = dOut(pr.every);
       var od = document.getElementById('rOdo');
       var ac = activeCar();
-      if (od && pr.every && ac) od.value = ac.odo + pr.every;
+      if (od && pr.every && ac) od.value = dOut(ac.odo + pr.every);
     }
     /* Кнопка в наборі може ще й виконувати дію. Без цього рядка вона
        підсвічувалась як обрана, але нічого не робила — саме так тихо
@@ -4368,6 +4467,7 @@ function start() {
     }
     applyReset(d.data && d.data.resetAt);
     CUR_SHOW = (d.data && d.data.curr) || 'UAH';
+    UNIT = (d.data && d.data.units === 'mi') ? 'mi' : 'km';
     S = d.data; PRO = d.premium; CFG = d.cfg || {}; REF = d.ref || {};
 
     /* даємо заставці показатись хоча б раз — інакше вона блимає й це
@@ -4425,6 +4525,7 @@ function refresh(force) {
     if (d.cfg) CFG = d.cfg;
     if (d.ref) REF = d.ref;
     CUR_SHOW = d.data.curr || 'UAH';
+    UNIT = d.data.units === 'mi' ? 'mi' : 'km';
     DIRTY = {};
     render();
     if (!wasPro && PRO) checkNewPremium();
