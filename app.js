@@ -13,7 +13,7 @@ var API = 'https://bardachok.kasebaby24.workers.dev';
 var QR_FOR = 'TWqHKxsLAdGMPC7kY4i3r2GQxNJ2U6vQXv';   // до цієї адреси намальовано usdt-qr.png
 var USDT_CONTRACT = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';   // USDT у мережі TRON
 
-var BUILD = '20260825-0230';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
+var BUILD = '20260825-0300';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
 var BOOT_T0 = Date.now();
 
 var tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
@@ -214,6 +214,7 @@ var ICONS = {
   lock:   '<rect x="4.5" y="10.5" width="15" height="10.5" rx="2.6"/>' +
           '<path d="M8 10.5V7.6a4 4 0 0 1 8 0v2.9"/>',
   gift:   '<rect x="3.5" y="9" width="17" height="11" rx="1.5"/><path d="M3.5 13h17M12 9v11"/><path d="M12 9c-3.5 0-4.5-1-4.5-2.5S9 4 10 5s2 4 2 4Zm0 0c3.5 0 4.5-1 4.5-2.5S15 4 14 5s-2 4-2 4Z"/>',
+  heart:  '<path d="M12 20.2 4.9 13a4.4 4.4 0 0 1 6.2-6.2l.9.9.9-.9A4.4 4.4 0 0 1 19.1 13L12 20.2Z"/>',
 };
 
 /* ic('fuel') -> готова іконка. size і колір керуються з CSS. */
@@ -1137,6 +1138,13 @@ function drawHome() {
     ringSvg(pctFuel, '#D7FF3E') + '</div></div>';
 
   h += refBlock();
+
+  /* Тиха подяка: рядок унизу головного екрана, без сум і без банера.
+     Поки гаманець не вказано в налаштуваннях — його просто немає. */
+  if (CFG.usdt) {
+    h += '<button class="tipline" data-do="tip">' + ic('heart', 13) +
+         'Підтримати розробника</button>';
+  }
 
   el.innerHTML = h;
 }

@@ -856,3 +856,14 @@ input,select,textarea{-webkit-appearance:none;appearance:none}
 .sk-l.w40{width:40%}
 @keyframes shimmer{to{background-position:-120% 0}}
 @media (prefers-reduced-motion:reduce){.sk-l{animation:none}}
+
+/* Тиха кнопка подяки внизу головного екрана: не картка й не банер —
+   рядок кольору підказки, який видно, лише якщо його шукати. */
+.tipline{
+  display:flex;align-items:center;justify-content:center;gap:6px;
+  margin:18px auto 4px;padding:9px 14px;border-radius:999px;
+  font-size:12px;font-weight:500;color:var(--mut);opacity:.72;
+  transition:opacity .2s,background .2s;
+}
+.tipline .icn{color:var(--mut);stroke-width:1.9;width:13px;height:13px}
+.tipline:active{opacity:1;background:var(--surf2)}
