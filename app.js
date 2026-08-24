@@ -13,7 +13,7 @@ var API = 'https://bardachok.kasebaby24.workers.dev';
 var QR_FOR = 'TWqHKxsLAdGMPC7kY4i3r2GQxNJ2U6vQXv';   // до цієї адреси намальовано usdt-qr.png
 var USDT_CONTRACT = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';   // USDT у мережі TRON
 
-var BUILD = '20260824-1300';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
+var BUILD = '20260824-1600';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
 var BOOT_T0 = Date.now();
 
 var tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
@@ -173,6 +173,19 @@ function initData() {
    спінер нескінченно: сервер мовчить, а застосунок цього не знає. І окремо —
    відповідь може виявитись не тим, що ми чекаємо (сторінка помилки замість
    даних), тому розбір теж захищений. */
+/* Застосунок і сервер заливаються окремо, тому може статись, що застосунок
+   уже новий, а сервер ще старий. Тоді нові кнопки б'ються об «невідомий
+   маршрут», і людина бачить незрозумілу помилку. Один раз чесно пояснюємо. */
+var ROUTE_WARNED = false;
+function routeMissing(d) {
+  if (ROUTE_WARNED) return;
+  if (!d || d.ok !== false || typeof d.error !== 'string') return;
+  if (d.error.indexOf('Невідомий маршрут') < 0) return;
+  ROUTE_WARNED = true;
+  reportErr({ message: d.error }, 'стара збірка сервера');
+  toast('Ця можливість зʼявиться за кілька хвилин — оновлення ще розгортається');
+}
+
 function api(path, body, ms) {
   var url = API.replace(/\/+$/, '') + path;
   var opts = {
@@ -191,7 +204,7 @@ function api(path, body, ms) {
 
   var p = fetch(url, opts).then(function (r) {
     return r.text().then(function (t) {
-      try { return JSON.parse(t); }
+      try { var d = JSON.parse(t); routeMissing(d); return d; }
       catch (e) {
         /* не JSON — це майже завжди сторінка помилки від Cloudflare */
         return { ok: false, error: r.status >= 500

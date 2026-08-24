@@ -8,7 +8,7 @@
 <title>Бардачок — керування</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<link rel="stylesheet" href="styles.css?v=20260824-1300">
+<link rel="stylesheet" href="styles.css?v=20260824-1600">
 <style>
   body{overflow:auto}
   .wrap{max-width:620px;margin:0 auto;padding:26px 16px 60px}
@@ -91,7 +91,7 @@
     <button data-t="t-set">Налаштування</button>
   </div>
   <div class="msg inf" id="info">Завантаження…</div>
-  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260824-1300</div>
+  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260824-1600</div>
 
   <div class="pane on" id="t-home">
   <div id="stCount"></div>
@@ -131,6 +131,18 @@
     <div class="sect">Звіт і чистка</div>
     <button class="btn" onclick="report()">Відкрити звіт</button>
     <button class="btn sec" style="margin-top:8px" onclick="report(1)">Зберегти файлом</button>
+
+    <div class="sect" style="margin-top:18px">Резервна копія</div>
+    <button class="btn" onclick="backup()">Зберегти копію всіх записів</button>
+    <div class="note" style="margin-top:8px">
+      Усе, що люди вносили: авто, пробіг, сервісна книжка, витрати, штрафи,
+      нагадування, строки Преміуму. Знімки документів не входять — вони
+      зашифровані й однаково нечитабельні.
+      <br><br>
+      <b>Робіть копію перед кожним оновленням.</b> Це єдине, що дозволить
+      відновити дані, якщо щось піде не так.
+    </div>
+    <div id="bkOut"></div>
     <div class="note" style="margin:8px 0 12px">Готовий документ: воронка, гроші,
       строки Преміуму, рух по днях, найчастіші авто, помилки. Відкриється в
       сусідній вкладці — звідти Друк → Зберегти як PDF. Персональних даних
@@ -1078,19 +1090,128 @@ function personCard(r) {
     '</div><div class="ar" style="opacity:.4">›</div></div>';
 }
 
+/* Натиснули на людину — показуємо все про неї одразу, з кнопками.
+   Раніше доводилось гортати вниз до інших карток; тепер усе тут. */
+var P_OPEN = null;
+
+function pFull(r) {
+  var FUEL = { petrol:'бензин', diesel:'дизель', hybrid:'гібрид', electric:'електро', gas:'газ' };
+  var DOCS = { techpass:'техпаспорт', insurance:'страховка', licence:'посвідчення',
+               greencard:'зелена карта', other:'інше' };
+  var h = '<div class="card" style="margin:10px 0;border:1px solid var(--lime,#C6F32C)">';
+
+  h += '<div class="sect" style="margin-bottom:4px">' + esc(r.name || 'Без імені') +
+       (r.nick ? ' · @' + esc(r.nick) : '') + '</div>';
+
+  h += '<div class="rw"><div class="lb">Telegram ID</div>' +
+       '<b><code>' + esc(r.id) + '</code>' +
+       '<button class="btn sec" style="padding:4px 10px;margin-left:8px;font-size:11px" ' +
+       'onclick="pCopy(\'' + esc(r.id) + '\')">копіювати</button></b></div>';
+
+  h += listRows([
+    ['Преміум', r.pro ? 'до ' + esc(r.until) : (r.lapsed ? 'сплив ' + esc(r.until) : 'немає'),
+      r.paid ? 'оплат: ' + r.paid : 'ніколи не платив'],
+    ['Активність', r.live === 'week' ? 'цього тижня' : r.live === 'month' ? 'цього місяця' : 'спить',
+      'востаннє ' + esc(r.last || '—')],
+    ['Звідки прийшов', r.refBy ? 'за посиланням' : 'сам',
+      r.refBy ? 'запросив ' + esc(r.refBy) : ''],
+    ['Привів інших', nfm(r.refCount), r.refCount ? 'це ' + (r.refCount * 30) + ' днів Преміуму' : ''],
+    ['З нами з', esc(r.created), ''],
+  ]);
+
+  if (r.carList && r.carList.length) {
+    h += '<div class="lb" style="margin:14px 0 6px">Авто</div>';
+    h += r.carList.map(function (c) {
+      return '<div class="rw"><div class="lb">' + esc(c.name) +
+        '<small>' + (c.plate ? esc(c.plate) + ' · ' : '') +
+        (FUEL[c.fuel] || '') + '</small></div><b>' + nfm(c.odo) + ' км</b></div>';
+    }).join('');
+  }
+
+  h += '<div class="lb" style="margin:14px 0 6px">Що назбирав</div>' +
+    listRows([
+      ['Сервісна книжка', nfm(r.service), ''],
+      ['Заправки', nfm(r.fuelN), ''],
+      ['Витрати', nfm(r.exp), ''],
+      ['Штрафи', nfm(r.fines), ''],
+      ['Нагадування', nfm(r.rem), ''],
+      ['Документи', nfm(r.docs),
+        (r.docKinds && r.docKinds.length
+          ? r.docKinds.slice(0, 4).map(function (k) { return DOCS[k] || k; }).join(', ') : '')],
+      ['Перевірок VIN', nfm(r.vin), ''],
+      ['Звітів PDF', nfm(r.reports), ''],
+      ['Кнопка «Дія»', r.token ? 'увімкнена' : 'ні', 'ярлик на iPhone'],
+    ]);
+
+  if (r.vDay || r.aDay) {
+    h += listRows([['Сьогодні використав', 'голос ' + r.vDay + ' · питань ' + r.aDay,
+      'межа 300 і 200 на добу']]);
+  }
+
+  h += '<div class="lb" style="margin:14px 0 7px">Преміум</div>' +
+    '<div class="quickrow">' +
+      '<button class="btn sec" onclick="pGrant(\'' + esc(r.id) + '\',30)">+ місяць</button>' +
+      '<button class="btn sec" onclick="pGrant(\'' + esc(r.id) + '\',182)">+ півроку</button>' +
+      '<button class="btn sec" onclick="pGrant(\'' + esc(r.id) + '\',365)">+ рік</button>' +
+    '</div>' +
+    '<button class="btn sec" style="margin-top:8px" onclick="pRevoke(\'' + esc(r.id) + '\')">' +
+    'Забрати Преміум</button>' +
+    '<div id="pAct"></div>' +
+    '<button class="btn sec" style="margin-top:8px" onclick="pClose()">Згорнути</button>';
+
+  return h + '</div>';
+}
+
+function pCopy(id) {
+  try {
+    navigator.clipboard.writeText(id);
+    $('#pAct').innerHTML = '<div class="msg ok">ID скопійовано</div>';
+  } catch (e) {
+    var t = document.createElement('textarea');
+    t.value = id; document.body.appendChild(t); t.select();
+    try { document.execCommand('copy'); } catch (x) {}
+    t.remove();
+    $('#pAct').innerHTML = '<div class="msg ok">ID скопійовано</div>';
+  }
+}
+
+function pGrant(id, days) {
+  var out = $('#pAct');
+  if (out) out.innerHTML = '<div class="msg inf">Видаю…</div>';
+  post('/admin/grant', { tgId: id, days: days }).then(function (d) {
+    if (out) out.innerHTML = '<div class="msg ' + (d.ok ? 'ok' : 'er') + '">' +
+      esc(d.ok ? 'Готово, Преміум до ' + (d.until || '') : (d.error || 'Не вдалося')) + '</div>';
+    if (d.ok) { people(); stats(); }
+  }).catch(function () { if (out) out.innerHTML = '<div class="msg er">Сервер не відповідає.</div>'; });
+}
+
+function pRevoke(id) {
+  if (!confirm('Забрати Преміум у цієї людини?')) return;
+  var out = $('#pAct');
+  if (out) out.innerHTML = '<div class="msg inf">Забираю…</div>';
+  post('/admin/revoke', { tgId: id }).then(function (d) {
+    if (out) out.innerHTML = '<div class="msg ' + (d.ok ? 'ok' : 'er') + '">' +
+      esc(d.ok ? 'Преміум знято' : (d.error || 'Не вдалося')) + '</div>';
+    if (d.ok) { people(); stats(); }
+  }).catch(function () { if (out) out.innerHTML = '<div class="msg er">Сервер не відповідає.</div>'; });
+}
+
+function pClose() { P_OPEN = null; pDraw(); }
+
 function pPick(id) {
-  ['gid', 'uid', 'rsTg'].forEach(function (k) { if ($('#' + k)) $('#' + k).value = id; });
-  if ($('#uLook')) $('#uLook').click();
-  var box = $('#pOut');
-  if (box) box.innerHTML = '<div class="msg inf">Взяв ID ' + esc(id) +
-    ' — він підставлений у поля нижче.</div>';
+  P_OPEN = (P_OPEN === id) ? null : id;
+  ['gid', 'uid'].forEach(function (k) { if ($('#' + k)) $('#' + k).value = id; });
+  pDraw();
 }
 
 function pDraw() {
   var box = $('#pBox'); if (!box) return;
   if (!P_ROWS.length) { box.innerHTML = '<div class="note">Нікого не знайшлось.</div>'; return; }
   box.innerHTML = '<div class="lb" style="margin-bottom:6px">Показано ' + P_ROWS.length +
-    (P_CUR ? ' — є ще' : '') + '</div>' + P_ROWS.map(personCard).join('');
+    (P_CUR ? ' — є ще' : '') + '</div>' +
+    P_ROWS.map(function (r) {
+      return personCard(r) + (P_OPEN === r.id ? pFull(r) : '');
+    }).join('');
 }
 
 function people(more) {
@@ -1171,6 +1292,45 @@ function paysClear() {
 }
 
 /* Звіт файлом — щоб можна було глянути спокійно або переслати. */
+/* Резервна копія: вантажимо сторінками й складаємо в один файл.
+   Читання нічого не змінює, тож натискати можна скільки завгодно. */
+function backup() {
+  var out = $('#bkOut');
+  var all = [], cur = null, pages = 0;
+  if (out) out.innerHTML = '<div class="msg inf">Збираю…</div>';
+
+  function step() {
+    post('/admin/backup', { cursor: cur }).then(function (d) {
+      if (!d.ok) {
+        if (out) out.innerHTML = '<div class="msg er">' + esc(d.error || 'Не вдалося') + '</div>';
+        return;
+      }
+      all = all.concat(d.rows || []);
+      pages++;
+      if (out) out.innerHTML = '<div class="msg inf">Зібрано записів: ' + all.length + '…</div>';
+      if (d.cursor && pages < 300) { cur = d.cursor; step(); return; }
+
+      var payload = { зібрано: d.at, версія: d.version, записів: all.length, дані: all };
+      var name = 'bardachok-копія-' + new Date().toISOString().slice(0, 16).replace(':', '-') + '.json';
+      try {
+        var a = document.createElement('a');
+        a.href = URL.createObjectURL(new Blob([JSON.stringify(payload)],
+          { type: 'application/json' }));
+        a.download = name;
+        document.body.appendChild(a); a.click();
+        setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+        if (out) out.innerHTML = '<div class="msg ok">Збережено: ' + name +
+          ' · записів ' + all.length + '. Покладіть у надійне місце.</div>';
+      } catch (e) {
+        if (out) out.innerHTML = '<div class="msg er">Не вдалось зберегти файл.</div>';
+      }
+    }).catch(function () {
+      if (out) out.innerHTML = '<div class="msg er">Сервер не відповідає.</div>';
+    });
+  }
+  step();
+}
+
 /* Звіт відкривається як документ у сусідній вкладці — там його видно
    нормально і звідти ж друкується в PDF. Або зберігається файлом. */
 function report(save) {
