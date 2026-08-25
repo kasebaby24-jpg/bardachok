@@ -8,7 +8,7 @@
 <title>Бардачок — керування</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<link rel="stylesheet" href="styles.css?v=20260825-1000">
+<link rel="stylesheet" href="styles.css?v=20260825-1100">
 <style>
   body{overflow:auto}
   .wrap{max-width:620px;margin:0 auto;padding:26px 16px 60px}
@@ -92,7 +92,8 @@
     <button data-t="t-tech">Техніка</button>
   </div>
   <div class="msg inf" id="info">Завантаження…</div>
-  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260825-1000</div>
+  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260825-1100</div>
+  <div id="topStrip"></div>
 
   <div class="pane on" id="t-home">
   <div id="stCount"></div>
@@ -1295,6 +1296,25 @@ function loadCard(u) {
    «нічого не понятно». */
 function drawTech(d) {
   var u = d.usage || null;
+
+  /* Смужка вгорі — відповідь на «за що коли платити і скільки ресурсу є»
+     з будь-якої вкладки, без гортання. */
+  var strip = $('#topStrip');
+  if (strip) {
+    var ai2 = (u && u.ai) || null;
+    var due2 = billsDue();
+    var parts = [];
+    if (due2.length) parts.push('💳 ' + esc(due2[0].b.name) + ' ' + due2[0].b.sum +
+      ' ' + due2[0].b.cur + ' — ' + dayTxt(due2[0].left));
+    if (ai2 && ai2.fund) parts.push('🧠 ШІ $' + (ai2.left || 0).toFixed(2) +
+      (ai2.daysLeft !== null && ai2.daysLeft !== undefined ? ' (' + ai2.daysLeft + ' дн.)' : ''));
+    else if (ai2) parts.push('🧠 ШІ: сьогодні $' + (ai2.todaySpent || 0).toFixed(2));
+    if (u) parts.push('💾 памʼять ' + pctTxt(u.pct.store));
+    if (u) parts.push('⚙️ тариф ' + pctTxt(u.worst));
+    strip.innerHTML = parts.length
+      ? '<div class="note" style="margin-top:6px;line-height:1.7">' + parts.join(' · ') + '</div>'
+      : '';
+  }
 
   /* --- гроші --- */
   var mBox = $('#techMoney');

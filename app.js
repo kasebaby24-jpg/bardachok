@@ -13,7 +13,7 @@ var API = 'https://bardachok.kasebaby24.workers.dev';
 var QR_FOR = 'TWqHKxsLAdGMPC7kY4i3r2GQxNJ2U6vQXv';   // до цієї адреси намальовано usdt-qr.png
 var USDT_CONTRACT = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';   // USDT у мережі TRON
 
-var BUILD = '20260825-1000';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
+var BUILD = '20260825-1100';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
 var BOOT_T0 = Date.now();
 
 var tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
@@ -285,8 +285,12 @@ function api(path, body, ms) {
   return new Promise(function (resolve) {
     timer = setTimeout(function () {
       try { ctl.abort(); } catch (e) {}
+      /* Щоб «часом не відповідає» перестало бути здогадкою: кожен обрив
+         лягає в журнал помилок, і в панелі видно, на якому саме запиті. */
+      reportErr({ message: 'не дочекались відповіді за ' + Math.round((ms || 40000) / 1000) + ' с' },
+                'запит ' + path);
       resolve({ ok: false, error: 'Сервер не відповідає. Спробуйте ще раз.' });
-    }, ms || 25000);
+    }, ms || 40000);
     p.then(function (d) { clearTimeout(timer); resolve(d); },
            function () { clearTimeout(timer); resolve({ ok: false, error: 'Немає звʼязку з сервером.' }); });
   });
@@ -4627,7 +4631,16 @@ var DO = {
     var kind = on ? on.dataset.v : 'other';
     act({ action: 'addService', kind: kind, title: val('sTitle') || KIND_UA[kind],
           cost: numv('sCost') || 0, cur: pickedCur('sCur'),
-          odo: dIn(val('sOdo')), date: val('sDate') }, closeSheet);
+          odo: dIn(val('sOdo')), date: val('sDate') }, function () {
+      closeSheet();
+      /* Одразу відкриваємо картку щойно збереженого запису: інакше людина
+         не здогадується, що до ремонту можна додати фото — саме це й
+         сталось. Якщо запис поки лежить у черзі (сервер не відповів),
+         картку не відкриваємо: фото прикріпляти ще нема до чого. */
+      if (qCount()) return;
+      var r = (S.service || [])[0];
+      if (r) setTimeout(function () { srvOpen(r.id); }, 260);
+    });
   },
 
   expense: function () {
