@@ -13,7 +13,7 @@ var API = 'https://bardachok.kasebaby24.workers.dev';
 var QR_FOR = 'TWqHKxsLAdGMPC7kY4i3r2GQxNJ2U6vQXv';   // до цієї адреси намальовано usdt-qr.png
 var USDT_CONTRACT = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';   // USDT у мережі TRON
 
-var BUILD = '20260825-0500';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
+var BUILD = '20260825-0700';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
 var BOOT_T0 = Date.now();
 
 var tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
@@ -474,6 +474,9 @@ var PRO_WHY = {
   docs:   ['Документи', 'Скільки завгодно знімків замість одного.'],
   cars:   ['Кілька авто', 'Хоч увесь автопарк в одному гаражі.'],
   photo:  ['Фото до ремонтів', 'До чотирьох знімків на кожен запис — і всі йдуть у звіт покупцю.'],
+  lamp:   ['Значок з приборки', 'Сфоткали панель — за секунди знаєте, панікувати чи ні.'],
+  valuate:['Скільки коштує авто', 'Чесна оцінка й що можна взяти натомість у цій же ціні.'],
+  parts:  ['Запчастини й аналоги', 'Оригінал чи аналог, який точно підійде і коштує втричі менше.'],
 };
 
 function needPro(what) {
@@ -1246,6 +1249,13 @@ function drawService() {
     '<button class="btn sec" data-do="odo">Пробіг</button>' +
     '<button class="btn" data-do="service">Додати запис</button></div>';
 
+  h += '<div class="askcard" data-do="parts">' +
+    '<div class="askcard-ic">' + ic('wrench', 20) + '</div>' +
+    '<div class="tx"><b>Потрібна запчастина?</b>' +
+    '<p>' + (PRO ? 'Покажу оригінал і аналоги, які точно підійдуть, з цінами'
+                 : 'Оригінал чи аналог — з цінами. Відкрийте в Преміумі') + '</p></div>' +
+    '<div class="go">' + ic('back', 16) + '</div></div>';
+
   h += reglCard(car);
 
   var recs = (S.service || []).filter(function (r) { return r.carId === car.id; });
@@ -1506,6 +1516,9 @@ function drawMore() {
   }
 
   h += '<div class="h2">Інструменти</div><div class="card list">' +
+    itemBtn('alert', 'Горить значок на панелі', 'Сфоткайте — скажу, що це', 'do:lamp', !PRO && !!S.lampUsed) +
+    itemBtn('money', 'Скільки коштує авто', 'Оцінка й що взяти натомість', 'do:valuate', !PRO) +
+    itemBtn('wrench', 'Запчастини й аналоги', 'Оригінал чи аналог — з цінами', 'do:parts', !PRO) +
     itemBtn('search', 'Перевірка по VIN', 'Що це за авто насправді', 'tab:s-vin', !PRO && !vinFree()) +
     itemBtn('chat', 'Голосове внесення', 'Надиктували боту — записалось', 'tab:s-voice', !PRO) +
     itemBtn('chat', 'Питання про авто', 'Стукає, гріється, не заводиться', 'tab:s-ask', !PRO) +
@@ -1772,7 +1785,14 @@ function drawAsk() {
       '</button>' +
     '</div>';
 
-  el.innerHTML = head + body + bar +
+  /* Два найчастіші питання водія винесені кнопками: інакше про них
+     дізнаються тільки ті, хто гортає меню «Ще». */
+  var tools = '<div class="quick" style="grid-template-columns:1fr 1fr;margin:0 0 12px">' +
+    '<button data-do="lamp">' + ic('alert', 20) + 'Горить значок</button>' +
+    '<button data-do="valuate">' + ic('money', 20) + 'Скільки коштує</button>' +
+    '</div>';
+
+  el.innerHTML = head + tools + body + bar +
     (PRO ? '' : '<div class="note">Питання про авто — у Преміумі. Напишіть — покажу, що це дає.</div>') +
     '<div class="note">Це підказка, а не діагноз — механік бачить авто, я ні.</div>';
 
@@ -3004,6 +3024,230 @@ function phOpen(id) {
 }
 
 /* ------------------------------------------------------------------ */
+/* ЗНАЧОК НА ПРИБОРЦІ, ОЦІНКА АВТО, ЗАПЧАСТИНИ                         */
+/* ------------------------------------------------------------------ */
+/* Три речі, заради яких люди і ставлять такий застосунок: «загорілось —
+   панікувати чи ні», «скільки за неї дадуть» і «що взяти замість
+   оригіналу». Усі три працюють через сервер, знімок значка ніде не
+   зберігається. */
+var LAMP_BUSY = false;
+
+var SEV_UA = {
+  stop:    ['Зупиніться', 'bad',  'Далі їхати не можна — можна вбити двигун.'],
+  service: ['У сервіс найближчими днями', 'warn', 'Доїхати можна, але не відкладайте.'],
+  watch:   ['Можна їхати, але стежте', 'ink2', 'Терміновості немає.'],
+  info:    ['Це не поломка', 'good', 'Просто повідомлення від авто.'],
+};
+
+function lampShoot() {
+  if (LAMP_BUSY) return;
+  pickImageFile('lampFile', function (file, done) {
+    LAMP_BUSY = true;
+    openSheet('Дивлюсь на знімок',
+      '<div class="empty" style="padding:26px 0">Розбираю, що там загорілось…</div>');
+    shrinkImage(file, function (data) {
+      if (!data) {
+        LAMP_BUSY = false; done();
+        openSheet('Не вийшло', '<div class="msg er">Не вдалося прочитати знімок.</div>' +
+          '<button class="btn" data-do="lamp">Спробувати ще раз</button>');
+        return;
+      }
+      api('/api/lamp', { data: data }).then(function (d) {
+        LAMP_BUSY = false; done();
+        if (!d.ok) {
+          if (d.error === 'premium') { needPro('lamp'); return; }
+          openSheet('Не вийшло',
+            '<div class="msg er">' + esc(d.message || d.error || 'Сервер відмовив') + '</div>' +
+            '<button class="btn" data-do="lamp">Сфотографувати ще раз</button>' +
+            '<button class="btn sec" data-close="1">Закрити</button>');
+          return;
+        }
+        haptic('medium');
+        lampShow(d.lamp, d.freeUsed);
+      }).catch(function () {
+        LAMP_BUSY = false; done();
+        openSheet('Немає звʼязку', '<div class="msg er">Сервер не відповів.</div>' +
+          '<button class="btn" data-do="lamp">Спробувати ще раз</button>');
+      });
+    });
+  });
+}
+
+function lampShow(L, freeUsed) {
+  if (!L || L.known === false) {
+    openSheet('Не розібрав',
+      '<p style="margin:0 0 14px;font-size:14px;color:var(--ink2);line-height:1.6">' +
+      esc(L && L.means ? L.means : 'На знімку не видно значка.') + '</p>' +
+      '<div class="note" style="margin-top:0">Сфотографуйте панель ближче, без відблисків, ' +
+      'щоб значок було добре видно.</div>' +
+      '<button class="btn" data-do="lamp">Спробувати ще раз</button>' +
+      '<button class="btn sec" data-close="1">Закрити</button>');
+    return;
+  }
+  var sev = SEV_UA[L.severity] || SEV_UA.watch;
+  var col = sev[1] === 'bad' ? 'var(--bad)' : sev[1] === 'warn' ? 'var(--warn)'
+          : sev[1] === 'good' ? 'var(--good)' : 'var(--ink2)';
+
+  var h = '<div class="card" style="border:1.5px solid ' + col + ';margin-bottom:12px">' +
+    '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">' +
+      '<div class="ic-box" style="width:36px;height:36px;flex:0 0 36px">' + ic('alert', 18) + '</div>' +
+      '<b style="font-size:16px;font-weight:700;line-height:1.25">' + esc(L.name || 'Значок') + '</b>' +
+    '</div>' +
+    '<div style="font-family:var(--disp);font-weight:800;font-size:17px;color:' + col + '">' +
+      esc(sev[0]) + '</div>' +
+    '<p style="margin:6px 0 0;font-size:13px;color:var(--mut);line-height:1.5">' + esc(sev[2]) + '</p>' +
+    '</div>';
+
+  if (L.means) h += '<p style="margin:0 0 14px;font-size:14px;color:var(--ink2);line-height:1.6">' +
+    esc(L.means) + '</p>';
+
+  if (L.todo) h += '<div class="alert' + (L.severity === 'stop' ? ' hot' : '') + '">' +
+    '<div class="ic">' + ic('check', 18) + '</div><div class="bd"><b>Що зробити зараз</b>' +
+    '<p>' + esc(L.todo) + '</p></div></div>';
+
+  if (L.causes && L.causes.length) {
+    h += '<div class="h2">Найімовірніші причини</div><div class="card list">' +
+      L.causes.slice(0, 5).map(function (c, i) {
+        return '<div class="it" style="cursor:default"><div class="dt">' + (i + 1) + '</div>' +
+          '<div class="tx"><b style="font-weight:500;font-size:13.5px">' + esc(c) + '</b></div></div>';
+      }).join('') + '</div>';
+  }
+
+  if (L.cost) h += '<div class="kv" style="margin-top:12px"><span>Скільки це коштує</span>' +
+    '<b>' + esc(L.cost) + '</b></div>';
+
+  h += '<button class="btn sec" style="margin-top:12px" data-do="lampAsk">Спитати помічника детальніше</button>';
+  h += '<button class="btn sec" data-do="lamp">Інший значок</button>';
+  if (freeUsed && !PRO) h += '<div class="note">Це був безкоштовний розбір. ' +
+    'Наступні значки — у Преміумі.</div>';
+  h += '<div class="note" style="margin-bottom:0">Це підказка, а не діагноз: ' +
+    'механік бачить авто, я — лише знімок панелі.</div>';
+
+  LAST_LAMP = L;
+  openSheet(esc(L.name || 'Значок на панелі'), h);
+}
+
+var LAST_LAMP = null;
+
+/* ---- скільки коштує авто ---- */
+function valuate() {
+  openSheet('Рахую', '<div class="empty" style="padding:26px 0">Дивлюсь на ринок і вашу книжку…</div>');
+  api('/api/valuate', {}).then(function (d) {
+    if (!d.ok) {
+      if (d.error === 'premium') { needPro('valuate'); return; }
+      openSheet('Не вийшло', '<div class="msg er">' + esc(d.message || d.error || '') + '</div>' +
+        '<button class="btn sec" data-close="1">Закрити</button>');
+      return;
+    }
+    var V = d.val;
+    var car = activeCar();
+    var h = '<div class="hero" style="margin-bottom:14px">' +
+      '<div class="hero-top"><span>' + esc(carName(car)) + '</span>' + ic('money', 18) + '</div>' +
+      '<b style="font-size:26px;line-height:1.15">$' + nfmt(V.low) + ' – $' + nfmt(V.high) + '</b>' +
+      '<p style="margin:6px 0 0;font-size:12.5px;opacity:.75">приблизно стільки дають за таку зараз</p>' +
+      '</div>';
+
+    if (V.why && V.why.length) {
+      h += '<div class="h2">Що впливає на ціну</div><div class="card list">' +
+        V.why.map(function (w) {
+          return '<div class="it" style="cursor:default"><div class="dt">' + ic('chart', 16) + '</div>' +
+            '<div class="tx"><b style="font-weight:500;font-size:13.5px">' + esc(w) + '</b></div></div>';
+        }).join('') + '</div>';
+    }
+    if (V.boost && V.boost.length) {
+      h += '<div class="h2">Щоб узяти більше</div><div class="card list">' +
+        V.boost.map(function (w) {
+          return '<div class="it" style="cursor:default"><div class="dt">' + ic('plus', 16) + '</div>' +
+            '<div class="tx"><b style="font-weight:500;font-size:13.5px">' + esc(w) + '</b></div></div>';
+        }).join('') + '</div>';
+    }
+    if (V.alts && V.alts.length) {
+      h += '<div class="h2">Що можна взяти натомість</div><div class="card list">' +
+        V.alts.map(function (a) {
+          return '<div class="it" style="cursor:default"><div class="dt">' + ic('car', 17) + '</div>' +
+            '<div class="tx"><b>' + esc(a.name) + '</b><small>' + esc(a.why || '') + '</small></div>' +
+            '<div class="vl" style="font-size:12px">' + esc(a.price || '') + '</div></div>';
+        }).join('') + '</div>';
+    }
+    h += '<div class="note">' + esc(V.note || 'Це орієнтир, а не оцінка експерта: ' +
+      'реальна ціна залежить від стану кузова й того, як швидко ви хочете продати.') + '</div>';
+    h += '<button class="btn sec" data-go="tab:s-report">Зробити звіт для покупця</button>';
+    openSheet('Скільки коштує авто', h);
+  }).catch(function () {
+    openSheet('Немає звʼязку', '<div class="msg er">Сервер не відповів.</div>' +
+      '<button class="btn sec" data-close="1">Закрити</button>');
+  });
+}
+
+/* ---- запчастини: оригінал і аналоги ---- */
+var PART_HINTS = ['Передні гальмівні колодки', 'Масляний фільтр', 'Повітряний фільтр',
+                  'Свічки запалювання', 'Амортизатори передні', 'Ремінь ГРМ з роликами',
+                  'Стійки стабілізатора', 'Лампа ближнього світла'];
+
+function partsAsk() {
+  var car = activeCar();
+  if (!car) { toast('Спочатку додайте авто'); return; }
+  openSheet('Потрібна запчастина',
+    '<p style="margin:0 0 12px;font-size:13.5px;color:var(--ink2);line-height:1.55">' +
+    'Напишіть, що саме потрібно для ' + esc(carName(car)) + '. Покажу оригінал і аналоги, ' +
+    'які точно підійдуть, з цінами.</p>' +
+    fld('pWhat', 'Що потрібно', { ph: 'напр. передні гальмівні колодки', max: 120 }) +
+    '<div class="hints" style="margin-bottom:12px">' + PART_HINTS.map(function (x) {
+      return '<button class="hint" data-do="partHint" data-q="' + esc(x) + '">' + esc(x) + '</button>';
+    }).join('') + '</div>' +
+    '<button class="btn" data-do="partsGo">Підібрати</button>' +
+    (car.vin ? '' : '<div class="note" style="margin-bottom:0">VIN не вказано — ' +
+      'підбір буде приблизним. Впишіть VIN у картці авто, і стане точніше.</div>'));
+}
+
+function partsGo(what) {
+  what = (what || val('pWhat') || '').trim();
+  if (what.length < 2) { toast('Напишіть, що потрібно'); return; }
+  openSheet('Шукаю', '<div class="empty" style="padding:26px 0">Підбираю під ваше авто…</div>');
+  api('/api/parts', { what: what }).then(function (d) {
+    if (!d.ok) {
+      if (d.error === 'premium') { needPro('parts'); return; }
+      openSheet('Не вийшло', '<div class="msg er">' + esc(d.message || d.error || '') + '</div>' +
+        '<button class="btn sec" data-do="parts">Спробувати інакше</button>');
+      return;
+    }
+    var P = d.parts;
+    var h = '<div class="kv"><span>Деталь</span><b>' + esc(P.part || what) + '</b></div>';
+    h += '<div class="kv"><span>Артикул оригіналу</span><b>' +
+      (P.oem ? esc(P.oem) : 'звірте за VIN') + '</b></div>';
+
+    h += '<div class="h2">Що ставити</div><div class="card list">' +
+      (P.options || []).map(function (o) {
+        var t = String(o.tier || '');
+        var col = t.indexOf('оригінал') > -1 ? 'var(--lime)'
+                : t.indexOf('бюджет') > -1 ? 'var(--mut)' : 'var(--ink2)';
+        return '<div class="it" style="cursor:default"><div class="dt">' + ic('wrench', 16) + '</div>' +
+          '<div class="tx"><b>' + esc(o.brand || '') + '</b><small style="color:' + col + '">' +
+          esc(t) + (o.note ? ' · ' + esc(o.note) : '') + '</small></div>' +
+          '<div class="vl" style="font-size:12px">' + esc(o.price || '') + '</div></div>';
+      }).join('') + '</div>';
+
+    if (P.check && P.check.length) {
+      h += '<div class="h2">Уточніть перед покупкою</div><div class="card list">' +
+        P.check.map(function (c) {
+          return '<div class="it" style="cursor:default"><div class="dt">' + ic('check', 16) + '</div>' +
+            '<div class="tx"><b style="font-weight:500;font-size:13.5px">' + esc(c) + '</b></div></div>';
+        }).join('') + '</div>';
+    }
+    if (P.diy) h += '<div class="alert"><div class="ic">' + ic('wrench', 18) + '</div>' +
+      '<div class="bd"><b>Чи можна самому</b><p>' + esc(P.diy) + '</p></div></div>';
+    if (P.warn) h += '<div class="note">' + esc(P.warn) + '</div>';
+    h += '<div class="note" style="margin-bottom:0">Артикул обовʼязково звіряйте з продавцем ' +
+      'за VIN: на одну модель бувають різні деталі залежно від року й комплектації.</div>';
+    h += '<button class="btn sec" style="margin-top:12px" data-do="parts">Інша запчастина</button>';
+    openSheet('Запчастини', h);
+  }).catch(function () {
+    openSheet('Немає звʼязку', '<div class="msg er">Сервер не відповів.</div>' +
+      '<button class="btn sec" data-close="1">Закрити</button>');
+  });
+}
+
+/* ------------------------------------------------------------------ */
 /* НАГАДУВАННЯ                                                         */
 /* Усе, чого немає в стандартних строках: ТО, ГРМ, кредит, техогляд.   */
 /* ------------------------------------------------------------------ */
@@ -4169,6 +4413,26 @@ var DO = {
   welNext: function () { WEL = Math.min(WEL + 1, WELCOME.length - 1); drawWelcome(); haptic('light'); },
   welBack: function () { WEL = Math.max(0, WEL - 1); drawWelcome(); },
   welDone: function () { closeSheet(); DIRTY = {}; render(); },
+
+  lamp:    function () { lampShoot(); },
+  lampAsk: function () {
+    /* Переносимо розбір значка в чат помічника — там можна перепитати.
+       Питання вписуємо в поле й тиснемо ту саму кнопку, що й людина:
+       окремого шляху надсилання немає, щоб не розійшлись поведінкою. */
+    var L = LAST_LAMP || {};
+    closeSheet();
+    show('s-ask');
+    var q = 'На панелі загорівся значок: ' + (L.name || 'невідомий') +
+            (L.means ? ' (' + L.means + ')' : '') + '. Що робити далі?';
+    setTimeout(function () {
+      var el = document.getElementById('askIn');
+      if (el) { el.value = q; DO.askGo(); }
+    }, 60);
+  },
+  valuate: function () { valuate(); },
+  parts:   function () { partsAsk(); },
+  partsGo: function () { partsGo(); },
+  partHint: function (t) { partsGo(t.dataset.q); },
 
   srvOpen: function (t) { srvOpen(t.dataset.id); },
   phAdd:   function (t) { phAdd(t.dataset.id); },
