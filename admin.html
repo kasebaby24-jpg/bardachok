@@ -8,7 +8,7 @@
 <title>Бардачок — керування</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<link rel="stylesheet" href="styles.css?v=20260825-1300">
+<link rel="stylesheet" href="styles.css?v=20260825-1400">
 <style>
   body{overflow:auto}
   .wrap{max-width:620px;margin:0 auto;padding:26px 16px 60px}
@@ -123,7 +123,7 @@
     <button data-t="t-set">Налашт.</button>
   </div>
   <div class="msg inf" id="info">Завантаження…</div>
-  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260825-1300</div>
+  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260825-1400</div>
   <div id="topStrip"></div>
 
   <div class="pane on" id="t-home">
@@ -1416,6 +1416,9 @@ function drawTech(d) {
         ['Модель для відповідей', modelUa, 'помічник, оцінка, запчастини'],
         ['Модель для фото значка', visUa, 'там якість вирішує'],
       ]);
+      h += '<div class="note" style="margin:0 0 6px">У консолі Anthropic сума може бути ' +
+        'трохи більшою: там рахується ще й те, що ви робите руками в їхньому Playground, ' +
+        'і округлення до центів.</div>';
       h += '<div class="note" style="margin:0 0 14px">Коли межа на добу вибрана або ' +
         'гроші скінчились, помічник <b>не ламається</b> — переходить на безкоштовну ' +
         'модель Cloudflare, а вам приходить повідомлення в бот. ' +
