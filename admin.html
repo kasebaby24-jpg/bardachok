@@ -8,7 +8,7 @@
 <title>Бардачок — керування</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<link rel="stylesheet" href="styles.css?v=20260825-1900">
+<link rel="stylesheet" href="styles.css?v=20260825-2000">
 <style>
   body{overflow:auto}
   .wrap{max-width:620px;margin:0 auto;padding:26px 16px 60px}
@@ -123,7 +123,7 @@
     <button data-t="t-set">Налашт.</button>
   </div>
   <div class="msg inf" id="info">Завантаження…</div>
-  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260825-1900</div>
+  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260825-2000</div>
   <div id="topStrip"></div>
 
   <div class="pane on" id="t-home">
@@ -1534,6 +1534,24 @@ function drawAna(st, d) {
     }).join('') + '</div>';
 
   /* Сарафанка. Найдешевший канал росту — і найважливіше, чи він узагалі йде. */
+  /* Стан акції — прямо тут, живими цифрами. Власник питав «чому її вже
+     немає», не маючи як перевірити. */
+  var rg = d.refGift;
+  if (rg) {
+    h += listRows([[
+      'Місяць за друга',
+      rg.on ? 'діє' : 'вимкнено',
+      rg.limit
+        ? (rg.on
+            ? 'працює, поки людей менше за ' + nfm(rg.limit) + ' · зараз ' + nfm(rg.users)
+            : 'людей ' + nfm(rg.users) + ' — межу ' + nfm(rg.limit) + ' пройдено')
+        : 'межі немає — діє завжди',
+    ]]);
+    h += '<div class="note" style="margin:0 0 4px">Подарунок бачать лише новачки: ' +
+      'хто вже має або мав Преміум (у тому числі ви), блок у застосунку не бачить — ' +
+      'їм місяць однаково не нарахується.</div>';
+  }
+
   h += fold('Як росте сарафанка', 'скільки приходить за посиланнями', '' +
     '<div class="note" style="margin:0 0 9px">Скільки людей прийшло за чиїмось ' +
     'посиланням і скільки взагалі запрошують. Якщо друга цифра мала — ' +
