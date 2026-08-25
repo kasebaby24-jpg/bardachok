@@ -13,7 +13,7 @@ var API = 'https://bardachok.kasebaby24.workers.dev';
 var QR_FOR = 'TWqHKxsLAdGMPC7kY4i3r2GQxNJ2U6vQXv';   // до цієї адреси намальовано usdt-qr.png
 var USDT_CONTRACT = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';   // USDT у мережі TRON
 
-var BUILD = '20260825-1200';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
+var BUILD = '20260825-1300';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
 var BOOT_T0 = Date.now();
 
 var tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
@@ -1171,13 +1171,6 @@ function drawHome() {
 
   h += refBlock();
 
-  /* Тиха подяка: рядок унизу головного екрана, без сум і без банера.
-     Поки гаманець не вказано в налаштуваннях — його просто немає. */
-  if (CFG.usdt) {
-    h += '<button class="tipline" data-do="tip">' + ic('heart', 13) +
-         'Підтримати розробника</button>';
-  }
-
   el.innerHTML = h;
 }
 
@@ -1600,12 +1593,15 @@ function drawMore() {
       '<button class="btn" data-do="support">Написати в підтримку</button></div>';
   }
 
-  h += '<div class="card" style="margin-top:12px"><div class="card-h"><b>Підтримати розробника</b>' +
-    '<span>за бажанням</span></div>' +
-    '<p style="margin:0 0 12px;font-size:12.5px;color:var(--mut);line-height:1.5">' +
-    'Бардачок робить одна людина. Якщо застосунок вам допоміг — можна закинути ' +
-    'скільки не шкода. Це не підписка й нічого не відкриває, просто дякую.</p>' +
-    '<button class="btn sec" data-do="tip">Закинути на каву</button></div>';
+  /* Подяка — тихим рядком у самому кінці меню. Картка на пів екрана
+     виглядала як прохання, а це має бути можливість, не більше. */
+  if (CFG.usdt) {
+    h += '<div class="card list" style="margin-top:12px">' +
+      '<button class="it" data-do="tip"><div class="dt">' + ic('heart', 16) + '</div>' +
+      '<div class="tx"><b style="font-weight:500">Підтримати розробника</b>' +
+      '<small>за бажанням, нічого не відкриває</small></div>' +
+      '<div class="ar">›</div></button></div>';
+  }
 
   h += '<div class="note" style="text-align:center;opacity:.5">Версія ' + BUILD + '</div>';
 
@@ -2262,6 +2258,10 @@ function checkNews() {
   if (seen('nw_' + n.id)) return;
   setTimeout(function () {
     if (!$('#sheet').classList.contains('hidden')) return;   // не перебиваємо відкрите вікно
+    /* Позначаємо ще до показу. Раніше мітка ставилась лише кнопкою
+       «Зрозуміло», і той, хто закривав вікно хрестиком або свайпом,
+       бачив ті самі сторіз при кожному запуску. */
+    markSeen('nw_' + n.id);
     newsShow();
   }, 900);
 }
@@ -3291,13 +3291,20 @@ function partsGo(what) {
     h += '<div class="h2">Що ставити</div><div class="card list wrap">' +
       (P.options || []).map(function (o) {
         var t = String(o.tier || '');
-        var col = t.indexOf('оригінал') > -1 ? 'var(--lime)'
+        var col = t.indexOf('заводськ') > -1 ? 'var(--good)'
+                : t.indexOf('оригінал') > -1 ? 'var(--lime)'
                 : t.indexOf('бюджет') > -1 ? 'var(--mut)' : 'var(--ink2)';
         return '<div class="it" style="cursor:default"><div class="dt">' + ic('wrench', 16) + '</div>' +
           '<div class="tx"><b>' + esc(o.brand || '') + '</b><small style="color:' + col + '">' +
           esc(t) + (o.note ? ' · ' + esc(o.note) : '') + '</small></div>' +
           '<div class="vl" style="font-size:12px">' + esc(o.price || '') + '</div></div>';
       }).join('') + '</div>';
+
+    if (P.best) h += '<div class="alert"><div class="ic">' + ic('check', 18) + '</div>' +
+      '<div class="bd"><b>Що брати</b><p>' + esc(P.best) + '</p></div></div>';
+
+    if (P.sto) h += '<div class="alert hot"><div class="ic">' + ic('alert', 18) + '</div>' +
+      '<div class="bd"><b>Що скажуть на СТО</b><p>' + esc(P.sto) + '</p></div></div>';
 
     if (P.check && P.check.length) {
       h += '<div class="h2">Уточніть перед покупкою</div><div class="card list wrap">' +
@@ -4641,13 +4648,9 @@ var DO = {
           cost: numv('sCost') || 0, cur: pickedCur('sCur'),
           odo: dIn(val('sOdo')), date: val('sDate') }, function () {
       closeSheet();
-      /* Одразу відкриваємо картку щойно збереженого запису: інакше людина
-         не здогадується, що до ремонту можна додати фото — саме це й
-         сталось. Якщо запис поки лежить у черзі (сервер не відповів),
-         картку не відкриваємо: фото прикріпляти ще нема до чого. */
-      if (qCount()) return;
-      var r = (S.service || [])[0];
-      if (r) setTimeout(function () { srvOpen(r.id); }, 260);
+      /* Картку запису НЕ відкриваємо: людина сприймала це як «без фото
+         не збережеться». Просто кажемо, що фото можна додати потім. */
+      toast(PRO ? 'Записано. Фото додається дотиком по запису' : 'Записано');
     });
   },
 
@@ -5339,5 +5342,7 @@ start();
 
 /* хуки для перевірки */
 window.__app = { get S() { return S; }, get PRO() { return PRO; }, show: show, render: render, DO: DO,
-  refresh: function (f) { return refresh(f); }, get loaded() { return LOADED; } };
+  refresh: function (f) { return refresh(f); }, get loaded() { return LOADED; },
+  /* для знімків і перевірок: показати готовий розбір значка без камери */
+  lampShow: function (L) { return lampShow(L, false); } };
 })();

@@ -8,7 +8,7 @@
 <title>Бардачок — керування</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<link rel="stylesheet" href="styles.css?v=20260825-1200">
+<link rel="stylesheet" href="styles.css?v=20260825-1300">
 <style>
   body{overflow:auto}
   .wrap{max-width:620px;margin:0 auto;padding:26px 16px 60px}
@@ -57,11 +57,42 @@
   .gate input{width:100%;padding:14px 16px;border-radius:16px;background:var(--surf2);
     border:1.5px solid transparent;font-size:16px;font-weight:600;outline:none;margin-bottom:11px}
   .gate input:focus{border-color:var(--lime)}
-.tabs{display:flex;gap:6px;padding:5px;border-radius:16px;background:#171B19;margin-bottom:14px;overflow-x:auto}
-.tabs button{flex:1;white-space:nowrap;padding:10px 12px;border-radius:12px;font-size:13px;font-weight:600;color:#8A968F}
+.tabs{
+  display:flex;gap:6px;padding:5px;border-radius:16px;background:#171B19;margin-bottom:14px;
+  overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;
+  /* Прилипає до верху: раніше, прокрутивши аналітику, доводилось гортати
+     назад до самого початку, щоб перемкнути вкладку. */
+  position:sticky;top:0;z-index:20;
+  box-shadow:0 10px 24px rgba(8,9,10,.55);
+}
+.tabs::-webkit-scrollbar{display:none}
+.tabs button{
+  flex:1;white-space:nowrap;padding:12px 14px;border-radius:12px;
+  font-size:13.5px;font-weight:600;color:#8A968F;transition:background .18s,color .18s;
+}
 .tabs button.on{background:#EEF2EC;color:#12160F}
+.tabs button:active{background:#222724}
+@media (max-width:430px){
+  .tabs{gap:3px;padding:4px}
+  .tabs button{padding:11px 6px;font-size:12px}
+}
 .pane{display:none}
-.pane.on{display:block}
+.pane.on{display:block;animation:paneIn .22s ease}
+@keyframes paneIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.pane.on{animation:none}}
+
+/* Згортання довгих розділів: аналітика перестала бути одним нескінченним
+   полотном, у якому треба гортати повз усе, що зараз не цікавить. */
+.fold{border-top:1px solid rgba(255,255,255,.07);margin-top:14px;padding-top:12px}
+.fold>summary{
+  list-style:none;cursor:pointer;display:flex;align-items:center;gap:10px;
+  font-family:Unbounded,sans-serif;font-weight:700;font-size:15px;letter-spacing:-.01em;
+}
+.fold>summary::-webkit-details-marker{display:none}
+.fold>summary::after{content:'▾';margin-left:auto;opacity:.55;transition:transform .2s}
+.fold[open]>summary::after{transform:rotate(180deg)}
+.fold>summary small{display:block;font-weight:400;font-size:12px;color:#8A968F;margin-top:3px}
+.fold .body{padding-top:12px}
 .quickrow{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
 .quickrow button{background:#171B19;border:1px solid #2A3235;border-radius:13px;padding:12px 6px;font-size:12.5px;color:#EEF2EC}
 .quickrow button:active{background:#212724}
@@ -86,13 +117,13 @@
 
   <div class="tabs" id="tabs">
     <button class="on" data-t="t-home">Огляд</button>
+    <button data-t="t-tech">Ліміти</button>
     <button data-t="t-users">Люди</button>
     <button data-t="t-msg">Зв'язок</button>
-    <button data-t="t-set">Налаштування</button>
-    <button data-t="t-tech">Техніка</button>
+    <button data-t="t-set">Налашт.</button>
   </div>
   <div class="msg inf" id="info">Завантаження…</div>
-  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260825-1200</div>
+  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260825-1300</div>
   <div id="topStrip"></div>
 
   <div class="pane on" id="t-home">
@@ -417,8 +448,11 @@
   </div><!-- /t-set-part1 -->
 
   <div class="pane" id="t-msg">
+  <div class="note" style="margin:2px 0 10px"><b>Два способи сказати щось людям.</b>
+    Угорі — те, що вони побачать у самому застосунку. Нижче — те, що прийде їм у бот.</div>
+
   <div class="card">
-    <div class="sect">Оголошення в застосунку</div>
+    <div class="sect">У застосунку · смужка вгорі екрана</div>
     <div class="rw" style="display:block">
       <div class="lb" style="margin-bottom:8px">Заголовок<small>Коротко, кілька слів</small></div>
       <input type="text" id="ntTitle" style="text-align:left" placeholder="Оновлення"></div>
@@ -451,7 +485,7 @@
   </div>
 
   <div class="card">
-    <div class="sect">Що нового — сторіз</div>
+    <div class="sect">У застосунку · сторіз після оновлення</div>
     <div class="note" style="margin:0 0 10px">Кілька екранів, які людина гортає дотиком —
       як сторіз в інстаграмі. Показуються <b>один раз кожному</b>, хто відкриє застосунок.
       Саме так варто розповідати про нові можливості: списки змін ніхто не читає.</div>
@@ -467,7 +501,7 @@
   </div>
 
   <div class="card">
-    <div class="sect">Повідомлення користувачам</div>
+    <div class="sect">У бот · повідомлення в чат</div>
     <div class="rw" style="display:block">
       <div class="lb" style="margin-bottom:8px">Текст<small>Можна жирний &lt;b&gt;так&lt;/b&gt; і посилання &lt;a href="…"&gt;текст&lt;/a&gt;</small></div>
       <textarea id="bcText" rows="5" placeholder="Що нового або що важливо знати"
@@ -528,16 +562,14 @@
 
     <div class="rw"><div class="lb">Межа на добу, $<small>більше цього за день не спалить</small></div>
       <input type="number" step="0.5" min="0" id="aiDayCap" style="text-align:left" placeholder="1"></div>
-    <div class="rw"><div class="lb">Модель для відповідей<small>помічник, оцінка, запчастини</small></div>
+    <div class="rw"><div class="lb">Режим ШІ<small>однаково для помічника, значка, оцінки й запчастин</small></div>
       <select id="aiModel" style="text-align:left">
-        <option value="fast">Дешева і швидка (у 10 разів дешевше)</option>
-        <option value="smart">Розумна і дорога</option>
+        <option value="fast">Економний — швидко й дешево</option>
+        <option value="smart">Найкращий — розумніше, дорожче в 10 разів</option>
       </select></div>
-    <div class="rw"><div class="lb">Модель для фото значка<small>тут якість вирішує</small></div>
-      <select id="aiVision" style="text-align:left">
-        <option value="smart">Розумна і дорога</option>
-        <option value="fast">Дешева і швидка</option>
-      </select></div>
+    <div class="note" style="margin:0 0 10px">Економний коштує близько
+      <b>пів цента</b> за відповідь і <b>0,3 цента</b> за фото значка. Найкращий — 3–5 центів.
+      Починайте з економного: різницю в автомобільних питаннях майже не видно.</div>
     <div class="note">Коли денна межа вибрана або на рахунку скінчились гроші,
       застосунок <b>не зупиняється</b>: помічник переходить на безкоштовну модель
       Cloudflare — простішу, але робочу. Ви отримаєте повідомлення в бот один раз на добу.</div>
@@ -757,7 +789,6 @@ function load() {
     if ($('#aiFund') && d.aiFund) $('#aiFund').value = d.aiFund;
     if ($('#aiDayCap') && d.aiDayCap !== undefined) $('#aiDayCap').value = d.aiDayCap;
     if ($('#aiModel') && d.aiModel) $('#aiModel').value = d.aiModel;
-    if ($('#aiVision') && d.aiVision) $('#aiVision').value = d.aiVision;
     if ($('#aiFundAt') && d.aiFundAt) $('#aiFundAt').value = d.aiFundAt;
     qrDraw(d.qrOwn || 0);
     if (d._storage === false) { show('info', 'Сховище не підключене — зберегти не вийде.', true); $('#info').className = 'msg er'; }
@@ -980,8 +1011,7 @@ $('#save').addEventListener('click', function () {
   if ($('#aiFund') && $('#aiFund').value !== '') body.aiFund = $('#aiFund').value;
   if ($('#aiFundAt') && $('#aiFundAt').value) body.aiFundAt = $('#aiFundAt').value;
   if ($('#aiDayCap') && $('#aiDayCap').value !== '') body.aiDayCap = $('#aiDayCap').value;
-  if ($('#aiModel')) body.aiModel = $('#aiModel').value;
-  if ($('#aiVision')) body.aiVision = $('#aiVision').value;
+  if ($('#aiModel')) { body.aiModel = $('#aiModel').value; body.aiVision = ''; }
   show('sOk', '', false); show('sEr', '', false);
   if (bad) { show('sEr', 'Заповніть усі числові поля.', true); return; }
   this.disabled = true;
@@ -1437,6 +1467,15 @@ function drawTech(d) {
   }
 }
 
+/* Заголовок, який згортається. Аналітика була одним полотном на кілька
+   екранів — власник казав «незручно», і мав рацію: щоб дійти до потрібного,
+   треба було гортати повз усе інше. */
+function fold(title, sub, body, open) {
+  return '<details class="fold"' + (open ? ' open' : '') + '>' +
+    '<summary><span>' + title + (sub ? '<small>' + sub + '</small>' : '') + '</span></summary>' +
+    '<div class="body">' + body + '</div></details>';
+}
+
 function drawAna(st, d) {
   if (!st) { $('#anaBox').innerHTML = '<div class="note">Поки нема даних.</div>'; return; }
   d = d || {};
@@ -1475,7 +1514,7 @@ function drawAna(st, d) {
     }).join('') + '</div>';
 
   /* Сарафанка. Найдешевший канал росту — і найважливіше, чи він узагалі йде. */
-  h += '<div class="lb" style="margin:16px 0 4px">Як росте сарафанка</div>' +
+  h += fold('Як росте сарафанка', 'скільки приходить за посиланнями', '' +
     '<div class="note" style="margin:0 0 9px">Скільки людей прийшло за чиїмось ' +
     'посиланням і скільки взагалі запрошують. Якщо друга цифра мала — ' +
     'людям або нема чим ділитись, або вони не знають, що за це дають місяць.</div>' +
@@ -1489,32 +1528,32 @@ function drawAna(st, d) {
           ' на кожного, хто ділиться' : '')],
       ['Місяців роздано за друзів', nfm(st.refs || 0),
         'це ' + nfm((st.refs || 0) * 30) + ' днів Преміуму'],
-    ]);
+    ]));
 
   /* Що саме купують — без цього незрозуміло, який тариф тягне гроші. */
   var mix = d.mix;
   if (mix && (mix.month || mix.half || mix.year)) {
     var mm = Math.max(mix.month || 0, mix.half || 0, mix.year || 0) || 1;
-    h += '<div class="lb" style="margin:16px 0 6px">Що саме купують</div>' +
+    h += fold('Що саме купують', 'який тариф тягне гроші', '' +
       '<div class="bars">' + [['Місяць', mix.month || 0], ['Півроку', mix.half || 0],
         ['Рік', mix.year || 0]].map(function (r) {
         return '<div class="bar"><span>' + r[0] + '</span>' +
           '<u><i style="width:' + Math.round(r[1] * 100 / mm) + '%"></i></u>' +
           '<b>' + nfm(r[1]) + '</b></div>';
-      }).join('') + '</div>';
+      }).join('') + '</div>');
   }
 
   /* Строки — це список на продовження, поки не пізно. */
   if (st.exp7 != null) {
-    h += '<div class="lb" style="margin:16px 0 6px">Що буде далі з грошима</div>' +
+    h += fold('Що буде далі з грошима', 'у кого спливає преміум', '' +
       listRows([
         ['Преміум спливає за тиждень', nfm(st.exp7 || 0), 'саме їм варто нагадати'],
         ['Спливає за місяць', nfm(st.exp30 || 0), ''],
         ['Уже сплив', nfm(st.lapsed || 0), 'платили колись, зараз ні'],
-      ]);
+      ]));
   }
 
-  h += '<div class="lb" style="margin:16px 0 6px">Люди</div>' +
+  h += fold('Люди', 'активні, сплячі, нові', '' +
     listRows([
       ['Активні за тиждень', nfm(st.active7), pct(st.active7, st.users) + ' від усіх'],
       ['Активні за місяць', nfm(st.active30), 'заходили, але не цього тижня'],
@@ -1523,9 +1562,9 @@ function drawAna(st, d) {
       ['Нових за місяць', nfm(st.newMonth), ''],
       ['Дійшли до додавання авто', nfm(st.withCars),
         pct(st.withCars, st.users) + ' — решта пішла, нічого не внісши'],
-    ]);
+    ]));
 
-  h += '<div class="lb" style="margin:16px 0 6px">Гроші</div>' +
+  h += fold('Гроші', 'оплати й хто платить', '' +
     listRows([
       ['Оплат усього', nfm(paid), ''],
       ['Зароблено', '$' + nfm(rev), paid ? 'у середньому $' + (Math.round(rev / paid * 100) / 100) + ' за оплату' : ''],
@@ -1533,9 +1572,9 @@ function drawAna(st, d) {
       ['Платять серед живих', pct(st.pro, alive),
         'чесніша цифра: серед тих, хто справді користується'],
       ['Приведено друзями', nfm(st.refs), 'кожен дає запрошувачу 30 днів'],
-    ]);
+    ]));
 
-  h += '<div class="lb" style="margin:16px 0 6px">Чим користуються</div>' +
+  h += fold('Чим користуються', 'що люди справді відкривають', '' +
     listRows([
       ['Авто в гаражах', nfm(st.cars), (st.ev ? nfm(st.ev) + ' електричних' : '')],
       ['Записів сервісу', nfm(st.service), ''],
@@ -1547,7 +1586,7 @@ function drawAna(st, d) {
       ['Звітів PDF', nfm(st.reports), ''],
       ['Увімкнули кнопку «Дія»', nfm(st.tokens), 'ярлик на iPhone'],
       ['Нагадувань надіслано', nfm(st.notified), 'за останній обхід'],
-    ]);
+    ]));
 
   /* --- рух по днях --- */
   var hist = d.hist || [];
