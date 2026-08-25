@@ -8,7 +8,7 @@
 <title>Бардачок — керування</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<link rel="stylesheet" href="styles.css?v=20260825-1500">
+<link rel="stylesheet" href="styles.css?v=20260825-1600">
 <style>
   body{overflow:auto}
   .wrap{max-width:620px;margin:0 auto;padding:26px 16px 60px}
@@ -123,7 +123,7 @@
     <button data-t="t-set">Налашт.</button>
   </div>
   <div class="msg inf" id="info">Завантаження…</div>
-  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260825-1500</div>
+  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260825-1600</div>
   <div id="topStrip"></div>
 
   <div class="pane on" id="t-home">
@@ -432,6 +432,13 @@
       і збережіть картинку. До 400 КБ. Якщо свого немає — показується вбудований,
       але тільки для початкової адреси.</div>
     <div id="qrOut"></div>
+    <div class="rw"><div class="lb">Місяць за друга діє, поки людей менше<small>0 — без межі</small></div>
+      <input type="number" min="0" id="refLimit" style="text-align:left" placeholder="1000"></div>
+    <div class="note">Подарунок за запрошення — інструмент росту, а не вічна знижка.
+      Коли користувачів стане більше за це число, він вимкнеться сам: у застосунку
+      блок про подарунок зникне, а той, хто когось приведе, отримає просто подяку.
+      Уже видані дні ні в кого не забираються.</div>
+
     <div class="rw"><div class="lb">Офіційний канал<small>@назва або посилання t.me</small></div>
       <input type="text" id="channel" style="text-align:left" placeholder="@bardachok_ua"></div>
     <div class="note">Зʼявиться пунктом «Наш канал» у розділі «Ще» — у всіх користувачів.</div>
@@ -631,7 +638,7 @@
 /* ⚠️ Та сама адреса, що і в app.js */
 var API = 'https://bardachok.kasebaby24.workers.dev';
 
-var NUM = ['premiumMonth','premiumHalf','premiumYear','freeCars','freeVin','autoPay','remindInsurance','remindService','oilInterval'];
+var NUM = ['premiumMonth','premiumHalf','premiumYear','freeCars','freeVin','autoPay','remindInsurance','remindService','oilInterval','refLimit'];
 var TXT = ['contactTg','wfpMerchant','wfpDomain','usdtAddress','adminId','channel'];
 var KEY = '';
 var BILLS = [];          // за що власник платить сам — редагується нижче
