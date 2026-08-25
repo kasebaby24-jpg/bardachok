@@ -13,7 +13,7 @@ var API = 'https://bardachok.kasebaby24.workers.dev';
 var QR_FOR = 'TWqHKxsLAdGMPC7kY4i3r2GQxNJ2U6vQXv';   // до цієї адреси намальовано usdt-qr.png
 var USDT_CONTRACT = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';   // USDT у мережі TRON
 
-var BUILD = '20260825-0700';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
+var BUILD = '20260825-1000';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
 var BOOT_T0 = Date.now();
 
 var tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
@@ -477,6 +477,7 @@ var PRO_WHY = {
   lamp:   ['Значок з приборки', 'Сфоткали панель — за секунди знаєте, панікувати чи ні.'],
   valuate:['Скільки коштує авто', 'Чесна оцінка й що можна взяти натомість у цій же ціні.'],
   parts:  ['Запчастини й аналоги', 'Оригінал чи аналог, який точно підійде і коштує втричі менше.'],
+  regl:   ['Регламент ТО', 'Весь перелік робіт зі строками саме для вашого авто.'],
 };
 
 function needPro(what) {
@@ -1115,6 +1116,16 @@ function drawHome() {
     }).join('');
   }
 
+  /* Найчастіший переляк водія — щось загорілось на панелі. Тому це не
+     пункт у меню, а картка на головному екрані. */
+  h += '<div class="askcard" data-do="lamp" style="margin-bottom:2px">' +
+    '<div class="askcard-ic">' + ic('alert', 20) + '</div>' +
+    '<div class="tx"><b>Горить чек?' + (PRO ? '' : lockIc()) + '</b>' +
+    '<p>' + (PRO
+      ? 'Сфотографуйте панель — скажу, що це і чи можна їхати'
+      : 'Сфотографуйте панель — і за секунди знаєте, панікувати чи ні. У Преміумі') + '</p></div>' +
+    '<div class="go">' + ic('back', 16) + '</div></div>';
+
   h += '<div class="h2">Швидко</div><div class="quick">' +
     '<button data-do="fuel">' + ic(isEV ? 'charge' : 'fuel', 21) + (isEV ? 'Зарядка' : 'Заправка') + '</button>' +
     '<button data-do="service">' + ic('wrench',21) + 'Ремонт</button>' +
@@ -1681,7 +1692,11 @@ function vinCard(c, vin) {
    Преміум зʼявився або місяць уже отриманий — блок зникає назовсім, щоб не
    обіцяти те, чого більше не буде. */
 function refBlock() {
+  /* Обіцяти місяць тому, хто його вже не отримає, — найшвидший спосіб
+     втратити довіру. Сервер дає подарунок лише новачкам, тому й показуємо
+     блок лише їм: не платив, не мав Преміуму, ще не брав подарунок. */
   if (PRO || S.refBonus || S.refPaid > 0) return '';
+  if (S.premiumUntil || (S.paidTotal > 0)) return '';
   if (!REF || !REF.link) return '';
   return '<div class="promo" style="margin-top:12px">' +
     '<b>Поділіться з другом — <em>і місяць ваш</em></b>' +
@@ -2192,6 +2207,58 @@ function drawWelcome() {
           (w.last ? (many ? 'Почати користуватись' : 'Гаразд') : 'Далі') + '</button>' +
       '</div>' +
     '</div>');
+}
+
+/* ------------------------------------------------------------------ */
+/* «ЩО НОВОГО» — сторіз після оновлення                                */
+/* ------------------------------------------------------------------ */
+/* Люди не читають списків змін. Тому нове показуємо так само, як
+   знайомство: кілька екранів, які гортаються дотиком, один раз на людину.
+   Текст задає власник у панелі, тож наступного разу мене питати не треба. */
+var NEWS_I = 0;
+
+function newsShow() {
+  NEWS_I = 0;
+  drawNews();
+}
+
+function drawNews() {
+  var list = (CFG.news && CFG.news.slides) || [];
+  if (!list.length) { closeSheet(); return; }
+  var i = Math.min(NEWS_I, list.length - 1);
+  var n = list[i];
+  var last = i === list.length - 1;
+
+  openSheet('',
+    '<div class="st-wrap" style="min-height:auto">' +
+      (list.length > 1
+        ? '<div class="st-bars">' + list.map(function (_, k) {
+            return '<i class="' + (k < i ? 'done' : k === i ? 'on' : '') + '"></i>';
+          }).join('') + '</div>'
+        : '') +
+      '<div class="st-top"><span class="st-tag">' + esc(n.tag || 'Нове') + '</span>' +
+        (last ? '' : '<button class="st-skip" data-do="newsDone">Пропустити</button>') + '</div>' +
+      '<div class="st-body">' +
+        '<h2>' + esc(n.t || '').replace(/\n/g, '<br>') + '</h2>' +
+        '<p>' + esc(n.p || '') + '</p>' +
+      '</div>' +
+      '<div class="st-foot">' +
+        (i > 0 ? '<button class="st-back" data-do="newsBack">' + ic('back', 18) + '</button>' : '') +
+        '<button class="btn" data-do="' + (last ? 'newsDone' : 'newsNext') + '">' +
+          (last ? 'Зрозуміло' : 'Далі') + '</button>' +
+      '</div>' +
+    '</div>');
+}
+
+/* Показуємо один раз на людину: мітка в памʼяті телефона за номером випуску. */
+function checkNews() {
+  var n = CFG.news;
+  if (!n || !n.id || !(n.slides || []).length) return;
+  if (seen('nw_' + n.id)) return;
+  setTimeout(function () {
+    if (!$('#sheet').classList.contains('hidden')) return;   // не перебиваємо відкрите вікно
+    newsShow();
+  }, 900);
 }
 
 /* Преміум могли увімкнути, поки застосунок був закритий. Порівнюємо з тим,
@@ -2913,7 +2980,7 @@ function srvOpen(id) {
   var r = srvRec(id);
   if (!r) return;
   var ph = r.ph || [];
-  var lim = PRO ? 4 : 1;
+  var lim = PRO ? 4 : 0;
 
   var h = '<div class="kv"><span>' + (KIND_UA[r.kind] || 'Робота') + '</span><b>' +
     fmtDate(r.date) + '</b></div>' +
@@ -2935,10 +3002,10 @@ function srvOpen(id) {
          '«а чи справді міняли».</div>';
   }
 
-  if (ph.length < lim) {
+  if (!PRO) {
+    h += '<button class="btn sec" data-do="needPhoto">Додати фото' + lockIc() + '</button>';
+  } else if (ph.length < lim) {
     h += '<button class="btn sec" data-do="phAdd" data-id="' + r.id + '">Додати фото</button>';
-  } else if (!PRO) {
-    h += '<button class="btn sec" data-do="needPhoto">Ще фото — у Преміумі</button>';
   }
 
   h += '<button class="btn dan" data-do="delAsk" data-id="' + r.id + '">Видалити запис</button>';
@@ -3052,7 +3119,7 @@ function lampShoot() {
           '<button class="btn" data-do="lamp">Спробувати ще раз</button>');
         return;
       }
-      api('/api/lamp', { data: data }).then(function (d) {
+      api('/api/lamp', { data: data }, 60000).then(function (d) {
         LAMP_BUSY = false; done();
         if (!d.ok) {
           if (d.error === 'premium') { needPro('lamp'); return; }
@@ -3132,7 +3199,7 @@ var LAST_LAMP = null;
 /* ---- скільки коштує авто ---- */
 function valuate() {
   openSheet('Рахую', '<div class="empty" style="padding:26px 0">Дивлюсь на ринок і вашу книжку…</div>');
-  api('/api/valuate', {}).then(function (d) {
+  api('/api/valuate', {}, 60000).then(function (d) {
     if (!d.ok) {
       if (d.error === 'premium') { needPro('valuate'); return; }
       openSheet('Не вийшло', '<div class="msg er">' + esc(d.message || d.error || '') + '</div>' +
@@ -3204,7 +3271,7 @@ function partsGo(what) {
   what = (what || val('pWhat') || '').trim();
   if (what.length < 2) { toast('Напишіть, що потрібно'); return; }
   openSheet('Шукаю', '<div class="empty" style="padding:26px 0">Підбираю під ваше авто…</div>');
-  api('/api/parts', { what: what }).then(function (d) {
+  api('/api/parts', { what: what }, 60000).then(function (d) {
     if (!d.ok) {
       if (d.error === 'premium') { needPro('parts'); return; }
       openSheet('Не вийшло', '<div class="msg er">' + esc(d.message || d.error || '') + '</div>' +
@@ -3365,18 +3432,28 @@ var REGL_OPEN = false;
 function reglCard(car) {
   var rows = reglRows(car);
   if (!rows.length) return '';
-  var shown = REGL_OPEN ? rows : rows.slice(0, 4);
+  /* Безкоштовно показуємо три найтерміновіші роботи: цього досить, щоб
+     побачити користь, і замало, щоб не купувати. Решта — у Преміумі. */
+  var free = 3;
+  var shown = PRO ? (REGL_OPEN ? rows : rows.slice(0, 4)) : rows.slice(0, free);
 
-  var h = '<div class="h2">Регламент ТО<span class="act" data-do="reglToggle">' +
-    (REGL_OPEN ? 'згорнути' : 'усі ' + rows.length) + '</span></div>' +
+  var h = '<div class="h2">Регламент ТО' +
+    (PRO ? '<span class="act" data-do="reglToggle">' +
+           (REGL_OPEN ? 'згорнути' : 'усі ' + rows.length) + '</span>' : lockIc()) + '</div>' +
     '<div class="card list">' + shown.map(function (r) {
       var col = r.hot ? 'var(--bad)' : r.soon ? 'var(--warn)' : r.known ? 'var(--ink2)' : 'var(--mut)';
       return '<button class="it" data-do="service" data-k="' + r.kind + '" data-t="' + esc(r.t) + '">' +
         '<div class="dt">' + ic(KIND_IC[r.kind] || 'wrench', 17) + '</div>' +
         '<div class="tx"><b>' + esc(r.st) + '</b><small>' + esc(r.every) + '</small></div>' +
         '<div class="vl" style="color:' + col + ';font-size:12px">' + esc(r.when) + '</div></button>';
-    }).join('') + '</div>' +
-    '<div class="note">Строки орієнтовні — для звичайної їзди Україною. ' +
+    }).join('') + '</div>';
+
+  if (!PRO && rows.length > free) {
+    h += '<button class="btn sec" data-do="needRegl">Ще ' + (rows.length - free) +
+      ' ' + plural(rows.length - free, 'робота', 'роботи', 'робіт') + ' — у Преміумі</button>';
+  }
+
+  h += '<div class="note">Строки орієнтовні — для звичайної їзди Україною. ' +
     'Дотик по рядку одразу відкриє запис у книжку. Що більше записів, ' +
     'то точніше застосунок рахує.</div>';
   return h;
@@ -4414,6 +4491,13 @@ var DO = {
   welBack: function () { WEL = Math.max(0, WEL - 1); drawWelcome(); },
   welDone: function () { closeSheet(); DIRTY = {}; render(); },
 
+  newsNext: function () { NEWS_I++; drawNews(); haptic('light'); },
+  newsBack: function () { NEWS_I = Math.max(0, NEWS_I - 1); drawNews(); },
+  newsDone: function () {
+    if (CFG.news && CFG.news.id) markSeen('nw_' + CFG.news.id);
+    closeSheet();
+  },
+
   lamp:    function () { lampShoot(); },
   lampAsk: function () {
     /* Переносимо розбір значка в чат помічника — там можна перепитати.
@@ -4439,6 +4523,7 @@ var DO = {
   phOpen:  function (t) { phOpen(t.dataset.id); },
   phBack:  function (t) { if (t.dataset.id) srvOpen(t.dataset.id); else closeSheet(); },
   needPhoto: function () { needPro('photo'); },
+  needRegl:  function () { needPro('regl'); },
   phDel: function (t) {
     var id = t.dataset.id;
     ask('Прибрати фото?', 'Воно зникне і зі звіту для покупця.', 'Прибрати', function () {
@@ -4645,10 +4730,13 @@ var DO = {
     CHAT_BUSY = true;
     drawAsk();
 
+    /* Модель спершу думає, потім пише — це довше за звичайний запит.
+       Стандартних 25 секунд не вистачало, і людина бачила «сервер не
+       відповідає» там, де сервер чесно працював. */
     api('/api/ask', {
       q: q, carId: S.activeCar,
       history: CHAT.slice(0, -1).slice(-8),
-    }).then(function (d) {
+    }, 60000).then(function (d) {
       CHAT_BUSY = false;
       CHAT.push({ role: 'a', text: d.ok ? d.answer : (d.message || d.error || 'Не вдалося відповісти') });
       drawAsk();
@@ -5159,6 +5247,9 @@ function start() {
       $('#app').classList.remove('hidden');
       render();
       checkNewPremium();
+      /* Новини — після привітання про Преміум: якщо збіглося і те, і те,
+         спершу людині кажуть про оплату, а вже потім про можливості. */
+      checkNews();
     }, left);
   }).catch(function () {
     bootFail('Немає зв’язку із сервером.<br>Перевірте інтернет і спробуйте ще раз.');

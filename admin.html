@@ -8,7 +8,7 @@
 <title>Бардачок — керування</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<link rel="stylesheet" href="styles.css?v=20260825-0700">
+<link rel="stylesheet" href="styles.css?v=20260825-1000">
 <style>
   body{overflow:auto}
   .wrap{max-width:620px;margin:0 auto;padding:26px 16px 60px}
@@ -89,10 +89,10 @@
     <button data-t="t-users">Люди</button>
     <button data-t="t-msg">Зв'язок</button>
     <button data-t="t-set">Налаштування</button>
-    <button data-t="t-tech">Стан</button>
+    <button data-t="t-tech">Техніка</button>
   </div>
   <div class="msg inf" id="info">Завантаження…</div>
-  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260825-0700</div>
+  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260825-1000</div>
 
   <div class="pane on" id="t-home">
   <div id="stCount"></div>
@@ -184,6 +184,27 @@
   <!-- ТЕХНІЧНИЙ СТАН. Сюди дивляться, коли «щось не працює»: за один погляд
        має бути видно, що саме зламано, а не гадати дві години. -->
   <div class="pane" id="t-tech">
+    <div class="card">
+      <div class="sect">Гроші: за що і коли платити</div>
+      <div id="techMoney"><div class="note">Завантажую…</div></div>
+      <div style="display:flex;gap:9px;margin-top:12px">
+        <button class="btn sec" onclick="act('billsnow')">Перевірити нагадування</button>
+      </div>
+      <div class="note">Кнопка надішле вам у бот те саме повідомлення, яке прийде
+        за три дні до оплати. Так видно, що нагадування справді працює, — не
+        в день, коли ви про оплату забудете.</div>
+    </div>
+
+    <div class="card">
+      <div class="sect">Навантаження на тариф</div>
+      <div id="techLoad"><div class="note">Завантажую…</div></div>
+    </div>
+
+    <div class="card">
+      <div class="sect">Памʼять</div>
+      <div id="techMem"><div class="note">Завантажую…</div></div>
+    </div>
+
     <div class="card">
       <div class="sect">Що зараз із сервером</div>
       <div id="techBox"><div class="note">Перевіряю…</div></div>
@@ -425,6 +446,22 @@
   </div>
 
   <div class="card">
+    <div class="sect">Що нового — сторіз</div>
+    <div class="note" style="margin:0 0 10px">Кілька екранів, які людина гортає дотиком —
+      як сторіз в інстаграмі. Показуються <b>один раз кожному</b>, хто відкриє застосунок.
+      Саме так варто розповідати про нові можливості: списки змін ніхто не читає.</div>
+    <div id="newsBox"></div>
+    <button class="btn sec" onclick="newsAdd()">Додати екран</button>
+    <div style="display:flex;gap:9px;margin-top:12px">
+      <button class="btn" onclick="newsPublish()">Показати всім</button>
+      <button class="btn sec" onclick="newsOff()">Прибрати</button>
+    </div>
+    <div class="msg ok hidden" id="nwOk" style="margin-top:10px"></div>
+    <div class="msg er hidden" id="nwEr" style="margin-top:10px"></div>
+    <div class="note" id="nwState"></div>
+  </div>
+
+  <div class="card">
     <div class="sect">Повідомлення користувачам</div>
     <div class="rw" style="display:block">
       <div class="lb" style="margin-bottom:8px">Текст<small>Можна жирний &lt;b&gt;так&lt;/b&gt; і посилання &lt;a href="…"&gt;текст&lt;/a&gt;</small></div>
@@ -480,6 +517,22 @@
       <input type="number" step="0.01" min="0" id="aiFund" style="text-align:left" placeholder="5"></div>
     <div class="rw"><div class="lb">Якого числа<small>від цієї дати рахуємо витрату</small></div>
       <input type="date" id="aiFundAt" style="text-align:left"></div>
+
+    <div class="rw"><div class="lb">Межа на добу, $<small>більше цього за день не спалить</small></div>
+      <input type="number" step="0.5" min="0" id="aiDayCap" style="text-align:left" placeholder="1"></div>
+    <div class="rw"><div class="lb">Модель для відповідей<small>помічник, оцінка, запчастини</small></div>
+      <select id="aiModel" style="text-align:left">
+        <option value="fast">Дешева і швидка (у 10 разів дешевше)</option>
+        <option value="smart">Розумна і дорога</option>
+      </select></div>
+    <div class="rw"><div class="lb">Модель для фото значка<small>тут якість вирішує</small></div>
+      <select id="aiVision" style="text-align:left">
+        <option value="smart">Розумна і дорога</option>
+        <option value="fast">Дешева і швидка</option>
+      </select></div>
+    <div class="note">Коли денна межа вибрана або на рахунку скінчились гроші,
+      застосунок <b>не зупиняється</b>: помічник переходить на безкоштовну модель
+      Cloudflare — простішу, але робочу. Ви отримаєте повідомлення в бот один раз на добу.</div>
   </div>
 
   <div class="msg ok hidden" id="sOk"></div>
@@ -691,7 +744,12 @@ function load() {
     if ($('#meId')) $('#meId').textContent = d.adminId || 'не вказано';
     BILLS = Array.isArray(d.bills) ? d.bills : [];
     billsDraw();
+    NEWS = d.news || null;
+    newsDraw(); newsState();
     if ($('#aiFund') && d.aiFund) $('#aiFund').value = d.aiFund;
+    if ($('#aiDayCap') && d.aiDayCap !== undefined) $('#aiDayCap').value = d.aiDayCap;
+    if ($('#aiModel') && d.aiModel) $('#aiModel').value = d.aiModel;
+    if ($('#aiVision') && d.aiVision) $('#aiVision').value = d.aiVision;
     if ($('#aiFundAt') && d.aiFundAt) $('#aiFundAt').value = d.aiFundAt;
     qrDraw(d.qrOwn || 0);
     if (d._storage === false) { show('info', 'Сховище не підключене — зберегти не вийде.', true); $('#info').className = 'msg er'; }
@@ -732,6 +790,7 @@ function stats(fresh) {
     if ($('#stI')) $('#stI').textContent = nfm(_st.inviters || 0);
     if ($('#hPN')) $('#hPN').textContent = (d.paid || 0) + (d.revenue ? ' · $' + d.revenue : '');
     drawAna(d.stats, d);
+    drawTech(d);
     var nn = $('#ntNow');
     if (nn) nn.innerHTML = d.notice
       ? '<div class="msg inf">Зараз показується: <b>' + (d.notice.title || '') + '</b> — ' +
@@ -791,6 +850,97 @@ function billSet(i, k, v) {
   BILLS[i][k] = (k === 'sum' || k === 'day') ? (parseFloat(v) || 0) : v;
 }
 
+/* ------------------------------------------------------------------ */
+/* «ЩО НОВОГО» — СТОРІЗ ДЛЯ ВСІХ                                       */
+/* ------------------------------------------------------------------ */
+var NEWS = null;          // { id, on, slides:[{tag,t,p}] }
+
+/* Заготовка з тим, що ми справді додали. Власнику лишається натиснути
+   «Показати всім» — або переписати своїми словами. */
+var NEWS_DEFAULT = [
+  { tag: 'Нове', t: 'Горить чек?\nСфотографуйте',
+    p: 'Загорілось щось незрозуміле на панелі — зробіть знімок просто з-за керма. Бардачок скаже, що це за значок, чи можна їхати далі і скільки приблизно коштує усунути.' },
+  { tag: 'Нове', t: 'Скільки коштує ваше авто',
+    p: 'Чесна оцінка за ринком з урахуванням вашої сервісної книжки: що тримає ціну, що варто зробити перед продажем — і які авто можна взяти в тій самій ціні.' },
+  { tag: 'Нове', t: 'Запчастини: оригінал\nчи аналог',
+    p: 'Напишіть, що потрібно, — покажемо оригінал і аналоги, які точно підійдуть, з цінами українського ринку та порадою, на чому тут економити не варто.' },
+  { tag: 'Нове', t: 'Фото до ремонтів',
+    p: 'До кожного запису в сервісній книжці можна додати знімок. Вони самі потрапляють у звіт для покупця — це найсильніший аргумент у торгу.' },
+  { tag: 'Нове', t: 'Регламент ТО',
+    p: 'Перелік робіт зі строками саме для вашого авто: що вже пора, а що ще нескоро. Масло рахується від того, як ви їздите — містом чи трасою.' },
+  { tag: 'Преміум', t: 'Усе це — у Преміумі',
+    p: 'Гараж, штрафи, витрати й нагадування лишаються безкоштовними назавжди. А помічник, фото значка, оцінка авто, запчастини й звіти працюють у Преміумі — розділ «Ще».' },
+];
+
+function newsDraw() {
+  var box = $('#newsBox');
+  if (!box) return;
+  var list = (NEWS && NEWS.slides) || [];
+  if (!list.length) {
+    box.innerHTML = '<div class="note" style="margin:0 0 10px">Екранів поки немає. ' +
+      '«Додати екран» — або натисніть «Показати всім», і опублікується заготовка ' +
+      'про останні зміни.</div>';
+    return;
+  }
+  box.innerHTML = list.map(function (n, i) {
+    return '<div class="rw" style="display:block;border-top:1px solid rgba(255,255,255,.08);padding-top:10px">' +
+      '<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">' +
+        '<div class="lb" style="flex:1">Екран ' + (i + 1) + '</div>' +
+        '<button class="btn sec" style="width:auto;padding:6px 12px;margin:0" ' +
+          'onclick="newsDel(' + i + ')">✕</button>' +
+      '</div>' +
+      '<input type="text" style="text-align:left;margin-bottom:8px" placeholder="Мітка (напр. Оновлення)" ' +
+        'value="' + esc(n.tag || '') + '" oninput="newsSet(' + i + ',\'tag\',this.value)">' +
+      '<input type="text" style="text-align:left;margin-bottom:8px" placeholder="Заголовок" ' +
+        'value="' + esc(n.t || '') + '" oninput="newsSet(' + i + ',\'t\',this.value)">' +
+      '<textarea rows="3" placeholder="Текст" oninput="newsSet(' + i + ',\'p\',this.value)" ' +
+        'style="width:100%;padding:12px 14px;border-radius:14px;background:#171B19;' +
+        'border:1px solid #2A3235;color:#EEF2EC;font:inherit;resize:vertical">' + esc(n.p || '') + '</textarea>' +
+      '</div>';
+  }).join('');
+}
+
+function newsEnsure() { if (!NEWS) NEWS = { id: '', on: 0, slides: [] }; }
+function newsAdd() { newsEnsure(); NEWS.slides.push({ tag: 'Оновлення', t: '', p: '' }); newsDraw(); }
+function newsDel(i) { if (NEWS) { NEWS.slides.splice(i, 1); newsDraw(); } }
+function newsSet(i, k, v) { if (NEWS && NEWS.slides[i]) NEWS.slides[i][k] = v; }
+
+function newsState() {
+  var el = $('#nwState');
+  if (!el) return;
+  if (NEWS && NEWS.on && (NEWS.slides || []).length)
+    el.innerHTML = 'Зараз показується — <b>' + NEWS.slides.length + ' ' +
+      plural(NEWS.slides.length, 'екран', 'екрани', 'екранів') + '</b>. Хто вже подивився, ' +
+      'удруге не побачить. Щоб показати ще раз усім — натисніть «Показати всім» ' +
+      'знову, це створить новий випуск.';
+  else el.innerHTML = 'Зараз нічого не показується.';
+}
+
+function newsPublish() {
+  newsEnsure();
+  if (!NEWS.slides.length) NEWS.slides = JSON.parse(JSON.stringify(NEWS_DEFAULT));
+  var ok = NEWS.slides.filter(function (n) { return (n.t || '').trim() || (n.p || '').trim(); });
+  if (!ok.length) { show('nwEr', 'Заповніть хоча б один екран.', true); return; }
+  /* Новий номер випуску = усі побачать заново. Саме цього ми й хочемо, коли
+     тиснемо «Показати всім». */
+  NEWS = { id: String(Date.now()), on: 1, slides: ok };
+  show('nwOk', '', false); show('nwEr', '', false);
+  post('/settings', { news: NEWS }).then(function (d) {
+    if (!d.ok) { show('nwEr', d.error || 'Не вдалося зберегти.', true); return; }
+    NEWS = (d.saved && d.saved.news) || NEWS;
+    newsDraw(); newsState();
+    show('nwOk', 'Опубліковано. Кожен побачить один раз при відкритті застосунку.', true);
+  }).catch(function () { show('nwEr', 'Сервер не відповідає.', true); });
+}
+
+function newsOff() {
+  post('/settings', { news: null }).then(function (d) {
+    if (!d.ok) { show('nwEr', d.error || 'Не вдалося.', true); return; }
+    NEWS = null; newsDraw(); newsState();
+    show('nwOk', 'Прибрано — більше нікому не показується.', true);
+  }).catch(function () { show('nwEr', 'Сервер не відповідає.', true); });
+}
+
 $('#save').addEventListener('click', function () {
   var body = {}, bad = '';
   NUM.forEach(function (k) { var v = $('#' + k).value; if (v === '') { bad = bad || k; return; } body[k] = parseFloat(v); });
@@ -799,6 +949,9 @@ $('#save').addEventListener('click', function () {
   /* Ці два поля можуть бути порожні — тоді просто не чіпаємо збережене. */
   if ($('#aiFund') && $('#aiFund').value !== '') body.aiFund = $('#aiFund').value;
   if ($('#aiFundAt') && $('#aiFundAt').value) body.aiFundAt = $('#aiFundAt').value;
+  if ($('#aiDayCap') && $('#aiDayCap').value !== '') body.aiDayCap = $('#aiDayCap').value;
+  if ($('#aiModel')) body.aiModel = $('#aiModel').value;
+  if ($('#aiVision')) body.aiVision = $('#aiVision').value;
   show('sOk', '', false); show('sEr', '', false);
   if (bad) { show('sEr', 'Заповніть усі числові поля.', true); return; }
   this.disabled = true;
@@ -976,6 +1129,13 @@ function resetMe() {
 }
 
 function pct(a, b) { return b > 0 ? Math.round(a * 100 / b) + '%' : '—'; }
+/* 1 екран, 2 екрани, 5 екранів — інакше в панелі зʼявляється «5 екрани». */
+function plural(n, one, few, many) {
+  var a = n % 10, b = n % 100;
+  if (a === 1 && b !== 11) return one;
+  if (a >= 2 && a <= 4 && (b < 10 || b >= 20)) return few;
+  return many;
+}
 function nfm(n) { return (n == null) ? '—' : String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ' '); }
 
 /* Головні цифри — великими, решта — списком. Мета: за п'ять секунд зрозуміти,
@@ -1043,66 +1203,19 @@ function dayTxt(n) {
 var MON_UA = ['січ', 'лют', 'бер', 'кві', 'тра', 'чер', 'лип', 'сер', 'вер', 'жов', 'лис', 'гру'];
 function dmy(d) { return d.getDate() + ' ' + MON_UA[d.getMonth()]; }
 
-function moneyCard(d) {
+/* Коротка тривога в «Огляді»: подробиці — у «Техніці», але пропустити
+   оплату не можна, тому рядок видно там, куди він дивиться найчастіше. */
+function alarmStrip(d) {
   var ai = (d.usage && d.usage.ai) || null;
-  var due = billsDue();
-  var h = '';
-
-  /* Найгучніше — те, що горить. Спершу тривога, потім цифри. */
-  var alarms = [];
-  due.forEach(function (r) {
-    if (r.left <= 3) alarms.push('<b>' + esc(r.b.name) + '</b> — ' + r.b.sum + ' ' + r.b.cur +
-      ' ' + dayTxt(r.left));
+  var due = billsDue().filter(function (r) { return r.left <= 3; });
+  var bits = due.map(function (r) {
+    return esc(r.b.name) + ' — ' + r.b.sum + ' ' + r.b.cur + ' ' + dayTxt(r.left);
   });
   if (ai && ai.fund && ai.left !== null && ai.left <= ai.fund * 0.2)
-    alarms.push('<b>Рахунок ШІ</b> — лишилось $' + ai.left.toFixed(2) +
-      (ai.daysLeft !== null ? ' (десь на ' + ai.daysLeft + ' дн.)' : ''));
-
-  if (alarms.length) {
-    h += '<div class="msg er" style="margin-bottom:12px"><b>Треба оплатити</b><br>' +
-      alarms.join('<br>') + '</div>';
-  }
-
-  h += '<div class="lb" style="margin:2px 0 8px">Мої витрати</div>';
-
-  /* ---- рахунок ШІ ---- */
-  if (ai && ai.fund) {
-    var used = Math.min(100, Math.round((ai.spent / ai.fund) * 100));
-    h += '<div class="bars" style="margin-bottom:8px"><div class="bar">' +
-      '<span>Рахунок ШІ</span>' +
-      '<u><i style="width:' + Math.max(2, used) + '%;background:' + barCol(used) + '"></i></u>' +
-      '<b>$' + ai.spent.toFixed(2) + ' з $' + Number(ai.fund).toFixed(2) + '</b></div></div>';
-    h += listRows([
-      ['Лишилось', '$' + (ai.left === null ? '—' : ai.left.toFixed(2)),
-        ai.daysLeft !== null ? 'за теперішнім темпом вистачить на ' + ai.daysLeft + ' дн.'
-                             : 'витрата поки надто мала, щоб рахувати дні'],
-      ['Витрачається за день', '$' + ai.perDay.toFixed(2),
-        ai.fundAt ? 'рахунок від ' + ai.fundAt : ''],
-    ]);
-    h += '<div class="note" style="margin:0 0 12px">Поповнити: console.anthropic.com → Billing. ' +
-      'Після поповнення впишіть нову суму й дату в «Налаштуваннях», інакше залишок рахуватиметься від старої.</div>';
-  } else if (ai) {
-    h += '<div class="note" style="margin:0 0 12px">Рахунок ШІ ще не заведено. ' +
-      'Впишіть у «Налаштуваннях», скільки поклали на Anthropic і якого числа — ' +
-      'і тут буде видно залишок' +
-      (ai.spent ? '. Витрачено за 30 днів: $' + ai.spent.toFixed(2) : '') + '.</div>';
-  }
-
-  /* ---- рахунки, які він платить сам ---- */
-  if (due.length) {
-    h += listRows(due.map(function (r) {
-      return [esc(r.b.name), r.b.sum + ' ' + r.b.cur,
-        dmy(r.when) + ' · ' + dayTxt(r.left) + (r.b.note ? ' · ' + esc(r.b.note) : '')];
-    }));
-    h += '<div class="note" style="margin-bottom:2px">Бот нагадає в чат за три дні до дати. ' +
-      'Змінити список — «Налаштування» → «За що я плачу».</div>';
-  } else {
-    h += '<div class="note">Список порожній. Додайте Cloudflare та інше, за що платите самі: ' +
-      '«Налаштування» → «За що я плачу». Бот нагадуватиме за три дні до дати, ' +
-      'щоб застосунок не став через забуту оплату.</div>';
-  }
-
-  return h + '<div style="height:6px"></div>';
+    bits.push('рахунок ШІ: лишилось $' + ai.left.toFixed(2));
+  if (!bits.length) return '';
+  return '<div class="msg er" style="margin-bottom:12px"><b>Треба оплатити</b><br>' +
+    bits.join('<br>') + '<br><small style="opacity:.85">Подробиці — вкладка «Техніка».</small></div>';
 }
 
 function loadCard(u) {
@@ -1173,6 +1286,108 @@ function loadCard(u) {
   return h;
 }
 
+/* ------------------------------------------------------------------ */
+/* ТЕХНІЧНА ВКЛАДКА                                                    */
+/* ------------------------------------------------------------------ */
+/* Власник просив одне місце, де видно все технічне: скільки грошей і коли
+   платити, скільки ще витримає тариф, скільки лишилось памʼяті. Раніше це
+   було розкидано між «Оглядом» і Cloudflare — і він чесно казав, що
+   «нічого не понятно». */
+function drawTech(d) {
+  var u = d.usage || null;
+
+  /* --- гроші --- */
+  var mBox = $('#techMoney');
+  if (mBox) {
+    var ai = (u && u.ai) || null;
+    var h = '';
+    var due = billsDue();
+
+    var alarms = [];
+    due.forEach(function (r) {
+      if (r.left <= 3) alarms.push('<b>' + esc(r.b.name) + '</b> — ' + r.b.sum + ' ' +
+        r.b.cur + ' ' + dayTxt(r.left));
+    });
+    if (ai && ai.fund && ai.left !== null && ai.left <= ai.fund * 0.2)
+      alarms.push('<b>Рахунок ШІ</b> — лишилось $' + ai.left.toFixed(2));
+    if (alarms.length)
+      h += '<div class="msg er" style="margin-bottom:12px"><b>Треба оплатити</b><br>' +
+        alarms.join('<br>') + '</div>';
+
+    if (ai) {
+      var modelUa = ai.model === 'smart' ? 'розумна (дорога)' : 'дешева і швидка';
+      var visUa = ai.vision === 'smart' ? 'розумна (дорога)' : 'дешева';
+      h += '<div class="lb" style="margin:2px 0 6px">Штучний інтелект</div>';
+      if (ai.fund) {
+        var used = Math.min(100, Math.round((ai.spent / ai.fund) * 100));
+        h += '<div class="bars" style="margin-bottom:8px"><div class="bar">' +
+          '<span>Рахунок Anthropic</span>' +
+          '<u><i style="width:' + Math.max(2, used) + '%;background:' + barCol(used) + '"></i></u>' +
+          '<b>$' + ai.spent.toFixed(2) + ' з $' + Number(ai.fund).toFixed(2) + '</b></div></div>';
+      }
+      h += listRows([
+        ['Лишилось на рахунку', ai.fund ? '$' + (ai.left || 0).toFixed(2) : 'не вказано',
+          ai.daysLeft !== null && ai.daysLeft !== undefined
+            ? 'за теперішнім темпом — ще ' + ai.daysLeft + ' дн.'
+            : 'впишіть суму поповнення в «Налаштуваннях»'],
+        ['Витрачено сьогодні', '$' + (ai.todaySpent || 0).toFixed(2),
+          ai.cap ? 'межа на добу $' + ai.cap : 'межі на добу немає'],
+        ['Витрачається за день', '$' + (ai.perDay || 0).toFixed(2),
+          ai.fundAt ? 'рахунок від ' + ai.fundAt : ''],
+        ['Модель для відповідей', modelUa, 'помічник, оцінка, запчастини'],
+        ['Модель для фото значка', visUa, 'там якість вирішує'],
+      ]);
+      h += '<div class="note" style="margin:0 0 14px">Коли межа на добу вибрана або ' +
+        'гроші скінчились, помічник <b>не ламається</b> — переходить на безкоштовну ' +
+        'модель Cloudflare, а вам приходить повідомлення в бот. ' +
+        'Поповнити: console.anthropic.com → Billing.</div>';
+    }
+
+    h += '<div class="lb" style="margin:2px 0 6px">Мої рахунки</div>';
+    if (due.length) {
+      h += listRows(due.map(function (r) {
+        return [esc(r.b.name), r.b.sum + ' ' + r.b.cur,
+          dmy(r.when) + ' · ' + dayTxt(r.left) + (r.b.note ? ' · ' + esc(r.b.note) : '')];
+      }));
+    } else {
+      h += '<div class="note">Порожньо. Додайте Cloudflare та інше, за що платите самі — ' +
+        '«Налаштування» → «За що я плачу».</div>';
+    }
+    mBox.innerHTML = h;
+  }
+
+  /* --- навантаження --- */
+  var lBox = $('#techLoad');
+  if (lBox) lBox.innerHTML = loadCard(u);
+
+  /* --- памʼять --- */
+  var pBox = $('#techMem');
+  if (pBox) {
+    if (!u) { pBox.innerHTML = '<div class="note">Сервер ще не вміє це рахувати — ' +
+      'залийте свіжий worker.js.</div>'; }
+    else {
+      var freeMB = Math.max(0, u.storeLimitMB - u.storeMB);
+      var perUser = (u.perUser && u.perUser.mb) || 0;
+      var room = perUser > 0 ? Math.floor(freeMB / perUser) : null;
+      var pct2 = u.pct.store || 0;
+      pBox.innerHTML =
+        '<div class="bars" style="margin-bottom:8px"><div class="bar"><span>Зайнято</span>' +
+        '<u><i style="width:' + Math.max(2, Math.min(100, pct2)) + '%;background:' + barCol(pct2) + '"></i></u>' +
+        '<b>' + pctTxt(pct2) + '</b></div></div>' +
+        listRows([
+          ['Зайнято', u.storeMB + ' МБ', 'документи людей і самі записи'],
+          ['Вільно', Math.round(freeMB) + ' МБ',
+            'із ' + Math.round(u.storeLimitMB / 1024 * 10) / 10 + ' ГБ, які дає тариф'],
+          ['Де лежать документи', u.inR2 ? 'R2 — правильно' : 'у записах — дорого',
+            u.inR2 ? 'перші 10 ГБ безкоштовні' : 'перенесіть кнопкою нижче: у KV це в 33 рази дорожче'],
+          ['На одну людину', perUser ? perUser + ' МБ' : '—', ''],
+          ['Вистачить ще на', room !== null ? nfm(room) + ' людей' : '—',
+            'при теперішньому апетиті'],
+        ]);
+    }
+  }
+}
+
 function drawAna(st, d) {
   if (!st) { $('#anaBox').innerHTML = '<div class="note">Поки нема даних.</div>'; return; }
   d = d || {};
@@ -1181,7 +1396,7 @@ function drawAna(st, d) {
 
   var h = '';
 
-  h += moneyCard(d);
+  h += alarmStrip(d);
 
   h += '<div class="lb" style="margin:2px 0 8px">Головне</div>' +
     bigRow([
@@ -1191,7 +1406,6 @@ function drawAna(st, d) {
       ['$' + nfm(rev), 'зароблено'],
     ]);
 
-  h += loadCard(d.usage);
 
   /* Воронка — головна картинка. Видно не «скільки прийшло», а де зупинились. */
   var funnel = [
