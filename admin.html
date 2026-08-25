@@ -8,7 +8,7 @@
 <title>Бардачок — керування</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<link rel="stylesheet" href="styles.css?v=20260825-0500">
+<link rel="stylesheet" href="styles.css?v=20260825-0600">
 <style>
   body{overflow:auto}
   .wrap{max-width:620px;margin:0 auto;padding:26px 16px 60px}
@@ -92,7 +92,7 @@
     <button data-t="t-tech">Стан</button>
   </div>
   <div class="msg inf" id="info">Завантаження…</div>
-  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260825-0500</div>
+  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260825-0600</div>
 
   <div class="pane on" id="t-home">
   <div id="stCount"></div>
@@ -471,6 +471,15 @@
       Прострочений рахунок означає, що застосунок може стати для всіх одразу.</div>
     <div id="billsBox"></div>
     <button class="btn sec" onclick="billAdd()">Додати рахунок</button>
+
+    <div class="sect" style="margin-top:18px">Рахунок ШІ (Anthropic)</div>
+    <div class="note" style="margin:0 0 10px">Впишіть, скільки поклали на рахунок і якого числа.
+      Далі сервер сам рахує, скільки з цього вже витрачено — у «Огляді» буде видно залишок
+      і на скільки днів його вистачить.</div>
+    <div class="rw"><div class="lb">Поклав, $<small>напр. 5</small></div>
+      <input type="number" step="0.01" min="0" id="aiFund" style="text-align:left" placeholder="5"></div>
+    <div class="rw"><div class="lb">Якого числа<small>від цієї дати рахуємо витрату</small></div>
+      <input type="date" id="aiFundAt" style="text-align:left"></div>
   </div>
 
   <div class="msg ok hidden" id="sOk"></div>
@@ -682,6 +691,8 @@ function load() {
     if ($('#meId')) $('#meId').textContent = d.adminId || 'не вказано';
     BILLS = Array.isArray(d.bills) ? d.bills : [];
     billsDraw();
+    if ($('#aiFund') && d.aiFund) $('#aiFund').value = d.aiFund;
+    if ($('#aiFundAt') && d.aiFundAt) $('#aiFundAt').value = d.aiFundAt;
     qrDraw(d.qrOwn || 0);
     if (d._storage === false) { show('info', 'Сховище не підключене — зберегти не вийде.', true); $('#info').className = 'msg er'; }
     else { show('info', 'Налаштування завантажено.', true); $('#info').className = 'msg inf'; }
@@ -785,6 +796,9 @@ $('#save').addEventListener('click', function () {
   NUM.forEach(function (k) { var v = $('#' + k).value; if (v === '') { bad = bad || k; return; } body[k] = parseFloat(v); });
   TXT.forEach(function (k) { body[k] = $('#' + k).value.trim(); });
   body.bills = BILLS.filter(function (b) { return (b.name || '').trim(); });
+  /* Ці два поля можуть бути порожні — тоді просто не чіпаємо збережене. */
+  if ($('#aiFund') && $('#aiFund').value !== '') body.aiFund = $('#aiFund').value;
+  if ($('#aiFundAt') && $('#aiFundAt').value) body.aiFundAt = $('#aiFundAt').value;
   show('sOk', '', false); show('sEr', '', false);
   if (bad) { show('sEr', 'Заповніть усі числові поля.', true); return; }
   this.disabled = true;
@@ -1000,6 +1014,97 @@ function pctTxt(p) {
   return 'менше 0,1%';
 }
 
+/* ------------------------------------------------------------------ */
+/* МОЇ ВИТРАТИ — найперше, що видно в Огляді                            */
+/* ------------------------------------------------------------------ */
+/* Найдорожча помилка власника — забути поповнити. Тоді застосунок просто
+   стає для всіх одразу, і дізнається він про це з чату користувачів.
+   Тому це не рядок у налаштуваннях, а перша картка з датами й залишком. */
+function billsDue() {
+  var now = new Date();
+  var dim = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  return BILLS.map(function (b) {
+    var day = Math.min(b.day || 1, dim);
+    var left = day - now.getDate();
+    if (left < 0) left += dim;
+    var when = new Date(now.getFullYear(), now.getMonth(), now.getDate() + left);
+    return { b: b, left: left, when: when };
+  }).sort(function (a, b2) { return a.left - b2.left; });
+}
+
+function dayTxt(n) {
+  if (n === 0) return 'сьогодні';
+  if (n === 1) return 'завтра';
+  var a = n % 10, b = n % 100;
+  var w = (a === 1 && b !== 11) ? 'день' : (a >= 2 && a <= 4 && (b < 10 || b >= 20)) ? 'дні' : 'днів';
+  return 'через ' + n + ' ' + w;
+}
+
+var MON_UA = ['січ', 'лют', 'бер', 'кві', 'тра', 'чер', 'лип', 'сер', 'вер', 'жов', 'лис', 'гру'];
+function dmy(d) { return d.getDate() + ' ' + MON_UA[d.getMonth()]; }
+
+function moneyCard(d) {
+  var ai = (d.usage && d.usage.ai) || null;
+  var due = billsDue();
+  var h = '';
+
+  /* Найгучніше — те, що горить. Спершу тривога, потім цифри. */
+  var alarms = [];
+  due.forEach(function (r) {
+    if (r.left <= 3) alarms.push('<b>' + esc(r.b.name) + '</b> — ' + r.b.sum + ' ' + r.b.cur +
+      ' ' + dayTxt(r.left));
+  });
+  if (ai && ai.fund && ai.left !== null && ai.left <= ai.fund * 0.2)
+    alarms.push('<b>Рахунок ШІ</b> — лишилось $' + ai.left.toFixed(2) +
+      (ai.daysLeft !== null ? ' (десь на ' + ai.daysLeft + ' дн.)' : ''));
+
+  if (alarms.length) {
+    h += '<div class="msg er" style="margin-bottom:12px"><b>Треба оплатити</b><br>' +
+      alarms.join('<br>') + '</div>';
+  }
+
+  h += '<div class="lb" style="margin:2px 0 8px">Мої витрати</div>';
+
+  /* ---- рахунок ШІ ---- */
+  if (ai && ai.fund) {
+    var used = Math.min(100, Math.round((ai.spent / ai.fund) * 100));
+    h += '<div class="bars" style="margin-bottom:8px"><div class="bar">' +
+      '<span>Рахунок ШІ</span>' +
+      '<u><i style="width:' + Math.max(2, used) + '%;background:' + barCol(used) + '"></i></u>' +
+      '<b>$' + ai.spent.toFixed(2) + ' з $' + Number(ai.fund).toFixed(2) + '</b></div></div>';
+    h += listRows([
+      ['Лишилось', '$' + (ai.left === null ? '—' : ai.left.toFixed(2)),
+        ai.daysLeft !== null ? 'за теперішнім темпом вистачить на ' + ai.daysLeft + ' дн.'
+                             : 'витрата поки надто мала, щоб рахувати дні'],
+      ['Витрачається за день', '$' + ai.perDay.toFixed(2),
+        ai.fundAt ? 'рахунок від ' + ai.fundAt : ''],
+    ]);
+    h += '<div class="note" style="margin:0 0 12px">Поповнити: console.anthropic.com → Billing. ' +
+      'Після поповнення впишіть нову суму й дату в «Налаштуваннях», інакше залишок рахуватиметься від старої.</div>';
+  } else if (ai) {
+    h += '<div class="note" style="margin:0 0 12px">Рахунок ШІ ще не заведено. ' +
+      'Впишіть у «Налаштуваннях», скільки поклали на Anthropic і якого числа — ' +
+      'і тут буде видно залишок' +
+      (ai.spent ? '. Витрачено за 30 днів: $' + ai.spent.toFixed(2) : '') + '.</div>';
+  }
+
+  /* ---- рахунки, які він платить сам ---- */
+  if (due.length) {
+    h += listRows(due.map(function (r) {
+      return [esc(r.b.name), r.b.sum + ' ' + r.b.cur,
+        dmy(r.when) + ' · ' + dayTxt(r.left) + (r.b.note ? ' · ' + esc(r.b.note) : '')];
+    }));
+    h += '<div class="note" style="margin-bottom:2px">Бот нагадає в чат за три дні до дати. ' +
+      'Змінити список — «Налаштування» → «За що я плачу».</div>';
+  } else {
+    h += '<div class="note">Список порожній. Додайте Cloudflare та інше, за що платите самі: ' +
+      '«Налаштування» → «За що я плачу». Бот нагадуватиме за три дні до дати, ' +
+      'щоб застосунок не став через забуту оплату.</div>';
+  }
+
+  return h + '<div style="height:6px"></div>';
+}
+
 function loadCard(u) {
   if (!u) {
     return '<div class="lb" style="margin:16px 0 4px">Навантаження на тариф</div>' +
@@ -1068,27 +1173,6 @@ function loadCard(u) {
   return h;
 }
 
-/* Скоро оплата: те саме, про що бот пише в чат, але перед очима в панелі. */
-function billsSoon() {
-  if (!BILLS.length) return '';
-  var now = new Date();
-  var dim = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-  var rows = BILLS.map(function (b) {
-    var day = Math.min(b.day || 1, dim);
-    var left = day - now.getDate();
-    if (left < 0) left += dim;
-    return { b: b, left: left };
-  }).sort(function (a, b2) { return a.left - b2.left; });
-
-  return '<div class="lb" style="margin:16px 0 4px">За що я плачу</div>' +
-    '<div class="note" style="margin:0 0 9px">Бот нагадає в чат за три дні до дати.</div>' +
-    listRows(rows.map(function (r) {
-      return [esc(r.b.name), r.b.sum + ' ' + r.b.cur,
-        (r.left === 0 ? 'сьогодні' : 'через ' + r.left + ' дн.') +
-        (r.b.note ? ' · ' + esc(r.b.note) : '')];
-    }));
-}
-
 function drawAna(st, d) {
   if (!st) { $('#anaBox').innerHTML = '<div class="note">Поки нема даних.</div>'; return; }
   d = d || {};
@@ -1096,6 +1180,8 @@ function drawAna(st, d) {
   var paid = d.paid || 0, rev = d.revenue || 0;
 
   var h = '';
+
+  h += moneyCard(d);
 
   h += '<div class="lb" style="margin:2px 0 8px">Головне</div>' +
     bigRow([
@@ -1105,7 +1191,7 @@ function drawAna(st, d) {
       ['$' + nfm(rev), 'зароблено'],
     ]);
 
-  h += loadCard(d.usage) + billsSoon();
+  h += loadCard(d.usage);
 
   /* Воронка — головна картинка. Видно не «скільки прийшло», а де зупинились. */
   var funnel = [
@@ -1615,28 +1701,30 @@ function drawPay(d) {
     '</div>';
   if (d.drop && d.drop.n) {
     var conv = (d.paid || 0) + d.drop.n;
-    h += listRows([['Відкрили оплату й не заплатили', nfm(d.drop.n),
+    h += listRows([['Заходили в оплату, але не платили', nfm(d.drop.n),
       'сьогодні' + (conv ? ' · доходить до кінця ' + pct(d.paid || 0, conv) : '') +
       '. Якщо ця цифра велика — людям щось заважає платити']]);
   }
+  /* Тут лише ті, хто НАТИСНУВ «Я оплатив». Раніше сюди потрапляв кожен, хто
+     просто відкрив і закрив вікно оплати, — і власник шукав у гаманці гроші,
+     яких ніхто не надсилав. Тепер сервер такі записи не віддає взагалі. */
   if (!w.length) {
-    h += '<div class="note">Зараз ніхто не чекає переказу.</div>';
+    h += '<div class="note">Ніхто не чекає підтвердження. Усе, що прийшло, ' +
+         'зараховано.</div>';
   } else {
-    /* Це НЕ гроші й не оплати — це люди, які щойно відкрили вікно оплати.
-       У «зароблено» вони не входять, інакше статистика брехала б. */
-    h += '<div class="lb" style="margin:4px 0 2px">Відкрили оплату просто зараз: ' + w.length + '</div>' +
-      '<div class="note" style="margin:0 0 8px">Це ще не гроші — у «зароблено» не рахуються. ' +
-      'Записи зникають самі через три години, якщо переказ так і не прийшов.</div>' +
-      w.slice(0, 5).map(function (x) {
+    h += '<div class="lb" style="margin:4px 0 2px">Кажуть, що оплатили: ' + w.length + '</div>' +
+      '<div class="note" style="margin:0 0 8px">Ці люди натиснули «Я оплатив». ' +
+      'Подивіться в гаманці, чи прийшов переказ, і підтвердьте кнопкою в чаті бота — ' +
+      'преміум увімкнеться сам. Якщо ввімкнено автозарахування, робити нічого не треба.</div>' +
+      w.slice(0, 8).map(function (x) {
         var who = (x.name || 'Без імені') + (x.nick ? ' · @' + x.nick : '');
         return '<div class="rw"><div class="lb">' + esc(who) +
           '<small>' + esc(x.plan === 'year' ? 'рік' : x.plan === 'half' ? 'півроку' : 'місяць') +
           ' · ' + esc(x.amount) + ' USDT · ID ' + esc(x.userId) +
-          ' · ' + x.mins + ' хв тому</small></div>' +
+          ' · сказав ' + x.mins + ' хв тому</small></div>' +
           '<b>$' + esc(x.base) + '</b></div>';
       }).join('') +
-      (w.length > 5 ? '<div class="note" style="margin-top:6px">…і ще ' + (w.length - 5) +
-        '. Список навмисно короткий: гортати їх нема сенсу.</div>' : '');
+      (w.length > 8 ? '<div class="note" style="margin-top:6px">…і ще ' + (w.length - 8) + '.</div>' : '');
   }
   box.innerHTML = h;
 }
