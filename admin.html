@@ -8,7 +8,7 @@
 <title>Бардачок — керування</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<link rel="stylesheet" href="styles.css?v=20260825-1100">
+<link rel="stylesheet" href="styles.css?v=20260825-1200">
 <style>
   body{overflow:auto}
   .wrap{max-width:620px;margin:0 auto;padding:26px 16px 60px}
@@ -92,7 +92,7 @@
     <button data-t="t-tech">Техніка</button>
   </div>
   <div class="msg inf" id="info">Завантаження…</div>
-  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260825-1100</div>
+  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260825-1200</div>
   <div id="topStrip"></div>
 
   <div class="pane on" id="t-home">
@@ -401,6 +401,10 @@
       і збережіть картинку. До 400 КБ. Якщо свого немає — показується вбудований,
       але тільки для початкової адреси.</div>
     <div id="qrOut"></div>
+    <div class="rw"><div class="lb">Офіційний канал<small>@назва або посилання t.me</small></div>
+      <input type="text" id="channel" style="text-align:left" placeholder="@bardachok_ua"></div>
+    <div class="note">Зʼявиться пунктом «Наш канал» у розділі «Ще» — у всіх користувачів.</div>
+
     <div class="rw"><div class="lb">Ваш Telegram ID<small>Сюди бот пише про оплати</small></div>
       <input type="text" id="adminId" style="text-align:left" placeholder="123456789"></div>
     <div class="note"><b>Як це працює.</b> Людина тисне «Я оплатив» — вам у бот приходить
@@ -468,6 +472,9 @@
       <div class="lb" style="margin-bottom:8px">Текст<small>Можна жирний &lt;b&gt;так&lt;/b&gt; і посилання &lt;a href="…"&gt;текст&lt;/a&gt;</small></div>
       <textarea id="bcText" rows="5" placeholder="Що нового або що важливо знати"
         style="width:100%;padding:12px 14px;border-radius:14px;background:#171B19;border:1px solid #2A3235;color:#EEF2EC;font:inherit;resize:vertical"></textarea>
+    </div>
+    <div style="display:flex;gap:9px;margin:0 0 10px">
+      <button class="btn sec" style="margin:0" onclick="bcGreet()">Вставити привітання</button>
     </div>
     <div class="rw"><div class="lb">Кому</div>
       <select id="bcWho" style="text-align:left">
@@ -593,7 +600,7 @@
 var API = 'https://bardachok.kasebaby24.workers.dev';
 
 var NUM = ['premiumMonth','premiumHalf','premiumYear','freeCars','freeVin','autoPay','remindInsurance','remindService','oilInterval'];
-var TXT = ['contactTg','wfpMerchant','wfpDomain','usdtAddress','adminId'];
+var TXT = ['contactTg','wfpMerchant','wfpDomain','usdtAddress','adminId','channel'];
 var KEY = '';
 var BILLS = [];          // за що власник платить сам — редагується нижче
 var $ = function (s) { return document.querySelector(s); };
@@ -899,6 +906,28 @@ function newsDraw() {
         'border:1px solid #2A3235;color:#EEF2EC;font:inherit;resize:vertical">' + esc(n.p || '') + '</textarea>' +
       '</div>';
   }).join('');
+}
+
+/* Готове привітання з запрошенням у канал. Власнику лишається натиснути
+   «Вставити» й за потреби переписати своїми словами. Посилання підставляємо
+   з налаштувань, щоб не було «вставив, а канал не той». */
+function bcGreet() {
+  var ch = ($('#channel') && $('#channel').value.trim().replace(/^@/, '')) || '';
+  var t = 'Вітаю! 👋\n\n' +
+    'Це Бардачок — ваш застосунок для авто. Сьогодні він став помітно розумнішим:\n\n' +
+    '• <b>Горить чек?</b> Сфотографуйте панель — скажу, що це за значок і чи можна їхати\n' +
+    '• <b>Скільки коштує ваше авто</b> — оцінка за ринком і що взяти натомість\n' +
+    '• <b>Запчастини</b> — оригінал чи аналог, з цінами\n' +
+    '• <b>Фото до ремонтів</b> — і вони самі йдуть у звіт для покупця\n' +
+    '• <b>Регламент ТО</b> — що вже пора, а що ще нескоро\n\n' +
+    'Гараж, штрафи, витрати й нагадування були і лишаються безкоштовними.\n\n' +
+    (ch ? 'Підпишіться на наш канал — там поради, новини й оновлення:\n' +
+          '<a href="https://t.me/' + ch + '">t.me/' + ch + '</a>\n\n' : '') +
+    'Дякую, що користуєтесь 🙏';
+  var box = $('#bcText');
+  if (box) { box.value = t; box.focus(); }
+  show('bcOk', ch ? 'Текст вставлено. Перевірте й натисніть «Спершу собі».'
+                  : 'Текст вставлено. Канал не вказано — впишіть його в «Налаштуваннях», якщо треба посилання.', true);
 }
 
 function newsEnsure() { if (!NEWS) NEWS = { id: '', on: 0, slides: [] }; }

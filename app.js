@@ -13,7 +13,7 @@ var API = 'https://bardachok.kasebaby24.workers.dev';
 var QR_FOR = 'TWqHKxsLAdGMPC7kY4i3r2GQxNJ2U6vQXv';   // до цієї адреси намальовано usdt-qr.png
 var USDT_CONTRACT = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';   // USDT у мережі TRON
 
-var BUILD = '20260825-1100';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
+var BUILD = '20260825-1200';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
 var BOOT_T0 = Date.now();
 
 var tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
@@ -1541,6 +1541,7 @@ function drawMore() {
     itemBtn('doc', 'Документи', 'Техпаспорт, страховка, права', 'tab:s-docs') +
     itemBtn('doc', 'Звіт для покупця', 'PDF із сервісною книжкою', 'tab:s-report', !PRO) +
     itemBtn('crash', 'Що робити при ДТП', 'Покроково, без паніки', 'tab:s-crash') +
+    (CFG.channel ? itemBtn('star', 'Наш канал', 'Новини, поради, оновлення', 'do:channel') : '') +
     (CFG.contactTg ? itemBtn('chat', 'Підтримка', 'Написати, якщо щось не так', 'do:support') : '') +
     itemBtn('car', 'Мої авто', S.cars.length + ' ' + plural(S.cars.length, 'авто', 'авто', 'авто'), 'tab:s-cars') +
     '</div>';
@@ -3177,7 +3178,7 @@ function lampShow(L, freeUsed) {
     '<p>' + esc(L.todo) + '</p></div></div>';
 
   if (L.causes && L.causes.length) {
-    h += '<div class="h2">Найімовірніші причини</div><div class="card list">' +
+    h += '<div class="h2">Найімовірніші причини</div><div class="card list wrap">' +
       L.causes.slice(0, 5).map(function (c, i) {
         return '<div class="it" style="cursor:default"><div class="dt">' + (i + 1) + '</div>' +
           '<div class="tx"><b style="font-weight:500;font-size:13.5px">' + esc(c) + '</b></div></div>';
@@ -3219,21 +3220,21 @@ function valuate() {
       '</div>';
 
     if (V.why && V.why.length) {
-      h += '<div class="h2">Що впливає на ціну</div><div class="card list">' +
+      h += '<div class="h2">Що впливає на ціну</div><div class="card list wrap">' +
         V.why.map(function (w) {
           return '<div class="it" style="cursor:default"><div class="dt">' + ic('chart', 16) + '</div>' +
             '<div class="tx"><b style="font-weight:500;font-size:13.5px">' + esc(w) + '</b></div></div>';
         }).join('') + '</div>';
     }
     if (V.boost && V.boost.length) {
-      h += '<div class="h2">Щоб узяти більше</div><div class="card list">' +
+      h += '<div class="h2">Щоб узяти більше</div><div class="card list wrap">' +
         V.boost.map(function (w) {
           return '<div class="it" style="cursor:default"><div class="dt">' + ic('plus', 16) + '</div>' +
             '<div class="tx"><b style="font-weight:500;font-size:13.5px">' + esc(w) + '</b></div></div>';
         }).join('') + '</div>';
     }
     if (V.alts && V.alts.length) {
-      h += '<div class="h2">Що можна взяти натомість</div><div class="card list">' +
+      h += '<div class="h2">Що можна взяти натомість</div><div class="card list wrap">' +
         V.alts.map(function (a) {
           return '<div class="it" style="cursor:default"><div class="dt">' + ic('car', 17) + '</div>' +
             '<div class="tx"><b>' + esc(a.name) + '</b><small>' + esc(a.why || '') + '</small></div>' +
@@ -3287,7 +3288,7 @@ function partsGo(what) {
     h += '<div class="kv"><span>Артикул оригіналу</span><b>' +
       (P.oem ? esc(P.oem) : 'звірте за VIN') + '</b></div>';
 
-    h += '<div class="h2">Що ставити</div><div class="card list">' +
+    h += '<div class="h2">Що ставити</div><div class="card list wrap">' +
       (P.options || []).map(function (o) {
         var t = String(o.tier || '');
         var col = t.indexOf('оригінал') > -1 ? 'var(--lime)'
@@ -3299,7 +3300,7 @@ function partsGo(what) {
       }).join('') + '</div>';
 
     if (P.check && P.check.length) {
-      h += '<div class="h2">Уточніть перед покупкою</div><div class="card list">' +
+      h += '<div class="h2">Уточніть перед покупкою</div><div class="card list wrap">' +
         P.check.map(function (c) {
           return '<div class="it" style="cursor:default"><div class="dt">' + ic('check', 16) + '</div>' +
             '<div class="tx"><b style="font-weight:500;font-size:13.5px">' + esc(c) + '</b></div></div>';
@@ -4494,6 +4495,13 @@ var DO = {
   welNext: function () { WEL = Math.min(WEL + 1, WELCOME.length - 1); drawWelcome(); haptic('light'); },
   welBack: function () { WEL = Math.max(0, WEL - 1); drawWelcome(); },
   welDone: function () { closeSheet(); DIRTY = {}; render(); },
+
+  channel: function () {
+    if (!CFG.channel) return;
+    var u = 'https://t.me/' + String(CFG.channel).replace(/^@/, '');
+    if (tg && tg.openTelegramLink) tg.openTelegramLink(u);
+    else window.open(u, '_blank');
+  },
 
   newsNext: function () { NEWS_I++; drawNews(); haptic('light'); },
   newsBack: function () { NEWS_I = Math.max(0, NEWS_I - 1); drawNews(); },
