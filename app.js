@@ -13,7 +13,7 @@ var API = 'https://bardachok.kasebaby24.workers.dev';
 var QR_FOR = 'TWqHKxsLAdGMPC7kY4i3r2GQxNJ2U6vQXv';   // до цієї адреси намальовано usdt-qr.png
 var USDT_CONTRACT = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';   // USDT у мережі TRON
 
-var BUILD = '20260825-1600';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
+var BUILD = '20260825-1900';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
 var BOOT_T0 = Date.now();
 
 var tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
@@ -1804,14 +1804,7 @@ function drawAsk() {
       '</button>' +
     '</div>';
 
-  /* Два найчастіші питання водія винесені кнопками: інакше про них
-     дізнаються тільки ті, хто гортає меню «Ще». */
-  var tools = '<div class="quick" style="grid-template-columns:1fr 1fr;margin:0 0 12px">' +
-    '<button data-do="lamp">' + ic('alert', 20) + 'Горить значок</button>' +
-    '<button data-do="valuate">' + ic('money', 20) + 'Скільки коштує</button>' +
-    '</div>';
-
-  el.innerHTML = head + tools + body + bar +
+  el.innerHTML = head + body + bar +
     (PRO ? '' : '<div class="note">Питання про авто — у Преміумі. Напишіть — покажу, що це дає.</div>') +
     '<div class="note">Це підказка, а не діагноз — механік бачить авто, я ні.</div>';
 
@@ -2475,6 +2468,13 @@ function drawReport() {
         (PRO ? 'Створити PDF' : 'Створити PDF') + (PRO ? '' : lockIc()) + '</button>' +
       '<div class="note" style="margin-top:10px">Файл прийде у чат бота — звідти перешлете покупцю.</div>' +
     '</div>' +
+    /* Оцінка — саме тут: людина відкриває цей екран, коли думає про продаж.
+       У чаті помічника вона виглядала недоречно. */
+    '<div class="askcard" data-do="valuate" style="margin-top:12px">' +
+      '<div class="askcard-ic">' + ic('money', 20) + '</div>' +
+      '<div class="tx"><b>Скільки коштує ваше авто' + (PRO ? '' : lockIc()) + '</b>' +
+      '<p>Оцінка за ринком і що можна взяти натомість у цій же ціні</p></div>' +
+      '<div class="go">' + ic('back', 16) + '</div></div>' +
     (st.srv.length ? '' :
       '<div class="note">Поки що книжка порожня. Внесіть хоч кілька робіт — звіт стане переконливим.</div>');
 }
@@ -3053,6 +3053,9 @@ function phLoad(id, cb) {
 
 function phAdd(recId) {
   if (PH_BUSY) return;
+  /* Те саме правило, що й для значка: про Преміум кажемо до камери,
+     а не після того, як людина зробила знімок і почекала. */
+  if (!PRO) { needPro('photo'); return; }
   if (!hasKey()) { ensureKey(function () { phAdd(recId); }); return; }
   pickImageFile('phFile', function (file, done) {
     PH_BUSY = true;
@@ -3128,6 +3131,11 @@ var SEV_UA = {
 
 function lampShoot() {
   if (LAMP_BUSY) return;
+  /* Питаємо про Преміум ДО камери. Раніше людина відкривала камеру,
+     фотографувала панель, чекала на завантаження — і аж тоді бачила
+     «це у Преміумі». Так не можна. */
+  var freeLeft = CFG.freeLamp && !S.lampUsed;
+  if (!PRO && !freeLeft) { needPro('lamp'); return; }
   pickImageFile('lampFile', function (file, done) {
     LAMP_BUSY = true;
     openSheet('Дивлюсь на знімок',
@@ -3139,7 +3147,7 @@ function lampShoot() {
           '<button class="btn" data-do="lamp">Спробувати ще раз</button>');
         return;
       }
-      api('/api/lamp', { data: data }, 60000).then(function (d) {
+      api('/api/lamp', { data: data }, 45000).then(function (d) {
         LAMP_BUSY = false; done();
         if (!d.ok) {
           if (d.error === 'premium') { needPro('lamp'); return; }
@@ -3219,7 +3227,7 @@ var LAST_LAMP = null;
 /* ---- скільки коштує авто ---- */
 function valuate() {
   openSheet('Рахую', '<div class="empty" style="padding:26px 0">Дивлюсь на ринок і вашу книжку…</div>');
-  api('/api/valuate', {}, 60000).then(function (d) {
+  api('/api/valuate', {}, 45000).then(function (d) {
     if (!d.ok) {
       if (d.error === 'premium') { needPro('valuate'); return; }
       openSheet('Не вийшло', '<div class="msg er">' + esc(d.message || d.error || '') + '</div>' +
@@ -3291,7 +3299,7 @@ function partsGo(what) {
   what = (what || val('pWhat') || '').trim();
   if (what.length < 2) { toast('Напишіть, що потрібно'); return; }
   openSheet('Шукаю', '<div class="empty" style="padding:26px 0">Підбираю під ваше авто…</div>');
-  api('/api/parts', { what: what }, 60000).then(function (d) {
+  api('/api/parts', { what: what }, 45000).then(function (d) {
     if (!d.ok) {
       if (d.error === 'premium') { needPro('parts'); return; }
       openSheet('Не вийшло', '<div class="msg er">' + esc(d.message || d.error || '') + '</div>' +
@@ -4775,7 +4783,7 @@ var DO = {
     api('/api/ask', {
       q: q, carId: S.activeCar,
       history: CHAT.slice(0, -1).slice(-8),
-    }, 60000).then(function (d) {
+    }, 45000).then(function (d) {
       CHAT_BUSY = false;
       CHAT.push({ role: 'a', text: d.ok ? d.answer : (d.message || d.error || 'Не вдалося відповісти') });
       drawAsk();
