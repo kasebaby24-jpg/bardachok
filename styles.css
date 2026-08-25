@@ -867,3 +867,12 @@ input,select,textarea{-webkit-appearance:none;appearance:none}
 }
 .tipline .icn{color:var(--mut);stroke-width:1.9;width:13px;height:13px}
 .tipline:active{opacity:1;background:var(--surf2)}
+
+/* Фото до ремонту: мініатюри квадратиками, як у галереї телефона. */
+.phrow{display:flex;gap:8px;flex-wrap:wrap;margin:2px 0 12px}
+.phbox{
+  width:76px;height:76px;border-radius:14px;overflow:hidden;flex:0 0 auto;
+  background:var(--surf2);display:grid;place-items:center;
+}
+.phbox img{width:100%;height:100%;object-fit:cover;display:block}
+.phbox:active{opacity:.75}

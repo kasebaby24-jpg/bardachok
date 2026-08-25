@@ -13,7 +13,7 @@ var API = 'https://bardachok.kasebaby24.workers.dev';
 var QR_FOR = 'TWqHKxsLAdGMPC7kY4i3r2GQxNJ2U6vQXv';   // до цієї адреси намальовано usdt-qr.png
 var USDT_CONTRACT = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';   // USDT у мережі TRON
 
-var BUILD = '20260825-0300';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
+var BUILD = '20260825-0500';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
 var BOOT_T0 = Date.now();
 
 var tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
@@ -473,6 +473,7 @@ var PRO_WHY = {
   report: ['Звіти для покупця', 'PDF із сервісною книжкою — сильний аргумент у торгу.'],
   docs:   ['Документи', 'Скільки завгодно знімків замість одного.'],
   cars:   ['Кілька авто', 'Хоч увесь автопарк в одному гаражі.'],
+  photo:  ['Фото до ремонтів', 'До чотирьох знімків на кожен запис — і всі йдуть у звіт покупцю.'],
 };
 
 function needPro(what) {
@@ -701,10 +702,23 @@ function bodyFromVin(bodyClass) {
 /* ------------------------------------------------------------------ */
 /* ОБЧИСЛЕННЯ                                                          */
 /* ------------------------------------------------------------------ */
+/* Скільки цій машині їздити до заміни масла. У місті масло старіє швидше:
+   поїздки короткі, двигун не встигає прогрітись, у мастилі накопичується
+   паливо й конденсат. Тому з десяти тисяч виходить вісім. Те саме число
+   рахує й сервер (oilIv у worker.js) — інакше нагадування й екран
+   показували б різне. */
+var USE_UA = { city: 'Містом', trip: 'Траса, далекі', mix: 'Змішано' };
+
+function oilIv(car) {
+  var base = parseInt(CFG.oilInterval, 10) || 10000;
+  var k = (car && car.use === 'city') ? 0.8 : (car && car.use === 'trip') ? 1 : 0.9;
+  return Math.round(base * k / 500) * 500;
+}
+
 function nextOil(car) {
   if (!car || car.fuel === 'electric') return null;
   if (car.lastOilOdo == null) return null;
-  var iv = parseInt(CFG.oilInterval, 10) || 10000;
+  var iv = oilIv(car);
   return { next: car.lastOilOdo + iv, left: car.lastOilOdo + iv - car.odo, interval: iv };
 }
 
@@ -1232,6 +1246,8 @@ function drawService() {
     '<button class="btn sec" data-do="odo">Пробіг</button>' +
     '<button class="btn" data-do="service">Додати запис</button></div>';
 
+  h += reglCard(car);
+
   var recs = (S.service || []).filter(function (r) { return r.carId === car.id; });
   loadWeather(function () {
     if (TAB === 's-service' && WX) { DIRTY['s-service'] = 0; drawService(); }
@@ -1244,8 +1260,10 @@ function drawService() {
     h += '<div class="empty">Порожньо. Кожен запис — це плюс до ціни при продажу: покупець бачить, що авто доглядали.</div>';
   } else {
     h += '<div class="card list">' + recs.map(function (r) {
-      return '<button class="it" data-do="delAsk" data-id="' + r.id + '"><div class="dt">' + ic(KIND_IC[r.kind] || 'wrench', 17) + '</div>' +
-        '<div class="tx"><b>' + esc(r.title) + '</b><small>' + distTxt(r.odo) + ' · ' + fmtDate(r.date) + '</small></div>' +
+      var np = (r.ph || []).length;
+      return '<button class="it" data-do="srvOpen" data-id="' + r.id + '"><div class="dt">' + ic(KIND_IC[r.kind] || 'wrench', 17) + '</div>' +
+        '<div class="tx"><b>' + esc(r.title) + '</b><small>' + distTxt(r.odo) + ' · ' + fmtDate(r.date) +
+        (np ? ' · ' + np + ' фото' : '') + '</small></div>' +
         '<div class="vl">' + (r.cost ? money(r.cost) : '—') + '</div></button>';
     }).join('') + '</div>';
 
@@ -1814,7 +1832,7 @@ function rpStats(carId) {
            since: dates[0] || null, qty: qty, cons: consumption(carId) };
 }
 
-function rpPages(car) {
+function rpPages(car, photos) {
   var st = rpStats(car.id);
   var isEV = car.fuel === 'electric';
   var pages = [], cv = null, x = null, y = 0, pageNo = 0;
@@ -1990,6 +2008,38 @@ function rpPages(car) {
       ['Витрачено на ' + (isEV ? 'зарядку' : 'паливо'),
         money(st.fuel.reduce(function (a, r) { return a + costUah(r); }, 0))],
     ]);
+  }
+
+  /* ---- фото з ремонтів ---- */
+  /* Найсильніша сторінка звіту: слова про догляд можна написати будь-які,
+     а знімок знятої деталі — ні. Малюємо по два в ряд, під кожним підпис. */
+  if (photos && photos.length) {
+    h2('Фото з ремонтів', 300);
+    var PW = (RP_W - RP_M * 2 - 24) / 2;        // два стовпці з проміжком
+    for (var pi = 0; pi < photos.length; pi += 2) {
+      var pair = photos.slice(pi, pi + 2);
+      /* Висота ряду — за найвищим знімком, але не більше половини сторінки. */
+      var hh = 0;
+      pair.forEach(function (ph) {
+        var k = PW / ph.img.width;
+        hh = Math.max(hh, Math.min(Math.round(ph.img.height * k), 460));
+      });
+      room(hh + 76);
+      pair.forEach(function (ph, ci) {
+        var px = RP_M + ci * (PW + 24);
+        var k = Math.min(PW / ph.img.width, hh / ph.img.height);
+        var w = Math.round(ph.img.width * k), h3 = Math.round(ph.img.height * k);
+        x.fillStyle = '#F2F4EF'; rrect(px, y, PW, hh, 14); x.fill();
+        x.save(); rrect(px, y, PW, hh, 14); x.clip();
+        x.drawImage(ph.img, px + Math.round((PW - w) / 2), y + Math.round((hh - h3) / 2), w, h3);
+        x.restore();
+        x.fillStyle = '#0F1310'; x.font = '600 22px "IBM Plex Sans", sans-serif';
+        x.fillText(clip(ph.title || 'Робота', PW), px, y + hh + 32);
+        x.fillStyle = '#8A9382'; x.font = '400 20px "IBM Plex Sans", sans-serif';
+        x.fillText(fmtDate(ph.date), px, y + hh + 58);
+      });
+      y += hh + 78;
+    }
   }
 
   /* ---- нижній колонтитул на кожній сторінці ---- */
@@ -2334,6 +2384,36 @@ function drawReport() {
       '<div class="note">Поки що книжка порожня. Внесіть хоч кілька робіт — звіт стане переконливим.</div>');
 }
 
+/* Фото з ремонтів для звіту. Беремо найсвіжіші — вісім штук: більше не
+   влазить у розумний обсяг PDF, а покупцю досить і кількох. Кожне треба
+   розшифрувати й «проявити» як картинку, і лише тоді малювати сторінки. */
+function rpPhotos(carId, cb) {
+  var want = [];
+  (S.service || []).filter(function (r) { return r.carId === carId && (r.ph || []).length; })
+    .sort(function (a, b) { return (a.date || '') > (b.date || '') ? -1 : 1; })
+    .forEach(function (r) {
+      (r.ph || []).forEach(function (p) {
+        if (want.length < 8) want.push({ id: p.id, title: r.title, date: r.date });
+      });
+    });
+  if (!want.length) { cb([]); return; }
+
+  var out = [], left = want.length;
+  var done = function () { if (--left === 0) cb(out); };
+
+  want.forEach(function (w) {
+    var draw = function (data) {
+      if (!data) { done(); return; }
+      var im = new Image();
+      im.onload = function () { out.push({ img: im, title: w.title, date: w.date }); done(); };
+      im.onerror = function () { done(); };
+      im.src = data;
+    };
+    if (PH_IMG[w.id]) { draw(PH_IMG[w.id]); return; }
+    phLoad(w.id, function (img) { draw(img); });
+  });
+}
+
 function sendReport() {
   var car = activeCar();
   if (!car) return;
@@ -2355,8 +2435,11 @@ function sendReport() {
       });
     }
   }).then(function () {
+    /* Фото шифровані — доки не розшифруємо, малювати нічим. */
+    return new Promise(function (res) { rpPhotos(car.id, res); });
+  }).then(function (photos) {
     var pages;
-    try { pages = rpPages(car); }
+    try { pages = rpPages(car, photos); }
     catch (e) { toast('Не вдалося намалювати звіт'); return; }
     return api('/api/report', { pages: pages, kind: 'sale', plate: car.plate || carName(car) }).then(function (d) {
       if (!d.ok) {
@@ -2745,6 +2828,182 @@ function docOpen(id) {
 }
 
 /* ------------------------------------------------------------------ */
+/* ФОТО ДО РЕМОНТУ Й ТО                                                */
+/* ------------------------------------------------------------------ */
+/* Знімок «до і після» — найкращий доказ для покупця: видно, що деталь
+   справді міняли. Шифрується так само, як документи, і лежить поруч.
+   Тримаємо розшифроване в памʼяті, щоб гортання не смикало сервер. */
+var PH_IMG = {};      // id → готова картинка
+var PH_BUSY = false;  // щоб подвійний дотик не надіслав знімок двічі
+
+/* Вибір знімка. Поле мусить лежати в самій сторінці: відірваний input
+   у вебперегляді Telegram на iPhone не повідомляє про вибір — людина
+   обирає фото, і не відбувається нічого. Та сама пастка, що з документами. */
+function pickImageFile(id, cb) {
+  var old = document.getElementById(id);
+  if (old) old.remove();
+  var inp = document.createElement('input');
+  inp.id = id;
+  inp.type = 'file'; inp.accept = 'image/*';
+  inp.style.cssText = 'position:fixed;left:-9999px;width:1px;height:1px;opacity:0';
+  document.body.appendChild(inp);
+  inp.onchange = function () {
+    var f = inp.files && inp.files[0];
+    if (!f) { inp.remove(); return; }
+    cb(f, function () { try { inp.remove(); } catch (e) {} });
+  };
+  inp.click();
+}
+
+/* Стиснення під межу сервера. Шифрування додає третину обсягу, тому
+   тиснемо з запасом: зменшуємо, поки не влізе. */
+function shrinkImage(file, cb) {
+  var fr = new FileReader();
+  fr.onerror = function () { cb(null); };
+  fr.onload = function () {
+    var img = new Image();
+    img.onerror = function () { cb(null); };
+    img.onload = function () {
+      var data = null;
+      var sizes = [1500, 1300, 1100, 900, 750];
+      var quals = [0.72, 0.62, 0.5, 0.42];
+      for (var si = 0; si < sizes.length && !data; si++) {
+        for (var qi = 0; qi < quals.length; qi++) {
+          var k = Math.min(1, sizes[si] / Math.max(img.width, img.height));
+          var c = document.createElement('canvas');
+          c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+          c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+          var d0 = c.toDataURL('image/jpeg', quals[qi]);
+          if (d0.length < 700000) { data = d0; break; }
+        }
+      }
+      cb(data);
+    };
+    img.src = fr.result;
+  };
+  fr.readAsDataURL(file);
+}
+
+function srvRec(id) {
+  return (S.service || []).filter(function (r) { return r.id === id; })[0] || null;
+}
+
+/* Картка запису: що робили, скільки коштувало і фото. */
+function srvOpen(id) {
+  var r = srvRec(id);
+  if (!r) return;
+  var ph = r.ph || [];
+  var lim = PRO ? 4 : 1;
+
+  var h = '<div class="kv"><span>' + (KIND_UA[r.kind] || 'Робота') + '</span><b>' +
+    fmtDate(r.date) + '</b></div>' +
+    '<div class="kv"><span>Пробіг</span><b>' + distTxt(r.odo) + '</b></div>' +
+    '<div class="kv"><span>Вартість</span><b>' + (r.cost ? money(costUah(r)) : '—') + '</b></div>';
+
+  h += '<div class="h2" style="margin-top:14px">Фотозвіт' +
+       (ph.length ? '<span class="act">' + ph.length + ' з ' + lim + '</span>' : '') + '</div>';
+
+  if (ph.length) {
+    h += '<div class="phrow">' + ph.map(function (p) {
+      return '<button class="phbox" data-do="phOpen" data-id="' + p.id + '">' +
+        (PH_IMG[p.id] ? '<img src="' + PH_IMG[p.id] + '" alt="">'
+                      : '<span>' + ic('doc', 18) + '</span>') + '</button>';
+    }).join('') + '</div>';
+  } else {
+    h += '<div class="note" style="margin-top:0">Знімок деталі, чека або самої роботи. ' +
+         'Він піде у звіт для покупця — саме такі фото знімають половину питань про ' +
+         '«а чи справді міняли».</div>';
+  }
+
+  if (ph.length < lim) {
+    h += '<button class="btn sec" data-do="phAdd" data-id="' + r.id + '">Додати фото</button>';
+  } else if (!PRO) {
+    h += '<button class="btn sec" data-do="needPhoto">Ще фото — у Преміумі</button>';
+  }
+
+  h += '<button class="btn dan" data-do="delAsk" data-id="' + r.id + '">Видалити запис</button>';
+  openSheet(r.title || KIND_UA[r.kind] || 'Запис', h);
+
+  /* Мініатюри дістаємо після відкриття вікна: людина одразу бачить картку,
+     а не порожній екран очікування. */
+  ph.forEach(function (p) { if (!PH_IMG[p.id]) phLoad(p.id, function () { srvRedraw(r.id); }); });
+}
+
+function srvRedraw(recId) {
+  var open = document.querySelector('#sheetBody');
+  if (open && !$('#sheet').classList.contains('hidden')) srvOpen(recId);
+}
+
+function phLoad(id, cb) {
+  api('/api/rphoto', { get: 1, id: id }).then(function (d) {
+    if (!d.ok || !d.data) { cb && cb(null); return; }
+    unseal(d.data).then(function (img) {
+      if (img) PH_IMG[id] = img;
+      cb && cb(img);
+    });
+  }).catch(function () { cb && cb(null); });
+}
+
+function phAdd(recId) {
+  if (PH_BUSY) return;
+  if (!hasKey()) { ensureKey(function () { phAdd(recId); }); return; }
+  pickImageFile('phFile', function (file, done) {
+    PH_BUSY = true;
+    toast('Обробляю знімок…');
+    shrinkImage(file, function (data) {
+      if (!data) { PH_BUSY = false; done(); toast('Не вдалося прочитати знімок', 'er'); return; }
+      /* Так само, як з документами: якщо зашифрувати не вийшло — не
+         зберігаємо взагалі. Обіцянку «ми цього не бачимо» не порушуємо. */
+      seal(data).catch(function () { return null; }).then(function (payload) {
+        if (!payload) {
+          PH_BUSY = false; done();
+          toast('Не вдалося зашифрувати. Спробуйте ще раз', 'er');
+          return;
+        }
+        api('/api/rphoto', { recId: recId, data: payload }).then(function (d) {
+          PH_BUSY = false; done();
+          if (!d.ok) {
+            if (d.error === 'limit') { needPro('photo'); return; }
+            toast(d.message || d.error || 'Сервер відмовив', 'er');
+            return;
+          }
+          S.service = d.service || S.service;
+          var last = (srvRec(recId) || {}).ph || [];
+          if (last.length) PH_IMG[last[last.length - 1].id] = data;   // вже маємо в руках
+          DIRTY['s-service'] = 0;
+          haptic('medium');
+          toast('Фото у бардачку');
+          srvOpen(recId);
+        }).catch(function () { PH_BUSY = false; done(); toast('Немає звʼязку з сервером', 'er'); });
+      });
+    });
+  });
+}
+
+function phOpen(id) {
+  var recId = ((S.service || []).filter(function (r) {
+    return (r.ph || []).some(function (p) { return p.id === id; });
+  })[0] || {}).id;
+
+  function body(inner) {
+    return inner +
+      '<button class="btn sec" data-do="phBack" data-id="' + (recId || '') + '">Назад до запису</button>' +
+      '<button class="btn dan" data-do="phDel" data-id="' + id + '">Прибрати фото</button>';
+  }
+  openSheet('Фото', body(PH_IMG[id]
+    ? '<img src="' + PH_IMG[id] + '" alt="" style="width:100%;border-radius:14px;margin:0 0 12px;display:block">'
+    : '<div class="empty" style="padding:22px 0">Дістаю…</div>'));
+
+  if (!PH_IMG[id]) phLoad(id, function (img) {
+    var b = $('#sheetBody');
+    if (!b) return;
+    b.innerHTML = body(img
+      ? '<img src="' + img + '" alt="" style="width:100%;border-radius:14px;margin:0 0 12px;display:block">'
+      : '<div class="msg er">Не вдалося відкрити: знімок зашифровано іншим ключем.</div>');
+  });
+}
+
+/* ------------------------------------------------------------------ */
 /* НАГАДУВАННЯ                                                         */
 /* Усе, чого немає в стандартних строках: ТО, ГРМ, кредит, техогляд.   */
 /* ------------------------------------------------------------------ */
@@ -2769,6 +3028,116 @@ var REM_PRESETS = [
   { t: 'Оплата кредиту', every: null },
   { t: 'Сезонна зміна гуми', every: null },
 ];
+
+/* ------------------------------------------------------------------ */
+/* РЕГЛАМЕНТ ТО — що і коли робити                                     */
+/* ------------------------------------------------------------------ */
+/* Строки взяті ті самі, що й у нагадуваннях вище (REM_PRESETS), щоб
+   застосунок не радив в одному місці 15 тисяч, а в іншому 20. Масло —
+   окремо: його строк залежить від того, як людина їздить (oilIv).
+   km — інтервал у кілометрах, mo — у місяцях; якщо є обидва, спрацьовує
+   те, що настане раніше. re — за яким словом шукати роботу в книжці,
+   бо «фільтр» буває повітряний, салонний і паливний. */
+var REGL = [
+  { t: 'Масло + масляний фільтр', st: 'Масло і фільтр', oil: true, kinds: ['oil'], off: ['electric'] },
+  { t: 'Повітряний фільтр', km: 15000, kinds: ['filter', 'other'], re: /повітр/i, off: ['electric'] },
+  { t: 'Салонний фільтр', km: 20000, mo: 12, kinds: ['filter', 'other'], re: /салон/i },
+  { t: 'Свічки запалювання', km: 30000, kinds: ['other', 'diag', 'filter'], re: /свічк/i,
+    on: ['petrol', 'gas', 'gaspetrol', 'hybrid'] },
+  { t: 'Паливний фільтр', km: 30000, kinds: ['filter', 'other'], re: /паливн/i, on: ['diesel'] },
+  { t: 'Гальмівна рідина', km: 40000, mo: 24, kinds: ['brakes', 'other'], re: /рідин/i },
+  { t: 'Антифриз', km: 60000, mo: 48, kinds: ['other', 'diag'], re: /антифриз|охолод/i },
+  { t: 'Ремінь ГРМ з роликами', st: 'Ремінь ГРМ', km: 90000, kinds: ['timing'], off: ['electric'] },
+  { t: 'Гальмівні колодки, перед', st: 'Колодки, перед', km: 35000, kinds: ['brakes'], re: /колодк|гальм/i },
+  { t: 'Масло в коробці', st: 'Масло в коробці', km: 60000, kinds: ['other', 'oil'], re: /коробц|акпп|трансмісі|редуктор/i },
+  { t: 'Акумулятор', mo: 48, kinds: ['battery'] },
+  { t: 'Сезонна гума', mo: 6, kinds: ['tires'] },
+];
+
+/* Скільки місяців минуло від дати. Рахуємо саме місяцями, а не «днями поділити
+   на 30»: інакше «раз на два роки» з`їжджає на два тижні. */
+function monthsSince(dateStr) {
+  if (!dateStr) return null;
+  var d = new Date(dateStr + 'T00:00:00'), n = new Date();
+  var m = (n.getFullYear() - d.getFullYear()) * 12 + (n.getMonth() - d.getMonth());
+  if (n.getDate() < d.getDate()) m -= 1;
+  return m;
+}
+
+/* Останній запис у книжці, який стосується саме цієї роботи. */
+function reglLast(car, r) {
+  var recs = (S.service || []).filter(function (x) { return x.carId === car.id; })
+    .sort(function (a, b) { return (a.date || '') > (b.date || '') ? -1 : 1; });
+  for (var i = 0; i < recs.length; i++) {
+    var x = recs[i];
+    if (r.kinds.indexOf(x.kind) < 0) continue;
+    if (r.re && !r.re.test(x.title || '')) continue;
+    return x;
+  }
+  return null;
+}
+
+/* Рядки регламенту з підрахованим станом. Найтерміновіше — угорі. */
+function reglRows(car) {
+  var isEV = car.fuel === 'electric';
+  return REGL.filter(function (r) {
+    if (r.off && r.off.indexOf(car.fuel) > -1) return false;
+    if (r.on && r.on.indexOf(car.fuel) < 0) return false;
+    if (isEV && r.oil) return false;
+    return true;
+  }).map(function (r) {
+    var km = r.oil ? oilIv(car) : r.km;
+    var last = reglLast(car, r);
+    /* Масло знаємо і без книжки: пробіг останньої заміни людина вписує в авто. */
+    var lastOdo = last ? last.odo : (r.oil ? car.lastOilOdo : null);
+    var leftKm = (km && lastOdo != null && car.odo) ? (lastOdo + km - car.odo) : null;
+    var leftMo = (r.mo && last) ? (r.mo - monthsSince(last.date)) : null;
+
+    var known = leftKm != null || leftMo != null;
+    /* Наскільки близько до строку: 0 — щойно зробили, 1 — пора. */
+    var ratio = 0;
+    if (leftKm != null && km) ratio = Math.max(ratio, 1 - leftKm / km);
+    if (leftMo != null && r.mo) ratio = Math.max(ratio, 1 - leftMo / r.mo);
+
+    var when;
+    if (!known) when = 'не записано';
+    else if ((leftKm != null && leftKm <= 0) || (leftMo != null && leftMo <= 0))
+      when = leftKm != null && leftKm <= 0 ? 'прострочено на ' + distTxt(-leftKm) : 'пора міняти';
+    else if (leftKm != null) when = 'через ' + distTxt(leftKm);
+    else when = 'через ' + leftMo + ' ' + plural(leftMo, 'місяць', 'місяці', 'місяців');
+
+    var every = km ? 'кожні ' + distTxt(km) : '';
+    if (r.mo) every += (every ? ' або ' : 'кожні ') +
+      (r.mo % 12 === 0 ? (r.mo / 12) + ' ' + plural(r.mo / 12, 'рік', 'роки', 'років')
+                       : r.mo + ' міс.');
+
+    return { t: r.t, st: r.st || r.t, when: when, every: every, known: known, ratio: known ? ratio : -1,
+             kind: r.kinds[0], hot: known && ratio >= 1, soon: known && ratio >= 0.85 };
+  }).sort(function (a, b) { return b.ratio - a.ratio; });
+}
+
+var REGL_OPEN = false;
+
+function reglCard(car) {
+  var rows = reglRows(car);
+  if (!rows.length) return '';
+  var shown = REGL_OPEN ? rows : rows.slice(0, 4);
+
+  var h = '<div class="h2">Регламент ТО<span class="act" data-do="reglToggle">' +
+    (REGL_OPEN ? 'згорнути' : 'усі ' + rows.length) + '</span></div>' +
+    '<div class="card list">' + shown.map(function (r) {
+      var col = r.hot ? 'var(--bad)' : r.soon ? 'var(--warn)' : r.known ? 'var(--ink2)' : 'var(--mut)';
+      return '<button class="it" data-do="service" data-k="' + r.kind + '" data-t="' + esc(r.t) + '">' +
+        '<div class="dt">' + ic(KIND_IC[r.kind] || 'wrench', 17) + '</div>' +
+        '<div class="tx"><b>' + esc(r.st) + '</b><small>' + esc(r.every) + '</small></div>' +
+        '<div class="vl" style="color:' + col + ';font-size:12px">' + esc(r.when) + '</div></button>';
+    }).join('') + '</div>' +
+    '<div class="note">Строки орієнтовні — для звичайної їзди Україною. ' +
+    'Дотик по рядку одразу відкриє запис у книжку. Що більше записів, ' +
+    'то точніше застосунок рахує.</div>';
+  return h;
+}
+
 
 /* Чи підходить підказка цьому авто. */
 function presetFits(p, fuel) {
@@ -3436,7 +3805,14 @@ function formCar(car) {
     '<div class="two">' + fld('cIns', 'ОСЦПВ діє до', { type: 'date', val: c.insuranceEnd }) +
                           fld('cGreen', 'Зелена карта до', { type: 'date', val: c.greenEnd }) + '</div>' +
     '<div id="cOilBox"' + (c.fuel === 'electric' ? ' class="hidden"' : '') + '>' +
-      fld('cOil', 'Пробіг останньої заміни масла', { mode: 'numeric', ph: 'напр. 82000', val: c.lastOilOdo }) + '</div>' +
+      fld('cOil', 'Пробіг останньої заміни масла', { mode: 'numeric', ph: 'напр. 82000', val: c.lastOilOdo }) +
+      '<div class="field"><label>Як їздите<small style="color:var(--mut);font-weight:500">' +
+        ' — від цього залежить строк заміни масла</small></label>' +
+        '<div class="seg wrap" id="cUse">' +
+          ['city', 'mix', 'trip'].map(function (m) {
+            return '<button type="button" data-v="' + m + '" class="' +
+              ((c.use || 'mix') === m ? 'on' : '') + '">' + USE_UA[m] + '</button>';
+          }).join('') + '</div></div>' + '</div>' +
     '<div id="carErr"></div>' +
     '<button class="btn" data-do="saveCar">' + (c.id ? 'Зберегти' : 'Додати авто') + '</button>' +
     (c.id ? '<button class="btn dan" data-do="delCar" data-id="' + c.id + '">Видалити авто</button>' : '') +
@@ -3605,6 +3981,8 @@ var DO = {
       insuranceEnd: val('cIns') || null,
       greenEnd: val('cGreen') || null,
       lastOilOdo: fuel === 'electric' ? null : numv('cOil'),
+      use: (document.querySelector('#cUse button.on') || {}).dataset
+             ? document.querySelector('#cUse button.on').dataset.v : 'mix',
       body: (document.querySelector('#cBody button.on') || {}).dataset
               ? document.querySelector('#cBody button.on').dataset.v : null,
     };
@@ -3792,6 +4170,30 @@ var DO = {
   welBack: function () { WEL = Math.max(0, WEL - 1); drawWelcome(); },
   welDone: function () { closeSheet(); DIRTY = {}; render(); },
 
+  srvOpen: function (t) { srvOpen(t.dataset.id); },
+  phAdd:   function (t) { phAdd(t.dataset.id); },
+  phOpen:  function (t) { phOpen(t.dataset.id); },
+  phBack:  function (t) { if (t.dataset.id) srvOpen(t.dataset.id); else closeSheet(); },
+  needPhoto: function () { needPro('photo'); },
+  phDel: function (t) {
+    var id = t.dataset.id;
+    ask('Прибрати фото?', 'Воно зникне і зі звіту для покупця.', 'Прибрати', function () {
+      api('/api/rphoto', { remove: 1, id: id }).then(function (d) {
+        if (!d.ok) { toast(d.error || 'Не вдалося', 'er'); return; }
+        S.service = d.service || S.service;
+        delete PH_IMG[id];
+        DIRTY['s-service'] = 0;
+        closeSheet(); drawService();
+        toast('Прибрано');
+      }).catch(function () { toast('Немає звʼязку з сервером', 'er'); });
+    });
+  },
+
+  reglToggle: function () {
+    REGL_OPEN = !REGL_OPEN;
+    DIRTY['s-service'] = 0; drawService();
+  },
+
   storyNext: function () { STORY = Math.min(STORY + 1, STORIES.length - 1); drawTour(); haptic('light'); },
   storyBack: function () { STORY = Math.max(0, STORY - 1); drawTour(); },
 
@@ -3851,15 +4253,20 @@ var DO = {
           full: !fullBtn || fullBtn.dataset.v === '1' }, closeSheet);
   },
 
-  service: function () {
+  service: function (t) {
     var car = activeCar(); if (!car) { toast('Спочатку додайте авто'); return; }
     var kinds = Object.keys(KIND_UA);
+    /* Прийшли з регламенту — вид роботи й опис уже відомі, людині лишається
+       вписати суму й дату. */
+    var pk = (t && t.dataset && t.dataset.k) || '';
+    var pt = (t && t.dataset && t.dataset.t) || '';
     openSheet('Запис у сервісну книжку',
       '<div class="field"><label>Що робили</label><div class="seg wrap" id="sKind">' +
         kinds.map(function (k, i) {
-          return '<button type="button" data-v="' + k + '" class="' + (i === 0 ? 'on' : '') + '">' + KIND_UA[k] + '</button>';
+          var on = pk ? (k === pk) : (i === 0);
+          return '<button type="button" data-v="' + k + '" class="' + (on ? 'on' : '') + '">' + KIND_UA[k] + '</button>';
         }).join('') + '</div></div>' +
-      fld('sTitle', 'Опис', { ph: 'Заміна масла та фільтра' }) +
+      fld('sTitle', 'Опис', { ph: 'Заміна масла та фільтра', val: pt }) +
       '<div class="two">' + fld('sCost', 'Вартість', { mode: 'decimal', ph: '2400' }) +
                             fld('sOdo', 'Пробіг, ' + dU(), { mode: 'numeric', val: dOut(car.odo) }) + '</div>' +
       curPicker('sCur') +
