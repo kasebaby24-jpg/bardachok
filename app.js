@@ -13,7 +13,7 @@ var API = 'https://bardachok.kasebaby24.workers.dev';
 var QR_FOR = 'TWqHKxsLAdGMPC7kY4i3r2GQxNJ2U6vQXv';   // до цієї адреси намальовано usdt-qr.png
 var USDT_CONTRACT = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';   // USDT у мережі TRON
 
-var BUILD = '20260825-1400';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
+var BUILD = '20260825-1500';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
 var BOOT_T0 = Date.now();
 
 var tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
@@ -1524,7 +1524,7 @@ function drawMore() {
   }
 
   h += '<div class="h2">Інструменти</div><div class="card list">' +
-    itemBtn('alert', 'Горить значок на панелі', 'Сфоткайте — скажу, що це', 'do:lamp', !PRO && !!S.lampUsed) +
+    itemBtn('alert', 'Горить значок на панелі', 'Сфоткайте — скажу, що це', 'do:lamp', !PRO) +
     itemBtn('money', 'Скільки коштує авто', 'Оцінка й що взяти натомість', 'do:valuate', !PRO) +
     itemBtn('wrench', 'Запчастини й аналоги', 'Оригінал чи аналог — з цінами', 'do:parts', !PRO) +
     itemBtn('search', 'Перевірка по VIN', 'Що це за авто насправді', 'tab:s-vin', !PRO && !vinFree()) +
@@ -2485,10 +2485,13 @@ function rpPhotos(carId, cb) {
     .sort(function (a, b) { return (a.date || '') > (b.date || '') ? -1 : 1; })
     .forEach(function (r) {
       (r.ph || []).forEach(function (p) {
-        if (want.length < 8) want.push({ id: p.id, title: r.title, date: r.date });
+        /* Шість замість восьми: кожне фото треба завантажити й розшифрувати,
+           а після пʼятого знімка звіт переконливішим уже не стає. */
+        if (want.length < 6) want.push({ id: p.id, title: r.title, date: r.date });
       });
     });
   if (!want.length) { cb([]); return; }
+  toast('Додаю фото до звіту: ' + want.length);
 
   var out = [], left = want.length;
   var done = function () { if (--left === 0) cb(out); };
@@ -2512,7 +2515,16 @@ function sendReport() {
   if (!PRO) { needPro('report'); return; }
 
   toast('Готую звіт…');
-  var ready = document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve();
+  /* Спершу свіжий стан із сервера: у звіт потрапляло фото, яке людина вже
+     видалила, — застосунок про це просто не знав. */
+  var fresh = api('/api/me', {}, 20000).then(function (d) {
+    if (d && d.ok && d.data) { S = d.data; PRO = d.premium; }
+  }).catch(function () {});
+
+  var ready = Promise.all([
+    document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve(),
+    fresh,
+  ]);
 
   ready.then(function () {
     {                                           // силует треба «проявити» як картинку
