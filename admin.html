@@ -8,7 +8,7 @@
 <title>Бардачок — керування</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<link rel="stylesheet" href="styles.css?v=20260825-0230">
+<link rel="stylesheet" href="styles.css?v=20260825-0400">
 <style>
   body{overflow:auto}
   .wrap{max-width:620px;margin:0 auto;padding:26px 16px 60px}
@@ -92,7 +92,7 @@
     <button data-t="t-tech">Стан</button>
   </div>
   <div class="msg inf" id="info">Завантаження…</div>
-  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260825-0230</div>
+  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260825-0400</div>
 
   <div class="pane on" id="t-home">
   <div id="stCount"></div>
@@ -464,6 +464,15 @@
       (видає @CryptoBot → Crypto Pay → Create App).</div>
   </div>
 
+  <div class="card">
+    <div class="sect">За що я плачу</div>
+    <div class="note" style="margin:0 0 10px">Cloudflare, ключ штучного інтелекту, домен —
+      усе, що ви оплачуєте самі. Бот нагадає в чат за три дні до дати й у сам день.
+      Прострочений рахунок означає, що застосунок може стати для всіх одразу.</div>
+    <div id="billsBox"></div>
+    <button class="btn sec" onclick="billAdd()">Додати рахунок</button>
+  </div>
+
   <div class="msg ok hidden" id="sOk"></div>
   <div class="msg er hidden" id="sEr"></div>
   <div style="display:flex;gap:9px">
@@ -523,6 +532,7 @@ var API = 'https://bardachok.kasebaby24.workers.dev';
 var NUM = ['premiumMonth','premiumHalf','premiumYear','freeCars','freeVin','autoPay','remindInsurance','remindService','oilInterval'];
 var TXT = ['contactTg','wfpMerchant','wfpDomain','usdtAddress','adminId'];
 var KEY = '';
+var BILLS = [];          // за що власник платить сам — редагується нижче
 var $ = function (s) { return document.querySelector(s); };
 function show(id, t, on) { var e = $('#' + id); e.textContent = t || ''; e.classList.toggle('hidden', !on); }
 
@@ -555,7 +565,10 @@ function post(path, body) {
   }).then(function (r) { return r.json(); });
 }
 
-$('#login').addEventListener('click', doLogin);
+/* Обробник події отримує сам клік першим аргументом — і він потрапляв у
+   doLogin як ознака «нас упізнав Telegram». Через це кнопка «Увійти»
+   ігнорувала вписаний пароль і скаржилась на Telegram; працював лише Enter. */
+$('#login').addEventListener('click', function () { doLogin(); });
 $('#pass').addEventListener('keydown', function (e) { if (e.key === 'Enter') doLogin(); });
 
 function doLogin(fromTelegram) {
@@ -667,6 +680,8 @@ function load() {
     .then(function (r) { return r.json(); }).then(function (d) {
     NUM.concat(TXT).forEach(function (k) { if (d[k] !== undefined && $('#' + k)) $('#' + k).value = d[k]; });
     if ($('#meId')) $('#meId').textContent = d.adminId || 'не вказано';
+    BILLS = Array.isArray(d.bills) ? d.bills : [];
+    billsDraw();
     qrDraw(d.qrOwn || 0);
     if (d._storage === false) { show('info', 'Сховище не підключене — зберегти не вийде.', true); $('#info').className = 'msg er'; }
     else { show('info', 'Налаштування завантажено.', true); $('#info').className = 'msg inf'; }
@@ -723,10 +738,53 @@ function stats(fresh) {
   }).catch(function () {});
 }
 
+/* Рахунки власника. Список маленький і рідко змінюється, тому найпростіше —
+   перемалювати весь блок після кожної правки, без хитрощів. */
+function billsDraw() {
+  var box = $('#billsBox');
+  if (!box) return;
+  if (!BILLS.length) {
+    box.innerHTML = '<div class="note" style="margin:0 0 10px">Поки нічого не додано.</div>';
+    return;
+  }
+  box.innerHTML = BILLS.map(function (b, i) {
+    return '<div class="rw" style="display:block;border-top:1px solid rgba(255,255,255,.08);padding-top:10px">' +
+      '<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">' +
+        '<input type="text" style="text-align:left;flex:1" placeholder="Назва (напр. Cloudflare Workers)" ' +
+          'value="' + esc(b.name || '') + '" oninput="billSet(' + i + ',\'name\',this.value)">' +
+        '<button class="btn sec" style="width:auto;padding:8px 12px;margin:0" ' +
+          'onclick="billDel(' + i + ')">✕</button>' +
+      '</div>' +
+      '<div style="display:flex;gap:8px">' +
+        '<input type="number" step="0.01" min="0" style="text-align:left;flex:1" placeholder="Сума" ' +
+          'value="' + (b.sum == null ? '' : b.sum) + '" oninput="billSet(' + i + ',\'sum\',this.value)">' +
+        '<select style="flex:0 0 90px" onchange="billSet(' + i + ',\'cur\',this.value)">' +
+          ['USD', 'UAH', 'EUR'].map(function (c) {
+            return '<option value="' + c + '"' + (b.cur === c ? ' selected' : '') + '>' + c + '</option>';
+          }).join('') +
+        '</select>' +
+        '<input type="number" min="1" max="31" style="text-align:left;flex:0 0 92px" placeholder="Число" ' +
+          'value="' + (b.day || '') + '" oninput="billSet(' + i + ',\'day\',this.value)">' +
+      '</div>' +
+      '<input type="text" style="text-align:left;margin-top:8px" placeholder="Примітка (необовʼязково)" ' +
+        'value="' + esc(b.note || '') + '" oninput="billSet(' + i + ',\'note\',this.value)">' +
+      '</div>';
+  }).join('');
+}
+function billAdd() { BILLS.push({ name: '', sum: 5, cur: 'USD', day: 1, note: '' }); billsDraw(); }
+function billDel(i) { BILLS.splice(i, 1); billsDraw(); }
+/* Перемальовувати на кожну літеру не можна — курсор стрибав би в кінець поля,
+   як це вже було з полями авто. Тому тільки записуємо значення. */
+function billSet(i, k, v) {
+  if (!BILLS[i]) return;
+  BILLS[i][k] = (k === 'sum' || k === 'day') ? (parseFloat(v) || 0) : v;
+}
+
 $('#save').addEventListener('click', function () {
   var body = {}, bad = '';
   NUM.forEach(function (k) { var v = $('#' + k).value; if (v === '') { bad = bad || k; return; } body[k] = parseFloat(v); });
   TXT.forEach(function (k) { body[k] = $('#' + k).value.trim(); });
+  body.bills = BILLS.filter(function (b) { return (b.name || '').trim(); });
   show('sOk', '', false); show('sEr', '', false);
   if (bad) { show('sEr', 'Заповніть усі числові поля.', true); return; }
   this.disabled = true;
@@ -920,6 +978,117 @@ function listRows(rows) {
   }).join('');
 }
 
+/* ------------------------------------------------------------------ */
+/* НАВАНТАЖЕННЯ НА ТАРИФ                                               */
+/* ------------------------------------------------------------------ */
+/* Головне питання власника: чи витримає застосунок, коли людей стане більше,
+   і що впреться першим. Сервер рахує звернення сам, бо Cloudflare
+   витраченого назовні не віддає. */
+var UNAME = { req: 'Запити до сервера', rd: 'Читання зі сховища',
+              wr: 'Записи у сховище', store: 'Місце під дані' };
+var UWHY = {
+  req: 'кожне відкриття застосунку — кілька запитів',
+  rd:  'сюди йде все, що люди відкривають',
+  wr:  'найтісніша межа: кожен запис, оплата, нагадування',
+  store: 'документи важать найбільше',
+};
+
+function barCol(p) { return p >= 80 ? '#FF5A4A' : p >= 50 ? '#FFB340' : '#C6F32C'; }
+function pctTxt(p) {
+  if (p >= 10) return Math.round(p) + '%';
+  if (p >= 0.1) return String(Math.round(p * 10) / 10).replace('.', ',') + '%';
+  return 'менше 0,1%';
+}
+
+function loadCard(u) {
+  if (!u) {
+    return '<div class="lb" style="margin:16px 0 4px">Навантаження на тариф</div>' +
+      '<div class="note">Сервер ще не вміє це рахувати — залийте свіжий worker.js.</div>';
+  }
+  var order = ['req', 'rd', 'wr', 'store'];
+  var val = { req: u.month.req, rd: u.month.rd, wr: u.month.wr, store: u.storeMB };
+  var lim = { req: u.plan.req, rd: u.plan.rd, wr: u.plan.wr, store: u.storeLimitMB };
+
+  var h = '<div class="lb" style="margin:16px 0 4px">Навантаження на тариф</div>' +
+    '<div class="note" style="margin:0 0 9px">Скільки місячної межі тарифу з\'їсть застосунок ' +
+    'при теперішньому темпі. ' +
+    (u.full ? 'Рахунок за повну вчорашню добу.'
+            : 'Рахунок за неповний сьогоднішній день — завтра цифра стане точнішою.') +
+    (u.measured ? '' : ' Лічильник щойно ввімкнено, перші цифри зʼявляться за годину.') + '</div>';
+
+  h += '<div class="bars">' + order.map(function (k) {
+    var p = u.pct[k] || 0;
+    return '<div class="bar"><span>' + UNAME[k] + '</span>' +
+      '<u><i style="width:' + Math.max(2, Math.min(100, p)) + '%;background:' + barCol(p) + '"></i></u>' +
+      '<b>' + pctTxt(p) + '</b></div>';
+  }).join('') + '</div>';
+
+  h += listRows(order.map(function (k) {
+    var v = k === 'store' ? (val[k] + ' МБ з ' + Math.round(lim[k] / 1024) + ' ГБ')
+                          : (nfm(val[k]) + ' з ' + nfm(lim[k]));
+    return [UNAME[k], v, UWHY[k]];
+  }));
+
+  /* Простими словами: скільки ще людей влізе і що впреться першим. */
+  var verdict;
+  if (!u.users) {
+    verdict = 'Даних поки замало, щоб рахувати запас. Загляньте завтра.';
+  } else if (u.worst >= 100) {
+    /* Уже за межею — обіцяти запас було б брехнею. */
+    verdict = 'Зараз ' + nfm(u.users) + ' людей, і «' + UNAME[u.tight].toLowerCase() +
+      '» вже <b>за межею тарифу</b> (' + pctTxt(u.worst) + '). Це треба розв\'язувати зараз, ' +
+      'а не колись: далі Cloudflare почне рахувати понад тариф або відмовляти.';
+  } else if (u.worst >= 80) {
+    verdict = 'Зараз ' + nfm(u.users) + ' людей, і «' + UNAME[u.tight].toLowerCase() +
+      '» підійшло впритул до межі (' + pctTxt(u.worst) + '). Запасу майже немає — ' +
+      'варто зайнятись цим найближчими днями.';
+  } else if (u.room) {
+    verdict = 'Зараз ' + nfm(u.users) + ' людей. Найтісніше — «' + UNAME[u.tight].toLowerCase() +
+      '» (' + pctTxt(u.worst) + ' межі). При такому ж користуванні тариф витримає приблизно ' +
+      '<b>' + nfm(u.room) + '</b> людей, і аж тоді доведеться щось міняти.';
+  } else {
+    verdict = 'Даних поки замало, щоб рахувати запас. Загляньте завтра.';
+  }
+  if (!u.inR2 && u.pct.store >= 30) {
+    verdict += ' Місце під документи вже помітне — перенесіть їх у R2 (в «Технічному» є кнопка), ' +
+      'там перші 10 ГБ безкоштовні.';
+  }
+  h += '<div class="note" style="margin-top:8px">' + verdict + '</div>';
+
+  if (u.perUser) {
+    h += '<div class="note" style="margin-top:6px">На одну людину за місяць: ' +
+      nfm(u.perUser.req) + ' запитів, ' + nfm(u.perUser.rd) + ' читань, ' +
+      nfm(u.perUser.wr) + ' записів, ' + String(u.perUser.mb).replace('.', ',') + ' МБ місця.</div>';
+  }
+  if (u.day && (u.day.ai || u.day.stt)) {
+    h += '<div class="note" style="margin-top:6px">Сьогодні: ' + nfm(u.day.ai || 0) +
+      ' звернень до штучного інтелекту, ' + nfm(u.day.stt || 0) + ' розпізнавань голосу. ' +
+      'За них платите окремо, у тариф Cloudflare вони не входять.</div>';
+  }
+  return h;
+}
+
+/* Скоро оплата: те саме, про що бот пише в чат, але перед очима в панелі. */
+function billsSoon() {
+  if (!BILLS.length) return '';
+  var now = new Date();
+  var dim = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  var rows = BILLS.map(function (b) {
+    var day = Math.min(b.day || 1, dim);
+    var left = day - now.getDate();
+    if (left < 0) left += dim;
+    return { b: b, left: left };
+  }).sort(function (a, b2) { return a.left - b2.left; });
+
+  return '<div class="lb" style="margin:16px 0 4px">За що я плачу</div>' +
+    '<div class="note" style="margin:0 0 9px">Бот нагадає в чат за три дні до дати.</div>' +
+    listRows(rows.map(function (r) {
+      return [esc(r.b.name), r.b.sum + ' ' + r.b.cur,
+        (r.left === 0 ? 'сьогодні' : 'через ' + r.left + ' дн.') +
+        (r.b.note ? ' · ' + esc(r.b.note) : '')];
+    }));
+}
+
 function drawAna(st, d) {
   if (!st) { $('#anaBox').innerHTML = '<div class="note">Поки нема даних.</div>'; return; }
   d = d || {};
@@ -935,6 +1104,8 @@ function drawAna(st, d) {
       [pct(st.active7, st.users), 'живі за тиждень'],
       ['$' + nfm(rev), 'зароблено'],
     ]);
+
+  h += loadCard(d.usage) + billsSoon();
 
   /* Воронка — головна картинка. Видно не «скільки прийшло», а де зупинились. */
   var funnel = [
