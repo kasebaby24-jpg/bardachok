@@ -13,7 +13,7 @@ var API = 'https://bardachok.kasebaby24.workers.dev';
 var QR_FOR = 'TWqHKxsLAdGMPC7kY4i3r2GQxNJ2U6vQXv';   // до цієї адреси намальовано usdt-qr.png
 var USDT_CONTRACT = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';   // USDT у мережі TRON
 
-var BUILD = '20260826-1000';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
+var BUILD = '20260826-1700';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
 var BOOT_T0 = Date.now();
 
 var tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
@@ -2964,6 +2964,38 @@ function pickImageFile(id, cb) {
 
 /* Стиснення під межу сервера. Шифрування додає третину обсягу, тому
    тиснемо з запасом: зменшуємо, поки не влізе. */
+/* Знімок панелі не треба зберігати — його треба лише показати моделі.
+   Тому тиснемо агресивно: 1000 пікселів по довшій стороні і якість 0.55
+   дають ~150 КБ замість 700. Це вп'ятеро швидший аплоад (саме він, а не
+   модель, зʼїдав ті 45 секунд на мобільному інтернеті) і втричі дешевше,
+   бо картинка теж рахується в токенах. */
+function shrinkLamp(file, cb) {
+  var fr = new FileReader();
+  fr.onerror = function () { cb(null); };
+  fr.onload = function () {
+    var img = new Image();
+    img.onerror = function () { cb(null); };
+    img.onload = function () {
+      var data = null;
+      var sizes = [1000, 850, 700];
+      var quals = [0.55, 0.45, 0.35];
+      for (var si = 0; si < sizes.length && !data; si++) {
+        for (var qi = 0; qi < quals.length; qi++) {
+          var k = Math.min(1, sizes[si] / Math.max(img.width, img.height));
+          var c = document.createElement('canvas');
+          c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+          c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+          var d0 = c.toDataURL('image/jpeg', quals[qi]);
+          if (d0.length < 260000) { data = d0; break; }
+        }
+      }
+      cb(data);
+    };
+    img.src = fr.result;
+  };
+  fr.readAsDataURL(file);
+}
+
 function shrinkImage(file, cb) {
   var fr = new FileReader();
   fr.onerror = function () { cb(null); };
@@ -3139,15 +3171,19 @@ function lampShoot() {
   pickImageFile('lampFile', function (file, done) {
     LAMP_BUSY = true;
     openSheet('Дивлюсь на знімок',
-      '<div class="empty" style="padding:26px 0">Розбираю, що там загорілось…</div>');
-    shrinkImage(file, function (data) {
+      '<div class="empty" style="padding:26px 0">Стискаю знімок…</div>');
+    shrinkLamp(file, function (data) {
       if (!data) {
         LAMP_BUSY = false; done();
         openSheet('Не вийшло', '<div class="msg er">Не вдалося прочитати знімок.</div>' +
           '<button class="btn" data-do="lamp">Спробувати ще раз</button>');
         return;
       }
-      api('/api/lamp', { data: data }, 45000).then(function (d) {
+      var kb = Math.round(data.length / 1024);
+      var box = $('#sheetBody');
+      if (box) box.innerHTML = '<div class="empty" style="padding:26px 0">' +
+        'Надсилаю знімок (' + kb + ' КБ) і чекаю на відповідь…</div>';
+      api('/api/lamp', { data: data }, 60000).then(function (d) {
         LAMP_BUSY = false; done();
         if (!d.ok) {
           if (d.error === 'premium') { needPro('lamp'); return; }
@@ -3161,8 +3197,13 @@ function lampShoot() {
         lampShow(d.lamp, d.freeUsed);
       }).catch(function () {
         LAMP_BUSY = false; done();
-        openSheet('Немає звʼязку', '<div class="msg er">Сервер не відповів.</div>' +
-          '<button class="btn" data-do="lamp">Спробувати ще раз</button>');
+        openSheet('Не встигли',
+          '<div class="msg er">Знімок не дійшов — найчастіше це повільний інтернет, ' +
+          'а не поломка.</div>' +
+          '<p style="margin:0 0 13px;font-size:12.5px;color:var(--mut);line-height:1.55">' +
+          'Спробуйте ще раз там, де кращий звʼязок, або з Wi-Fi.</p>' +
+          '<button class="btn" data-do="lamp">Спробувати ще раз</button>' +
+          '<button class="btn sec" data-close="1">Закрити</button>');
       });
     });
   });

@@ -8,7 +8,7 @@
 <title>Бардачок — керування</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<link rel="stylesheet" href="styles.css?v=20260826-1000">
+<link rel="stylesheet" href="styles.css?v=20260826-1700">
 <style>
   body{overflow:auto}
   .wrap{max-width:620px;margin:0 auto;padding:26px 16px 60px}
@@ -123,7 +123,7 @@
     <button data-t="t-set">Налашт.</button>
   </div>
   <div class="msg inf" id="info">Завантаження…</div>
-  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260826-1000</div>
+  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260826-1700</div>
   <div id="topStrip"></div>
 
   <div class="pane on" id="t-home">
@@ -674,12 +674,31 @@ function heads(extra) {
   return h;
 }
 
-function post(path, body) {
-  return fetch(API.replace(/\/+$/, '') + path, {
+/* Межа очікування обовʼязкова. Без неї повільна відповідь сервера
+   перетворювалась на панель, яка «вантажиться вічність»: людина сидить
+   перед порожнім екраном і не знає, зламалось воно чи ще думає. */
+function post(path, body, ms) {
+  var ctl = null;
+  try { if (window.AbortController) ctl = new AbortController(); } catch (e) {}
+  var opts = {
     method: 'POST',
     headers: heads({ 'Content-Type': 'application/json' }),
     body: JSON.stringify(body || {}),
-  }).then(function (r) { return r.json(); });
+  };
+  if (ctl) opts.signal = ctl.signal;
+
+  var p = fetch(API.replace(/\/+$/, '') + path, opts).then(function (r) { return r.json(); });
+  if (!ctl) return p;
+
+  return new Promise(function (resolve) {
+    var t = setTimeout(function () {
+      try { ctl.abort(); } catch (e) {}
+      resolve({ ok: false, error: 'Сервер не відповів за ' + Math.round((ms || 25000) / 1000) +
+        ' с. Спробуйте ще раз — можливо, він саме перераховує базу.' });
+    }, ms || 25000);
+    p.then(function (d) { clearTimeout(t); resolve(d); },
+           function () { clearTimeout(t); resolve({ ok: false, error: 'Немає звʼязку із сервером.' }); });
+  });
 }
 
 /* Обробник події отримує сам клік першим аргументом — і він потрапляв у
