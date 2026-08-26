@@ -8,7 +8,7 @@
 <title>Бардачок — керування</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<link rel="stylesheet" href="styles.css?v=20260827-0600">
+<link rel="stylesheet" href="styles.css?v=20260827-0700">
 <style>
   body{overflow:auto}
   .wrap{max-width:620px;margin:0 auto;padding:26px 16px 60px}
@@ -140,7 +140,7 @@
     <button data-t="t-set">Налашт.</button>
   </div>
   <div class="msg inf" id="info">Завантаження…</div>
-  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260827-0600</div>
+  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260827-0700</div>
   <div id="topStrip"></div>
 
   <div class="pane on" id="t-home">
@@ -606,6 +606,33 @@
   </div>
 
   <div class="card">
+    <div class="sect">Безкоштовний ШІ — Google Gemini</div>
+    <div class="note" style="margin:0 0 10px"><b>Навіщо.</b> Щоб преміум-функції
+      працювали <b>завжди</b> — навіть якщо ви забули поповнити рахунок Anthropic.
+      Сервер питає двигуни по черзі й показує відповідь того, хто відповів першим:
+      <br><br>
+      <b>1. Claude</b> — платний, найточніший. Пропускається, якщо немає ключа
+      або вибрано денну межу.<br>
+      <b>2. Gemini</b> — безкоштовний рівень Google, з розпізнаванням фото.<br>
+      <b>3. Cloudflare</b> — входить у ваш тариф $5. Простіший, але живий.
+      <br><br>
+      Людина різниці не бачить: вона просто отримує відповідь.</div>
+    <div class="note" style="margin:0 0 12px"><b>Де взяти (2 хвилини).</b><br>
+      1. Відкрийте <b>aistudio.google.com</b><br>
+      2. Увійдіть акаунтом Google<br>
+      3. Кнопка <b>Get API key</b> → створити ключ<br>
+      4. Скопіюйте й вставте сюди</div>
+    <div class="rw col"><div class="lb">Ключ Gemini</div>
+      <input type="text" id="geminiKey" style="text-align:left" placeholder="ключ з aistudio.google.com"></div>
+    <div class="rw col"><div class="lb">Питати спершу<small>кого запитувати першим</small></div>
+      <select id="aiEngine" style="text-align:left">
+        <option value="">Claude (платно, найстабільніше)</option>
+        <option value="gemini">Gemini (безкоштовно, Claude як запасний)</option>
+      </select></div>
+    <div id="gemNow" class="note"></div>
+  </div>
+
+  <div class="card">
     <div class="sect">Оцінка авто — ключ AUTO.RIA</div>
     <div class="note" style="margin:0 0 10px"><b>Навіщо.</b> Без ключа застосунок
       НЕ називає ціну взагалі — тільки дає посилання на оголошення. З ключем він бере
@@ -704,7 +731,7 @@
 var API = 'https://bardachok.kasebaby24.workers.dev';
 
 var NUM = ['premiumMonth','premiumHalf','premiumYear','freeCars','freeVin','autoPay','remindInsurance','remindService','oilInterval','refLimit'];
-var TXT = ['contactTg','wfpMerchant','wfpDomain','usdtAddress','adminId','channel','riaKey'];
+var TXT = ['contactTg','wfpMerchant','wfpDomain','usdtAddress','adminId','channel','riaKey','geminiKey'];
 var KEY = '';
 var BILLS = [];          // за що власник платить сам — редагується нижче
 var $ = function (s) { return document.querySelector(s); };
@@ -920,6 +947,13 @@ function load() {
     billsDraw();
     NEWS = d.news || null;
     newsDraw(); newsState();
+    if ($('#aiEngine') && d.aiEngine !== undefined) $('#aiEngine').value = d.aiEngine || '';
+    var gn = $('#gemNow');
+    if (gn) gn.innerHTML = d.geminiKey
+      ? (d.aiEngine === 'gemini'
+          ? '✅ Gemini увімкнено — питаємо його першим, Claude лишається запасним.'
+          : '🔑 Ключ збережено, але Gemini ще не увімкнений. Оберіть його у списку вище.')
+      : 'Ключа Gemini немає — усе працює на Claude.';
     var rn = $('#riaNow');
     if (rn) rn.innerHTML = d.riaKey
       ? '✅ Ключ збережено. Оцінка авто тепер бере ціни з оголошень AUTO.RIA.'
@@ -1169,6 +1203,7 @@ $('#save').addEventListener('click', function () {
   if ($('#aiFundAt') && $('#aiFundAt').value) body.aiFundAt = $('#aiFundAt').value;
   if ($('#aiDayCap') && $('#aiDayCap').value !== '') body.aiDayCap = $('#aiDayCap').value;
   if ($('#aiModel')) { body.aiModel = $('#aiModel').value; body.aiVision = ''; }
+  if ($('#aiEngine')) body.aiEngine = $('#aiEngine').value;
   show('sOk', '', false); show('sEr', '', false);
   if (bad) { show('sEr', 'Заповніть усі числові поля.', true); return; }
   this.disabled = true;
