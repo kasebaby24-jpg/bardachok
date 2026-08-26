@@ -8,7 +8,7 @@
 <title>Бардачок — керування</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<link rel="stylesheet" href="styles.css?v=20260825-2000">
+<link rel="stylesheet" href="styles.css?v=20260826-1000">
 <style>
   body{overflow:auto}
   .wrap{max-width:620px;margin:0 auto;padding:26px 16px 60px}
@@ -123,7 +123,7 @@
     <button data-t="t-set">Налашт.</button>
   </div>
   <div class="msg inf" id="info">Завантаження…</div>
-  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260825-2000</div>
+  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260826-1000</div>
   <div id="topStrip"></div>
 
   <div class="pane on" id="t-home">
@@ -230,6 +230,11 @@
     <div class="card">
       <div class="sect">Навантаження на тариф</div>
       <div id="techLoad"><div class="note">Завантажую…</div></div>
+    </div>
+
+    <div class="card">
+      <div class="sect">Скільки людей витягнемо</div>
+      <div id="techRoom"><div class="note">Завантажую…</div></div>
     </div>
 
     <div class="card">
@@ -441,7 +446,10 @@
 
     <div class="rw"><div class="lb">Офіційний канал<small>@назва або посилання t.me</small></div>
       <input type="text" id="channel" style="text-align:left" placeholder="@bardachok_ua"></div>
-    <div class="note">Зʼявиться пунктом «Наш канал» у розділі «Ще» — у всіх користувачів.</div>
+    <div class="note">Зʼявиться пунктом «Наш канал» у розділі «Ще» — у всіх користувачів.
+      Щоб побачити його в себе, закрийте застосунок і відкрийте заново: він читає
+      налаштування при запуску.</div>
+    <div id="chNow" class="note"></div>
 
     <div class="rw"><div class="lb">Ваш Telegram ID<small>Сюди бот пише про оплати</small></div>
       <input type="text" id="adminId" style="text-align:left" placeholder="123456789"></div>
@@ -793,6 +801,10 @@ function load() {
     billsDraw();
     NEWS = d.news || null;
     newsDraw(); newsState();
+    var chn = $('#chNow');
+    if (chn) chn.innerHTML = d.channel
+      ? '✅ Канал збережено: <b>t.me/' + esc(d.channel) + '</b> — перевірте, що посилання відкривається.'
+      : 'Канал ще не вказано.';
     if ($('#aiFund') && d.aiFund) $('#aiFund').value = d.aiFund;
     if ($('#aiDayCap') && d.aiDayCap !== undefined) $('#aiDayCap').value = d.aiDayCap;
     if ($('#aiModel') && d.aiModel) $('#aiModel').value = d.aiModel;
@@ -1327,10 +1339,10 @@ function loadCard(u) {
     verdict = 'Зараз ' + nfm(u.users) + ' людей, і «' + UNAME[u.tight].toLowerCase() +
       '» підійшло впритул до межі (' + pctTxt(u.worst) + '). Запасу майже немає — ' +
       'варто зайнятись цим найближчими днями.';
-  } else if (u.room) {
+  } else if (u.roomSoft) {
     verdict = 'Зараз ' + nfm(u.users) + ' людей. Найтісніше — «' + UNAME[u.tight].toLowerCase() +
       '» (' + pctTxt(u.worst) + ' межі). При такому ж користуванні тариф витримає приблизно ' +
-      '<b>' + nfm(u.room) + '</b> людей, і аж тоді доведеться щось міняти.';
+      '<b>' + nfm(u.roomSoft) + '</b> людей, і аж тоді доведеться щось міняти.';
   } else {
     verdict = 'Даних поки замало, щоб рахувати запас. Загляньте завтра.';
   }
@@ -1433,6 +1445,26 @@ function drawTech(d) {
         ['Модель для відповідей', modelUa, 'помічник, оцінка, запчастини'],
         ['Модель для фото значка', visUa, 'там якість вирішує'],
       ]);
+      /* Куди саме йдуть гроші — без цього «дорого» не має адреси. */
+      var UAK = { chat: 'Помічник', voice: 'Голос', vision: 'Значок з панелі',
+                  valuate: 'Оцінка авто', parts: 'Запчастини', other: 'Інше' };
+      if (ai.byKind) {
+        var rows = Object.keys(ai.byKind).map(function (k) {
+          return { k: k, c: ai.byKind[k].cent, n: ai.byKind[k].n };
+        }).filter(function (r) { return r.c > 0; })
+          .sort(function (a, b) { return b.c - a.c; });
+        if (rows.length) {
+          h += '<div class="lb" style="margin:12px 0 6px">Куди йдуть гроші</div>' +
+            listRows(rows.map(function (r) {
+              return [UAK[r.k] || r.k, '$' + (r.c / 100).toFixed(2),
+                r.n + ' ' + plural(r.n, 'звернення', 'звернення', 'звернень') +
+                ' · по ' + (r.c / r.n < 1
+                  ? String(Math.round(r.c / r.n * 10) / 10).replace('.', ',') + ' цента'
+                  : '$' + (r.c / r.n / 100).toFixed(2))];
+            }));
+        }
+      }
+
       h += '<div class="note" style="margin:0 0 6px">У консолі Anthropic сума може бути ' +
         'трохи більшою: там рахується ще й те, що ви робите руками в їхньому Playground, ' +
         'і округлення до центів.</div>';
@@ -1458,6 +1490,36 @@ function drawTech(d) {
   /* --- навантаження --- */
   var lBox = $('#techLoad');
   if (lBox) lBox.innerHTML = loadCard(u);
+
+  /* --- скільки людей витягнемо --- */
+  var rBox = $('#techRoom');
+  if (rBox) {
+    var r = u && u.room;
+    if (!r || !r.limit) {
+      rBox.innerHTML = '<div class="note">Порахую, щойно набереться доба вимірювань.</div>';
+    } else {
+      var NAMED = { req: 'запити до сервера', rd: 'читання зі сховища',
+                    wr: 'записи у сховище', store: 'місце під дані', money: 'гроші на ШІ' };
+      rBox.innerHTML =
+        '<div class="big" style="margin-bottom:10px">' +
+          '<div><b>' + nfm(r.limit) + '</b><small>людей витягнемо</small></div>' +
+          '<div><b>' + nfm(r.users) + '</b><small>зараз</small></div>' +
+        '</div>' +
+        '<div class="note" style="margin:0 0 10px">Рахунок за теперішнім користуванням, ' +
+        'із запасом 20% до межі. Першим упреться: <b>' + esc(r.what) + '</b>.</div>' +
+        listRows([
+          ['Запити до сервера', r.req ? nfm(r.req) + ' людей' : '—', ''],
+          ['Читання зі сховища', r.rd ? nfm(r.rd) + ' людей' : '—', ''],
+          ['Записи у сховище', r.wr ? nfm(r.wr) + ' людей' : '—', ''],
+          ['Місце під дані', r.store ? nfm(r.store) + ' людей' : '—',
+            u.inR2 ? 'документи в R2 — це добре' : 'документи ще в дорогому сховищі'],
+          ['Гроші на ШІ', r.money ? nfm(r.money) + ' людей' : '—',
+            'за нинішнього рахунку й режиму'],
+        ]) +
+        '<div class="note">Найменша цифра і є відповідь. Щоб її підняти: ' +
+        'перенести документи в R2, лишити економний режим ШІ або покласти більше на рахунок.</div>';
+    }
+  }
 
   /* --- памʼять --- */
   var pBox = $('#techMem');
