@@ -8,7 +8,7 @@
 <title>Бардачок — керування</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<link rel="stylesheet" href="styles.css?v=20260827-0800">
+<link rel="stylesheet" href="styles.css?v=20260827-0900">
 <style>
   body{overflow:auto}
   .wrap{max-width:620px;margin:0 auto;padding:26px 16px 60px}
@@ -140,7 +140,7 @@
     <button data-t="t-set">Налашт.</button>
   </div>
   <div class="msg inf" id="info">Завантаження…</div>
-  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260827-0800</div>
+  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260827-0900</div>
   <div id="topStrip"></div>
 
   <div class="pane on" id="t-home">
@@ -630,13 +630,19 @@
         <option value="gemini">Gemini (безкоштовно, Claude як запасний)</option>
       </select></div>
     <div id="gemNow" class="note"></div>
+    <div style="border-top:1px solid var(--ln);margin:14px 0 12px"></div>
+    <div class="note" style="margin:0 0 10px"><b>Перевірка.</b> Питає кожен двигун
+      окремо просте запитання й показує, хто відповів. Робиться за кілька секунд
+      і майже нічого не коштує.</div>
+    <button class="btn sec" onclick="engines()">Перевірити двигуни</button>
+    <div id="engOut" style="margin-top:10px"></div>
   </div>
 
   <div class="card">
     <div class="sect">Оцінка авто — ключ AUTO.RIA</div>
     <div class="note" style="margin:0 0 10px"><b>Навіщо.</b> Без ключа застосунок
-      НЕ називає ціну взагалі — тільки дає посилання на оголошення. З ключем він бере
-      справжню середню ціну за оголошеннями для вашої марки, моделі й року.</div>
+      НЕ називає ціну взагалі — чесно каже, що вигадувати число не стане. З ключем він
+      бере справжню середню ціну за оголошеннями для вашої марки, моделі й року.</div>
     <div class="note" style="margin:0 0 12px"><b>Де взяти (3 хвилини, безкоштовно).</b><br>
       1. Відкрийте <b>developers.ria.com</b><br>
       2. Зареєструйтесь поштою<br>
@@ -2362,6 +2368,28 @@ function act(what, outId) {
     if (d.ok) stats();
   }).catch(function () {
     if (out) out.innerHTML = '<div class="msg er">Сервер не відповідає.</div>';
+  });
+}
+
+/* Перевірка двигунів. Власник має БАЧИТИ, що ключ працює, а не вірити на слово.
+   Кожен рядок — окремий двигун: живий / чому мовчить / за скільки відповів. */
+function engines() {
+  var box = $('#engOut');
+  box.innerHTML = '<div class="msg inf">Питаю всі три двигуни…</div>';
+  post('/admin/act', { what: 'engines' }, 70000).then(function (d) {
+    if (!d.ok) { box.innerHTML = '<div class="msg er">' + esc(d.error || 'Не вдалося.') + '</div>'; return; }
+    var h = '<div class="msg ' + (d.live ? 'ok' : 'er') + '">' + esc(d.message) + '</div>';
+    (d.engines || []).forEach(function (e) {
+      var pos = (d.order || []).indexOf(e.name);
+      h += '<div class="rw"><div class="lb">' + (e.ok ? '🟢 ' : '⚪️ ') + esc(e.title) +
+        '<small>' + (e.ok
+          ? (e.name === d.first ? 'питаємо його першим' : 'у запасі, черга ' + (pos + 1))
+          : esc(e.note || 'мовчить')) + '</small></div>' +
+        '<div class="vl">' + (e.ok ? (e.ms / 1000).toFixed(1) + 'с' : '—') + '</div></div>';
+    });
+    box.innerHTML = h;
+  }).catch(function () {
+    box.innerHTML = '<div class="msg er">Сервер не відповідає.</div>';
   });
 }
 
