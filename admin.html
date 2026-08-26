@@ -8,7 +8,7 @@
 <title>Бардачок — керування</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<link rel="stylesheet" href="styles.css?v=20260826-2200">
+<link rel="stylesheet" href="styles.css?v=20260826-2300">
 <style>
   body{overflow:auto}
   .wrap{max-width:620px;margin:0 auto;padding:26px 16px 60px}
@@ -123,7 +123,7 @@
     <button data-t="t-set">Налашт.</button>
   </div>
   <div class="msg inf" id="info">Завантаження…</div>
-  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260826-2200</div>
+  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260826-2300</div>
   <div id="topStrip"></div>
 
   <div class="pane on" id="t-home">
@@ -453,6 +453,14 @@
       блок про подарунок зникне, а той, хто когось приведе, отримає просто подяку.
       Уже видані дні ні в кого не забираються.</div>
 
+    <div class="rw"><div class="lb">Ключ AUTO.RIA<small>щоб оцінка авто спиралась на реальні оголошення</small></div>
+      <input type="text" id="riaKey" style="text-align:left" placeholder="ключ з developers.ria.com"></div>
+    <div class="note">Без нього ціну називає модель — а вона українського ринку не знає
+      і може помилитись у рази (Tesla Model 3 2019 вона оцінила в $42 000 замість $20 000).
+      Ключ безкоштовний: зареєструйтесь на <b>developers.ria.com</b>, створіть застосунок
+      і вставте ключ сюди. Після цього оцінка братиме справжню середню за оголошеннями,
+      а модель лише пояснюватиме її.</div>
+
     <div class="rw"><div class="lb">Офіційний канал<small>@назва або посилання t.me</small></div>
       <input type="text" id="channel" style="text-align:left" placeholder="@bardachok_ua"></div>
     <div class="note">Зʼявиться пунктом «Наш канал» у розділі «Ще» — у всіх користувачів.
@@ -656,7 +664,7 @@
 var API = 'https://bardachok.kasebaby24.workers.dev';
 
 var NUM = ['premiumMonth','premiumHalf','premiumYear','freeCars','freeVin','autoPay','remindInsurance','remindService','oilInterval','refLimit'];
-var TXT = ['contactTg','wfpMerchant','wfpDomain','usdtAddress','adminId','channel'];
+var TXT = ['contactTg','wfpMerchant','wfpDomain','usdtAddress','adminId','channel','riaKey'];
 var KEY = '';
 var BILLS = [];          // за що власник платить сам — редагується нижче
 var $ = function (s) { return document.querySelector(s); };
