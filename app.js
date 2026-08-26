@@ -13,7 +13,7 @@ var API = 'https://bardachok.kasebaby24.workers.dev';
 var QR_FOR = 'TWqHKxsLAdGMPC7kY4i3r2GQxNJ2U6vQXv';   // до цієї адреси намальовано usdt-qr.png
 var USDT_CONTRACT = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';   // USDT у мережі TRON
 
-var BUILD = '20260827-0700';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
+var BUILD = '20260827-0800';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
 var BOOT_T0 = Date.now();
 
 var tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
@@ -3397,16 +3397,13 @@ function valuate() {
         '<a href="' + esc(V.link) + '" target="_blank" rel="noopener" ' +
         'style="color:var(--mut);text-decoration:underline">звірити з оголошеннями</a></div>';
     } else {
-      var qr = encodeURIComponent([car.make, car.model, car.year].filter(Boolean).join(' '));
       h += '<div class="card" style="margin-bottom:12px">' +
         '<div style="font-family:var(--disp);font-weight:800;font-size:17px;margin-bottom:8px">' +
         'Ціну називати не буду</div>' +
-        '<p style="margin:0 0 12px;font-size:13.5px;color:var(--ink2);line-height:1.6">' +
+        '<p style="margin:0;font-size:13.5px;color:var(--ink2);line-height:1.6">' +
         'Точну ціну знає лише ринок — скільки просять за такі самі авто просто зараз. ' +
         'Вигадувати число я не стану: помилка на кілька тисяч доларів гірша за чесне ' +
-        '«подивіться самі».</p>' +
-        '<a class="btn" style="text-decoration:none" target="_blank" rel="noopener" ' +
-        'href="https://auto.ria.com/uk/search/?q=' + qr + '">Подивитись такі ж на AUTO.RIA</a>' +
+        'мовчання. Решту розбору нижче дивіться — вона від ціни не залежить.</p>' +
         '</div>';
     }
 
@@ -3425,19 +3422,13 @@ function valuate() {
         }).join('') + '</div>';
     }
     if (V.alts && V.alts.length) {
-      /* Кожну альтернативу можна перевірити за секунду — це і є різниця
-         між «модель щось сказала» і «я бачу оголошення». */
       h += '<div class="h2">Що можна взяти натомість</div><div class="card list wrap">' +
         V.alts.map(function (a) {
-          var qa = encodeURIComponent(String(a.name || '').replace(/,.*$/, ''));
-          return '<a class="it" style="text-decoration:none" target="_blank" rel="noopener" ' +
-            'href="https://auto.ria.com/uk/search/?q=' + qa + '">' +
+          return '<div class="it" style="cursor:default">' +
             '<div class="dt">' + ic('car', 17) + '</div>' +
             '<div class="tx"><b>' + esc(a.name) + '</b><small>' + esc(a.why || '') + '</small></div>' +
-            '<div class="vl" style="font-size:12px">' + esc(a.price || '') + '</div></a>';
-        }).join('') + '</div>' +
-        '<div class="note">Дотик по авто відкриє такі ж оголошення на AUTO.RIA — ' +
-        'ціни можна звірити одразу.</div>';
+            '<div class="vl" style="font-size:12px">' + esc(a.price || '') + '</div></div>';
+        }).join('') + '</div>';
     }
     h += '<div class="note">' + esc(V.note || 'Це орієнтир, а не оцінка експерта: ' +
       'реальна ціна залежить від стану кузова й того, як швидко ви хочете продати.') + '</div>';
@@ -3482,13 +3473,8 @@ function partsGo(what) {
   api('/api/parts', { what: what }, 45000).then(function (d) {
     if (!d.ok) {
       if (d.error === 'premium') { needPro('parts'); return; }
-      var q0 = encodeURIComponent(what + ' ' + carName(car));
-      openSheet(d.error === 'budget' ? 'Сьогодні недоступно' : 'Не вийшло',
+      openSheet('Не вийшло',
         '<div class="msg er">' + esc(d.message || d.error || '') + '</div>' +
-        '<p style="margin:0 0 12px;font-size:12.5px;color:var(--mut);line-height:1.55">' +
-        'Поки що можна подивитись ціни напряму — там реальні магазини.</p>' +
-        '<a class="btn sec" style="text-decoration:none" target="_blank" rel="noopener" ' +
-        'href="https://avtopro.ua/ukr/search/?q=' + q0 + '">Шукати на AvtoPro</a>' +
         '<button class="btn sec" data-do="parts">Спробувати інакше</button>');
       return;
     }
@@ -3525,17 +3511,6 @@ function partsGo(what) {
     if (P.diy) h += '<div class="alert"><div class="ic">' + ic('wrench', 18) + '</div>' +
       '<div class="bd"><b>Чи можна самому</b><p>' + esc(P.diy) + '</p></div></div>';
     if (P.warn) h += '<div class="note">' + esc(P.warn) + '</div>';
-    /* Ціни модель називає з памʼяті, а не з магазинів — тож даємо перевірити
-       за один дотик. Це чесніше, ніж вдавати, що цифра точна. */
-    var q = encodeURIComponent((P.part || what) + ' ' + carName(car));
-    h += '<div class="h2">Перевірити ціни</div>' +
-      '<div class="grid2">' +
-      '<a class="btn sec" style="text-decoration:none" target="_blank" rel="noopener" ' +
-        'href="https://avtopro.ua/ukr/search/?q=' + q + '">AvtoPro</a>' +
-      '<a class="btn sec" style="text-decoration:none" target="_blank" rel="noopener" ' +
-        'href="https://exist.ua/uk/Search/?pcode=' + encodeURIComponent(P.oem || (P.part || what)) + '">Exist</a>' +
-      '</div>';
-
     h += '<div class="note" style="margin-bottom:0">Ціни тут орієнтовні — вони змінюються ' +
       'щотижня. Артикул обовʼязково звіряйте з продавцем за VIN: на одну модель бувають ' +
       'різні деталі залежно від року й комплектації.</div>';
