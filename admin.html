@@ -8,7 +8,7 @@
 <title>Бардачок — керування</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<link rel="stylesheet" href="styles.css?v=20260827-1100">
+<link rel="stylesheet" href="styles.css?v=20260827-1200">
 <style>
   body{overflow:auto}
   .wrap{max-width:620px;margin:0 auto;padding:26px 16px 60px}
@@ -140,7 +140,7 @@
     <button data-t="t-set">Налашт.</button>
   </div>
   <div class="msg inf" id="info">Завантаження…</div>
-  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260827-1100</div>
+  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260827-1200</div>
   <div id="topStrip"></div>
 
   <div class="pane on" id="t-home">
@@ -621,11 +621,12 @@
       1. Відкрийте <b>aistudio.google.com</b><br>
       2. Увійдіть акаунтом Google<br>
       3. Кнопка <b>Create API key</b> → створити ключ<br>
-      4. Скопіюйте й вставте сюди, потім <b>Зберегти</b><br>
-      5. Натисніть <b>Перевірити двигуни</b> внизу — там видно, чи ключ прийнявся</div>
+      4. У віконці натисніть <b>Copy key</b> (не виділяйте мишею)<br>
+      5. Вставте сюди, потім <b>Зберегти</b><br>
+      6. Натисніть <b>Перевірити двигуни</b> внизу — там видно, чи ключ прийнявся</div>
     <div class="rw col"><div class="lb">Ключ Gemini</div>
       <input type="text" id="geminiKey" style="text-align:left"
-        oninput="gemHint()" placeholder="починається на AIzaSy"></div>
+        oninput="gemHint()" placeholder="вставте ключ з Google AI Studio"></div>
     <div id="gemHint" class="note hidden" style="margin:-4px 0 10px"></div>
     <div class="rw col"><div class="lb">Питати спершу<small>кого запитувати першим</small></div>
       <select id="aiEngine" style="text-align:left">
@@ -2375,20 +2376,19 @@ function act(what, outId) {
   });
 }
 
-/* Ключ Gemini завжди починається на «AIzaSy». Рядок на «AQ.» — це тимчасовий
-   токен доступу, Google його не приймає. Кажемо про це ДО збереження, поки
-   людина ще стоїть біля вкладки з ключем, а не після трьох невдалих спроб. */
+/* Google видає ключі двох виглядів: старі «AIzaSy…» і нові «AQ.…» (з 2026).
+   Обидва робочі — сервер шле їх заголовком x-goog-api-key. Тут ловимо лише
+   явно обірваний рядок, а не «неправильний вигляд»: вигадувати правило про
+   вигляд ключа вже коштувало власнику трьох марних спроб. */
 function gemHint() {
   var v = ($('#geminiKey').value || '').trim();
   var box = $('#gemHint');
   var bad = '';
-  if (v && v.slice(0, 3) === 'AQ.')
-    bad = '⛔️ Це <b>тимчасовий токен доступу</b>, а не ключ. Google його не прийме. ' +
-          'Потрібен рядок, що починається на <b>AIzaSy</b>.';
-  else if (v && v.slice(0, 4) !== 'AIza')
-    bad = '⚠️ Ключі Gemini починаються на <b>AIzaSy</b>. Схоже, скопіювалось не те.';
-  else if (v && v.length < 30)
-    bad = '⚠️ Закороткий — схоже, скопіювалась лише частина ключа.';
+  if (v && v.length < 30)
+    bad = '⚠️ Закороткий — схоже, скопіювалась лише частина ключа. ' +
+          'Тисніть <b>Copy key</b> в Google, а не виділяйте мишею.';
+  else if (v && /\s/.test(v))
+    bad = '⚠️ У ключі є пробіл або перенос рядка — скопіювалось зайве.';
   box.innerHTML = bad;
   box.classList.toggle('hidden', !bad);
 }
