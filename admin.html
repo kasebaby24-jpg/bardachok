@@ -8,7 +8,7 @@
 <title>Бардачок — керування</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<link rel="stylesheet" href="styles.css?v=20260827-0900">
+<link rel="stylesheet" href="styles.css?v=20260827-1000">
 <style>
   body{overflow:auto}
   .wrap{max-width:620px;margin:0 auto;padding:26px 16px 60px}
@@ -140,7 +140,7 @@
     <button data-t="t-set">Налашт.</button>
   </div>
   <div class="msg inf" id="info">Завантаження…</div>
-  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260827-0900</div>
+  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260827-1000</div>
   <div id="topStrip"></div>
 
   <div class="pane on" id="t-home">
@@ -620,8 +620,9 @@
     <div class="note" style="margin:0 0 12px"><b>Де взяти (2 хвилини).</b><br>
       1. Відкрийте <b>aistudio.google.com</b><br>
       2. Увійдіть акаунтом Google<br>
-      3. Кнопка <b>Get API key</b> → створити ключ<br>
-      4. Скопіюйте й вставте сюди</div>
+      3. Кнопка <b>Create API key</b> → створити ключ<br>
+      4. Скопіюйте й вставте сюди, потім <b>Зберегти</b><br>
+      5. Натисніть <b>Перевірити двигуни</b> внизу — там видно, чи ключ прийнявся</div>
     <div class="rw col"><div class="lb">Ключ Gemini</div>
       <input type="text" id="geminiKey" style="text-align:left" placeholder="ключ з aistudio.google.com"></div>
     <div class="rw col"><div class="lb">Питати спершу<small>кого запитувати першим</small></div>
@@ -2381,10 +2382,11 @@ function engines() {
     var h = '<div class="msg ' + (d.live ? 'ok' : 'er') + '">' + esc(d.message) + '</div>';
     (d.engines || []).forEach(function (e) {
       var pos = (d.order || []).indexOf(e.name);
-      h += '<div class="rw"><div class="lb">' + (e.ok ? '🟢 ' : '⚪️ ') + esc(e.title) +
+      h += '<div class="rw"><div class="lb">' + (e.ok ? '🟢 ' : '🔴 ') + esc(e.title) +
         '<small>' + (e.ok
           ? (e.name === d.first ? 'питаємо його першим' : 'у запасі, черга ' + (pos + 1))
-          : esc(e.note || 'мовчить')) + '</small></div>' +
+          : esc(e.note || 'мовчить')) +
+        (e.seen ? '<br>у сховищі лежить: ' + esc(e.seen) : '') + '</small></div>' +
         '<div class="vl">' + (e.ok ? (e.ms / 1000).toFixed(1) + 'с' : '—') + '</div></div>';
     });
     box.innerHTML = h;
