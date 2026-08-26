@@ -8,7 +8,7 @@
 <title>Бардачок — керування</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<link rel="stylesheet" href="styles.css?v=20260826-2000">
+<link rel="stylesheet" href="styles.css?v=20260826-2200">
 <style>
   body{overflow:auto}
   .wrap{max-width:620px;margin:0 auto;padding:26px 16px 60px}
@@ -123,7 +123,7 @@
     <button data-t="t-set">Налашт.</button>
   </div>
   <div class="msg inf" id="info">Завантаження…</div>
-  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260826-2000</div>
+  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260826-2200</div>
   <div id="topStrip"></div>
 
   <div class="pane on" id="t-home">
@@ -240,6 +240,15 @@
     <div class="card">
       <div class="sect">Памʼять</div>
       <div id="techMem"><div class="note">Завантажую…</div></div>
+    </div>
+
+    <div class="card">
+      <div class="sect">Якщо панель не показує цифри</div>
+      <p class="note" style="margin:0 0 12px">Сервер пройде ті самі кроки, що й
+        повне зведення, кожен окремо, і скаже, який саме падає або тягне час.
+        Жодних даних людей — тільки назви кроків і секунди.</p>
+      <button class="btn sec" onclick="probe()">Знайти причину</button>
+      <div id="probeOut" style="margin-top:10px"></div>
     </div>
 
     <div class="card">
@@ -1449,6 +1458,36 @@ function loadCard(u) {
    платити, скільки ще витримає тариф, скільки лишилось памʼяті. Раніше це
    було розкидано між «Оглядом» і Cloudflare — і він чесно казав, що
    «нічого не понятно». */
+/* Самоперевірка сервера по кроках. Потрібна саме тоді, коли повне зведення
+   не доїжджає: кожен крок іде окремим маленьким запитом-відповіддю, тож
+   результат доходить навіть якщо велика відповідь обривається. */
+function probe() {
+  var out = $('#probeOut');
+  out.innerHTML = '<div class="msg inf">Перевіряю крок за кроком…</div>';
+  post('/admin/stats', { probe: 1 }, 30000).then(function (d) {
+    if (!d.ok) {
+      out.innerHTML = '<div class="msg er">' + esc(d.error || 'не вийшло') + '</div>';
+      return;
+    }
+    var bad = (d.steps || []).filter(function (x) { return !x.ok; });
+    var slow = (d.steps || []).filter(function (x) { return x.ok && x.ms > 3000; });
+    out.innerHTML =
+      (bad.length
+        ? '<div class="msg er"><b>Падає крок:</b> ' + esc(bad[0].s) + '<br>' + esc(bad[0].err || '') + '</div>'
+        : slow.length
+          ? '<div class="msg inf"><b>Усе працює, але повільно:</b> ' + esc(slow[0].s) +
+            ' — ' + Math.round(slow[0].ms / 100) / 10 + ' с</div>'
+          : '<div class="msg ok">Усі кроки пройшли. Проблема не на сервері.</div>') +
+      listRows((d.steps || []).map(function (x) {
+        return [esc(x.s), (x.ok ? '' : '⚠️ ') + (x.ms ? Math.round(x.ms) + ' мс' : '—'),
+          esc(x.ok ? (x.note || '') : (x.err || ''))];
+      }));
+  }).catch(function () {
+    out.innerHTML = '<div class="msg er">Навіть перевірка не доїхала — ' +
+      'значить обривається будь-який запит із тілом. Напишіть мені це.</div>';
+  });
+}
+
 function drawTech(d) {
   var u = d.usage || null;
 
