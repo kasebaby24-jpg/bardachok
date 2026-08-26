@@ -8,7 +8,7 @@
 <title>Бардачок — керування</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<link rel="stylesheet" href="styles.css?v=20260826-1900">
+<link rel="stylesheet" href="styles.css?v=20260826-2000">
 <style>
   body{overflow:auto}
   .wrap{max-width:620px;margin:0 auto;padding:26px 16px 60px}
@@ -123,7 +123,7 @@
     <button data-t="t-set">Налашт.</button>
   </div>
   <div class="msg inf" id="info">Завантаження…</div>
-  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260826-1900</div>
+  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260826-2000</div>
   <div id="topStrip"></div>
 
   <div class="pane on" id="t-home">
@@ -878,6 +878,20 @@ function load() {
 }
 
 function stats(fresh) {
+  /* Спершу — легкий запит: він маленький і швидкий, тож головні цифри
+     зʼявляються майже завжди. Повне зведення тягнемо окремо; якщо воно
+     не доїде, панель уже не буде порожньою. */
+  post('/admin/stats', { light: 1 }, 15000).then(function (d) {
+    if (!d || !d.ok) return;
+    $('#stU').textContent = nfm(d.users); $('#stP').textContent = nfm(d.pro);
+    var _l = d.stats || {};
+    if ($('#stR')) $('#stR').textContent = nfm(_l.viaRef || 0);
+    if ($('#stI')) $('#stI').textContent = nfm(_l.inviters || 0);
+    var box0 = $('#anaBox');
+    if (box0 && !box0.dataset.full) box0.innerHTML =
+      '<div class="note">Головні цифри вже тут. Тягну решту зведення…</div>';
+  }).catch(function () {});
+
   post('/admin/stats', fresh ? { fresh: 1 } : {}).then(function (d) {
     /* Мовчазна відмова — найгірше: видно порожню панель і незрозуміло чому. */
     if (!d.ok) {
@@ -909,6 +923,7 @@ function stats(fresh) {
     if ($('#stR')) $('#stR').textContent = nfm(_st.viaRef || 0);
     if ($('#stI')) $('#stI').textContent = nfm(_st.inviters || 0);
     if ($('#hPN')) $('#hPN').textContent = (d.paid || 0) + (d.revenue ? ' · $' + d.revenue : '');
+    var abx = $('#anaBox'); if (abx) abx.dataset.full = '1';
     drawAna(d.stats, d);
     drawTech(d);
     var nn = $('#ntNow');
