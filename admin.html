@@ -8,7 +8,7 @@
 <title>Бардачок — керування</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<link rel="stylesheet" href="styles.css?v=20260826-2400">
+<link rel="stylesheet" href="styles.css?v=20260827-0100">
 <style>
   body{overflow:auto}
   .wrap{max-width:620px;margin:0 auto;padding:26px 16px 60px}
@@ -123,7 +123,7 @@
     <button data-t="t-set">Налашт.</button>
   </div>
   <div class="msg inf" id="info">Завантаження…</div>
-  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260826-2400</div>
+  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260827-0100</div>
   <div id="topStrip"></div>
 
   <div class="pane on" id="t-home">
@@ -217,11 +217,18 @@
        має бути видно, що саме зламано, а не гадати дві години. -->
   <div class="pane" id="t-tech">
     <div class="card">
+      <div class="sect">Скільки людей витягнемо</div>
+      <div id="techRoom"><div class="note">Завантажую…</div></div>
+    </div>
+
+    <div class="card">
       <div class="sect">Гроші: за що і коли платити</div>
       <div id="techMoney"><div class="note">Завантажую…</div></div>
       <div style="display:flex;gap:9px;margin-top:12px">
-        <button class="btn sec" onclick="act('billsnow')">Перевірити нагадування</button>
+        <button class="btn sec" onclick="act('billsnow', '#billsTestOut')">Перевірити нагадування</button>
+        <button class="btn sec" onclick="stats()">Оновити цифри</button>
       </div>
+      <div id="billsTestOut"></div>
       <div class="note">Кнопка надішле вам у бот те саме повідомлення, яке прийде
         за три дні до оплати. Так видно, що нагадування справді працює, — не
         в день, коли ви про оплату забудете.</div>
@@ -230,11 +237,6 @@
     <div class="card">
       <div class="sect">Навантаження на тариф</div>
       <div id="techLoad"><div class="note">Завантажую…</div></div>
-    </div>
-
-    <div class="card">
-      <div class="sect">Скільки людей витягнемо</div>
-      <div id="techRoom"><div class="note">Завантажую…</div></div>
     </div>
 
     <div class="card">
@@ -1548,6 +1550,8 @@ function drawTech(d) {
           '<b>$' + ai.spent.toFixed(2) + ' з $' + Number(ai.fund).toFixed(2) + '</b></div></div>';
       }
       h += listRows([
+        ['Витрачено вчора', '$' + (ai.spentYday || 0).toFixed(2), 'повна доба'],
+        ['Витрачено за тиждень', '$' + (ai.spent7 || 0).toFixed(2), ''],
         ['Лишилось на рахунку', ai.fund ? '$' + (ai.left || 0).toFixed(2) : 'не вказано',
           ai.daysLeft !== null && ai.daysLeft !== undefined
             ? 'за теперішнім темпом — ще ' + ai.daysLeft + ' дн.'
@@ -1589,6 +1593,11 @@ function drawTech(d) {
         }
       }
 
+      h += '<div class="note" style="margin:0 0 6px"><b>Чому ми рахуємо самі.</b> ' +
+        'Anthropic не дає застосункам читати залишок на рахунку — такого доступу ' +
+        'просто немає. Тому сервер рахує кожне звернення сам, за реальними цифрами ' +
+        'з відповіді, і записує одразу. Це і є прямий моніторинг: точніше не буде ' +
+        'ні в кого.</div>';
       h += '<div class="note" style="margin:0 0 6px">У консолі Anthropic сума може бути ' +
         'трохи більшою: там рахується ще й те, що ви робите руками в їхньому Playground, ' +
         'і округлення до центів.</div>';
@@ -1641,7 +1650,16 @@ function drawTech(d) {
             'за нинішнього рахунку й режиму'],
         ]) +
         '<div class="note">Найменша цифра і є відповідь. Щоб її підняти: ' +
-        'перенести документи в R2, лишити економний режим ШІ або покласти більше на рахунок.</div>';
+        'перенести документи в R2, лишити економний режим ШІ або покласти більше на рахунок.</div>' +
+        '<div class="note" style="margin-top:10px"><b>Якщо людей стане набагато більше.</b><br>' +
+        'До ~5 000 — не міняти нічого, тарифу вистачає.<br>' +
+        '5–20 тис. — зменшити кількість записів, переїзд не потрібен.<br>' +
+        '20–100 тис. — записи людей у базу D1 або Postgres. Змінюються ' +
+        '<b>шість функцій доступу до сховища</b>, решта коду їх не знає.<br>' +
+        '100 тис.+ — окремий сервер, Workers лишається спереду.<br><br>' +
+        'Переїхати можна будь-коли: усі дані вивантажуються кнопкою в «Огляді», ' +
+        'привʼязки до Cloudflare майже немає. Реалістично — день-два роботи. ' +
+        'Докладно з цінами — у файлі <b>ПЛАН-МАСШТАБУВАННЯ.md</b> у папці проєкту.</div>';
     }
   }
 
@@ -2255,8 +2273,11 @@ function drawPay(d) {
   box.innerHTML = h;
 }
 
-function act(what) {
-  var out = $('#actOut');
+/* Куди писати відповідь — задає той, хто кличе. Раніше вона завжди йшла в
+   «Огляд», тому кнопки з інших вкладок виглядали як несправні: натискаєш —
+   і нічого не відбувається. */
+function act(what, outId) {
+  var out = $(outId || '#actOut');
   if (out) out.innerHTML = '<div class="msg inf">Роблю…</div>';
   post('/admin/act', { what: what }).then(function (d) {
     if (out) out.innerHTML = '<div class="msg ' + (d.ok ? 'ok' : 'er') + '">' +
