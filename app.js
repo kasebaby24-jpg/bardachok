@@ -13,7 +13,7 @@ var API = 'https://bardachok.kasebaby24.workers.dev';
 var QR_FOR = 'TWqHKxsLAdGMPC7kY4i3r2GQxNJ2U6vQXv';   // до цієї адреси намальовано usdt-qr.png
 var USDT_CONTRACT = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';   // USDT у мережі TRON
 
-var BUILD = '20260827-0100';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
+var BUILD = '20260827-0300';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
 var BOOT_T0 = Date.now();
 
 var tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
@@ -3348,24 +3348,32 @@ function valuate() {
     }
     var V = d.val;
     var car = activeCar();
-    var h = '<div class="hero" style="margin-bottom:14px">' +
-      '<div class="hero-top"><span>' + esc(carName(car)) + '</span>' + ic('money', 18) + '</div>' +
-      '<b style="font-size:26px;line-height:1.15">$' + nfmt(V.low) + ' – $' + nfmt(V.high) + '</b>' +
-      '<p style="margin:6px 0 0;font-size:12.5px;opacity:.75">' +
-        (V.source === 'ria'
-          ? 'за оголошеннями AUTO.RIA' + (V.count ? ' · ' + V.count + ' оголошень' : '')
-          : 'груба оцінка — без перевірки за оголошеннями') + '</p>' +
-      '</div>';
+    var h = '';
 
-    /* Головне про довіру: людина має бачити, звідки взялась цифра, і мати
-       змогу перевірити її очима за один дотик. */
-    if (V.source === 'ria' && V.link) {
-      h += '<a class="btn sec" href="' + esc(V.link) + '" target="_blank" rel="noopener" ' +
-        'style="text-decoration:none;margin-bottom:12px">Подивитись ці оголошення</a>';
-    } else if (V.source !== 'ria') {
-      h += '<div class="msg inf" style="margin-bottom:12px">Це оцінка з голови, ' +
-        'а не з ринку: власник ще не підключив довідник цін AUTO.RIA. ' +
-        'Перевірте на auto.ria.com — там видно справжні оголошення.</div>';
+    /* Без даних ринку числа НЕ показуємо взагалі. Вигадана вилка «від 8 до
+       15 тисяч» гірша за відсутність відповіді: вона виглядає як оцінка,
+       а насправді нею не є. Замість неї — прямий шлях подивитись реальні
+       оголошення. */
+    if (V.source === 'ria') {
+      h += '<div class="hero" style="margin-bottom:14px">' +
+        '<div class="hero-top"><span>' + esc(carName(car)) + '</span>' + ic('money', 18) + '</div>' +
+        '<b style="font-size:26px;line-height:1.15">$' + nfmt(V.low) + ' – $' + nfmt(V.high) + '</b>' +
+        '<p style="margin:6px 0 0;font-size:12.5px;opacity:.75">за оголошеннями AUTO.RIA' +
+        (V.count ? ' · ' + V.count + ' оголошень' : '') + '</p></div>';
+      if (V.link) h += '<a class="btn sec" href="' + esc(V.link) + '" target="_blank" ' +
+        'rel="noopener" style="text-decoration:none;margin-bottom:12px">Подивитись ці оголошення</a>';
+    } else {
+      var qr = encodeURIComponent([car.make, car.model, car.year].filter(Boolean).join(' '));
+      h += '<div class="card" style="margin-bottom:12px">' +
+        '<div style="font-family:var(--disp);font-weight:800;font-size:17px;margin-bottom:8px">' +
+        'Ціну називати не буду</div>' +
+        '<p style="margin:0 0 12px;font-size:13.5px;color:var(--ink2);line-height:1.6">' +
+        'Точну ціну знає лише ринок — скільки просять за такі самі авто просто зараз. ' +
+        'Вигадувати число я не стану: помилка на кілька тисяч доларів гірша за чесне ' +
+        '«подивіться самі».</p>' +
+        '<a class="btn" style="text-decoration:none" target="_blank" rel="noopener" ' +
+        'href="https://auto.ria.com/uk/search/?q=' + qr + '">Подивитись такі ж на AUTO.RIA</a>' +
+        '</div>';
     }
 
     if (V.why && V.why.length) {
@@ -3383,12 +3391,19 @@ function valuate() {
         }).join('') + '</div>';
     }
     if (V.alts && V.alts.length) {
+      /* Кожну альтернативу можна перевірити за секунду — це і є різниця
+         між «модель щось сказала» і «я бачу оголошення». */
       h += '<div class="h2">Що можна взяти натомість</div><div class="card list wrap">' +
         V.alts.map(function (a) {
-          return '<div class="it" style="cursor:default"><div class="dt">' + ic('car', 17) + '</div>' +
+          var qa = encodeURIComponent(String(a.name || '').replace(/,.*$/, ''));
+          return '<a class="it" style="text-decoration:none" target="_blank" rel="noopener" ' +
+            'href="https://auto.ria.com/uk/search/?q=' + qa + '">' +
+            '<div class="dt">' + ic('car', 17) + '</div>' +
             '<div class="tx"><b>' + esc(a.name) + '</b><small>' + esc(a.why || '') + '</small></div>' +
-            '<div class="vl" style="font-size:12px">' + esc(a.price || '') + '</div></div>';
-        }).join('') + '</div>';
+            '<div class="vl" style="font-size:12px">' + esc(a.price || '') + '</div></a>';
+        }).join('') + '</div>' +
+        '<div class="note">Дотик по авто відкриє такі ж оголошення на AUTO.RIA — ' +
+        'ціни можна звірити одразу.</div>';
     }
     h += '<div class="note">' + esc(V.note || 'Це орієнтир, а не оцінка експерта: ' +
       'реальна ціна залежить від стану кузова й того, як швидко ви хочете продати.') + '</div>';
@@ -3433,7 +3448,13 @@ function partsGo(what) {
   api('/api/parts', { what: what }, 45000).then(function (d) {
     if (!d.ok) {
       if (d.error === 'premium') { needPro('parts'); return; }
-      openSheet('Не вийшло', '<div class="msg er">' + esc(d.message || d.error || '') + '</div>' +
+      var q0 = encodeURIComponent(what + ' ' + carName(car));
+      openSheet(d.error === 'budget' ? 'Сьогодні недоступно' : 'Не вийшло',
+        '<div class="msg er">' + esc(d.message || d.error || '') + '</div>' +
+        '<p style="margin:0 0 12px;font-size:12.5px;color:var(--mut);line-height:1.55">' +
+        'Поки що можна подивитись ціни напряму — там реальні магазини.</p>' +
+        '<a class="btn sec" style="text-decoration:none" target="_blank" rel="noopener" ' +
+        'href="https://avtopro.ua/ukr/search/?q=' + q0 + '">Шукати на AvtoPro</a>' +
         '<button class="btn sec" data-do="parts">Спробувати інакше</button>');
       return;
     }
