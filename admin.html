@@ -8,7 +8,7 @@
 <title>Бардачок — керування</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<link rel="stylesheet" href="styles.css?v=20260827-0300">
+<link rel="stylesheet" href="styles.css?v=20260827-0500">
 <style>
   body{overflow:auto}
   .wrap{max-width:620px;margin:0 auto;padding:26px 16px 60px}
@@ -24,6 +24,23 @@
   .rw input{width:120px;flex:0 0 120px;padding:11px 13px;border-radius:14px;background:var(--surf2);
     border:1.5px solid transparent;font-size:15px;font-weight:600;text-align:right;outline:none}
   .rw input:focus{border-color:var(--lime)}
+  /* Списки вибору були білою смугою без тексту: колір успадковувався від
+     системи, а поруч довгий підпис чавив колонку так, що вона розсипалась
+     по літерах. Тому такі рядки складаємо вертикально й малюємо самі. */
+  .rw.col{display:block}
+  .rw.col .lb{margin-bottom:9px}
+  .rw select{
+    width:100%;display:block;padding:13px 40px 13px 14px;border-radius:14px;
+    background:var(--surf2);color:var(--ink);border:1.5px solid transparent;
+    font-size:15px;font-weight:600;text-align:left;outline:none;
+    -webkit-appearance:none;appearance:none;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%238A968F' stroke-width='2.4' stroke-linecap='round'><path d='M6 9l6 6 6-6'/></svg>");
+    background-repeat:no-repeat;background-position:right 14px center;
+  }
+  .rw select:focus{border-color:var(--lime)}
+  .rw select option{background:#171B19;color:#EEF2EC}
+  /* Довгі текстові поля (ключі, посилання) теж на всю ширину. */
+  .rw.col input{width:100%;flex:none;text-align:left}
   /* чотири колонки на телефоні не влазять — великі числа обрізало */
   .st{display:grid;grid-template-columns:repeat(2,1fr);gap:9px;margin-bottom:12px}
   @media (min-width:560px){.st{grid-template-columns:repeat(4,1fr)}}
@@ -123,7 +140,7 @@
     <button data-t="t-set">Налашт.</button>
   </div>
   <div class="msg inf" id="info">Завантаження…</div>
-  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260827-0300</div>
+  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260827-0500</div>
   <div id="topStrip"></div>
 
   <div class="pane on" id="t-home">
@@ -455,15 +472,7 @@
       блок про подарунок зникне, а той, хто когось приведе, отримає просто подяку.
       Уже видані дні ні в кого не забираються.</div>
 
-    <div class="rw"><div class="lb">Ключ AUTO.RIA<small>щоб оцінка авто спиралась на реальні оголошення</small></div>
-      <input type="text" id="riaKey" style="text-align:left" placeholder="ключ з developers.ria.com"></div>
-    <div class="note">Без нього ціну називає модель — а вона українського ринку не знає
-      і може помилитись у рази (Tesla Model 3 2019 вона оцінила в $42 000 замість $20 000).
-      Ключ безкоштовний: зареєструйтесь на <b>developers.ria.com</b>, створіть застосунок
-      і вставте ключ сюди. Після цього оцінка братиме справжню середню за оголошеннями,
-      а модель лише пояснюватиме її.</div>
-
-    <div class="rw"><div class="lb">Офіційний канал<small>@назва або посилання t.me</small></div>
+    <div class="rw col"><div class="lb">Офіційний канал<small>@назва або посилання t.me</small></div>
       <input type="text" id="channel" style="text-align:left" placeholder="@bardachok_ua"></div>
     <div class="note">Зʼявиться пунктом «Наш канал» у розділі «Ще» — у всіх користувачів.
       Щоб побачити його в себе, закрийте застосунок і відкрийте заново: він читає
@@ -495,13 +504,13 @@
       <textarea id="ntText" rows="3" placeholder="Що саме хочете сказати"
         style="width:100%;padding:12px 14px;border-radius:14px;background:#171B19;border:1px solid #2A3235;color:#EEF2EC;font:inherit;resize:vertical"></textarea>
     </div>
-    <div class="rw"><div class="lb">Кому</div>
+    <div class="rw col"><div class="lb">Кому</div>
       <select id="ntWho" style="text-align:left">
         <option value="all">Усім</option>
         <option value="pro">Тільки з преміумом</option>
         <option value="free">Тільки без преміуму</option>
       </select></div>
-    <div class="rw"><div class="lb">Вигляд</div>
+    <div class="rw col"><div class="lb">Вигляд</div>
       <select id="ntKind" style="text-align:left">
         <option value="info">Звичайне</option>
         <option value="good">Добра новина</option>
@@ -544,7 +553,7 @@
     <div style="display:flex;gap:9px;margin:0 0 10px">
       <button class="btn sec" style="margin:0" onclick="bcGreet()">Вставити привітання</button>
     </div>
-    <div class="rw"><div class="lb">Кому</div>
+    <div class="rw col"><div class="lb">Кому</div>
       <select id="bcWho" style="text-align:left">
         <option value="all">Усім</option>
         <option value="pro">Тільки з преміумом</option>
@@ -594,9 +603,28 @@
     <div class="rw"><div class="lb">Якого числа<small>від цієї дати рахуємо витрату</small></div>
       <input type="date" id="aiFundAt" style="text-align:left"></div>
 
+  </div>
+
+  <div class="card">
+    <div class="sect">Оцінка авто — ключ AUTO.RIA</div>
+    <div class="note" style="margin:0 0 10px"><b>Навіщо.</b> Без ключа застосунок
+      НЕ називає ціну взагалі — тільки дає посилання на оголошення. З ключем він бере
+      справжню середню ціну за оголошеннями для вашої марки, моделі й року.</div>
+    <div class="note" style="margin:0 0 12px"><b>Де взяти (3 хвилини, безкоштовно).</b><br>
+      1. Відкрийте <b>developers.ria.com</b><br>
+      2. Зареєструйтесь поштою<br>
+      3. Натисніть «Створити застосунок», назва будь-яка<br>
+      4. Скопіюйте ключ і вставте його сюди</div>
+    <div class="rw col"><div class="lb">Ключ</div>
+      <input type="text" id="riaKey" style="text-align:left" placeholder="вставте сюди ключ з developers.ria.com"></div>
+    <div id="riaNow" class="note"></div>
+  </div>
+
+  <div class="card">
+    <div class="sect">Інше</div>
     <div class="rw"><div class="lb">Межа на добу, $<small>більше цього за день не спалить</small></div>
       <input type="number" step="0.5" min="0" id="aiDayCap" style="text-align:left" placeholder="1"></div>
-    <div class="rw"><div class="lb">Режим ШІ<small>однаково для помічника, значка, оцінки й запчастин</small></div>
+    <div class="rw col"><div class="lb">Режим ШІ<small>однаково для помічника, значка, оцінки й запчастин</small></div>
       <select id="aiModel" style="text-align:left">
         <option value="mid">Точно і швидко — Sonnet 5 (рекомендую)</option>
         <option value="best">Максимум — Opus 5, розумніше, але повільніше</option>
@@ -892,6 +920,10 @@ function load() {
     billsDraw();
     NEWS = d.news || null;
     newsDraw(); newsState();
+    var rn = $('#riaNow');
+    if (rn) rn.innerHTML = d.riaKey
+      ? '✅ Ключ збережено. Оцінка авто тепер бере ціни з оголошень AUTO.RIA.'
+      : '⚠️ Ключа ще немає — застосунок не називатиме ціну, лише даватиме посилання.';
     var chn = $('#chNow');
     if (chn) chn.innerHTML = d.channel
       ? '✅ Канал збережено: <b>t.me/' + esc(d.channel) + '</b> — перевірте, що посилання відкривається.'
