@@ -8,7 +8,7 @@
 <title>Бардачок — керування</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<link rel="stylesheet" href="styles.css?v=20260826-1700">
+<link rel="stylesheet" href="styles.css?v=20260826-1800">
 <style>
   body{overflow:auto}
   .wrap{max-width:620px;margin:0 auto;padding:26px 16px 60px}
@@ -123,7 +123,7 @@
     <button data-t="t-set">Налашт.</button>
   </div>
   <div class="msg inf" id="info">Завантаження…</div>
-  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260826-1700</div>
+  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260826-1800</div>
   <div id="topStrip"></div>
 
   <div class="pane on" id="t-home">
@@ -687,7 +687,21 @@ function post(path, body, ms) {
   };
   if (ctl) opts.signal = ctl.signal;
 
-  var p = fetch(API.replace(/\/+$/, '') + path, opts).then(function (r) { return r.json(); });
+  /* Читаємо відповідь текстом і лише потім розбираємо. Якщо сервер віддав
+     не JSON — а це буває, коли Cloudflare обриває виклик за перевитратою
+     ресурсів і показує свою сторінку помилки, — ми маємо сказати про це
+     прямо, з кодом і початком відповіді. Інакше все зводиться до
+     безпорадного «немає звʼязку», і причину шукати нема за чим. */
+  var p = fetch(API.replace(/\/+$/, '') + path, opts).then(function (r) {
+    return r.text().then(function (t) {
+      try { return JSON.parse(t); }
+      catch (e) {
+        var head = String(t || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 160);
+        return { ok: false, error: 'Сервер відповів не JSON (код ' + r.status + '). ' +
+          (head ? 'Початок відповіді: ' + head : 'Відповідь порожня.') };
+      }
+    });
+  });
   if (!ctl) return p;
 
   return new Promise(function (resolve) {
@@ -696,8 +710,29 @@ function post(path, body, ms) {
       resolve({ ok: false, error: 'Сервер не відповів за ' + Math.round((ms || 25000) / 1000) +
         ' с. Спробуйте ще раз — можливо, він саме перераховує базу.' });
     }, ms || 25000);
-    p.then(function (d) { clearTimeout(t); resolve(d); },
-           function () { clearTimeout(t); resolve({ ok: false, error: 'Немає звʼязку із сервером.' }); });
+    p.then(function (d) { clearTimeout(t); resolve(d); }, function () {
+      clearTimeout(t);
+      /* Обрив на мобільному звʼязку — річ звичайна, і одна невдала спроба
+         ще нічого не означає. Читання можна спокійно повторити: вони нічого
+         не змінюють. Дії («надіслати», «нарахувати») не повторюємо ніколи. */
+      /* Тільки читання. «Налаштування» сюди не входять: це запис, і
+         повторювати його наосліп не можна. */
+      var safe = /^\/admin\/(stats|people|errors|tech|pays)$/.test(path);
+      if (!safe || (body && body.__retry)) {
+        resolve({ ok: false, error: 'Немає звʼязку із сервером.' });
+        return;
+      }
+      var again = {};
+      for (var k in (body || {})) { if (body.hasOwnProperty(k)) again[k] = body[k]; }
+      again.__retry = 1;
+      setTimeout(function () {
+        post(path, again, ms).then(function (d2) {
+          if (d2 && d2.ok) { resolve(d2); return; }
+          resolve({ ok: false, error: 'Немає звʼязку із сервером. Перевірте інтернет — ' +
+            'сервер зараз відповідає, тож справа, найімовірніше, у звʼязку.' });
+        });
+      }, 900);
+    });
   });
 }
 
