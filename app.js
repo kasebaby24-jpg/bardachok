@@ -13,7 +13,7 @@ var API = 'https://bardachok.kasebaby24.workers.dev';
 var QR_FOR = 'TWqHKxsLAdGMPC7kY4i3r2GQxNJ2U6vQXv';   // до цієї адреси намальовано usdt-qr.png
 var USDT_CONTRACT = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';   // USDT у мережі TRON
 
-var BUILD = '20260826-2300';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
+var BUILD = '20260826-2400';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
 var BOOT_T0 = Date.now();
 
 var tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
@@ -3424,6 +3424,11 @@ function partsAsk() {
 function partsGo(what) {
   what = (what || val('pWhat') || '').trim();
   if (what.length < 2) { toast('Напишіть, що потрібно'); return; }
+  /* Авто беремо тут, а не покладаємось на змінну із сусідньої функції:
+     саме через це посилання на неіснуючу змінну весь результат підбору
+     переставав малюватись. */
+  var car = activeCar();
+  if (!car) { toast('Спочатку додайте авто'); return; }
   openSheet('Шукаю', '<div class="empty" style="padding:26px 0">Підбираю під ваше авто…</div>');
   api('/api/parts', { what: what }, 45000).then(function (d) {
     if (!d.ok) {
