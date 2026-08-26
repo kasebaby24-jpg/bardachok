@@ -8,7 +8,7 @@
 <title>Бардачок — керування</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<link rel="stylesheet" href="styles.css?v=20260827-1200">
+<link rel="stylesheet" href="styles.css?v=20260827-1300">
 <style>
   body{overflow:auto}
   .wrap{max-width:620px;margin:0 auto;padding:26px 16px 60px}
@@ -140,7 +140,7 @@
     <button data-t="t-set">Налашт.</button>
   </div>
   <div class="msg inf" id="info">Завантаження…</div>
-  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260827-1200</div>
+  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260827-1300</div>
   <div id="topStrip"></div>
 
   <div class="pane on" id="t-home">
@@ -2465,8 +2465,12 @@ $('#ntClear').addEventListener('click', function () { notice(true); });
    кнопка робила один запит — і на базі понад кілька десятків людей просто
    не встигала нічого, а виглядало це як «нічого не сталось». */
 var RECOUNT = false;
+var RC_N = 0;                 // скільки кіл уже зробили — щоб не крутитись вічно
 function recount() {
-  post('/admin/stats', { recount: 1 }).then(function (d) {
+  if (++RC_N > 120) { RECOUNT = false;
+    $('#anaBox').innerHTML = '<div class="msg er">Забагато людей за один раз. ' +
+      'Решту дорахує нічний обхід — зайдіть завтра.</div>'; return; }
+  post('/admin/stats', { recount: 1 }, 30000).then(function (d) {
     if (!d.ok) {
       RECOUNT = false;
       $('#anaBox').innerHTML = '<div class="msg er">Не вдалося перерахувати: ' +
@@ -2480,13 +2484,23 @@ function recount() {
       return;
     }
     $('#anaBox').innerHTML = '<div class="msg inf">Рахую: обійдено ' +
-      nfm(d.seen || 0) + '…</div>';
-    setTimeout(recount, 600);
+      nfm(d.seen || 0) + '…' + (d.busy ? ' (чекаю фонову роботу)' : '') + '</div>';
+    setTimeout(recount, d.busy ? 2000 : 400);
   }).catch(function () {
-    RECOUNT = false;
-    $('#anaBox').innerHTML = '<div class="msg er">Сервер не відповів. Спробуйте ще раз.</div>';
+    /* Обрив — не привід усе кидати: позиція на сервері збережена, тому
+       просто пробуємо далі. Здаємось лише коли обірвалось поспіль тричі. */
+    RC_FAIL++;
+    if (RC_FAIL >= 3) {
+      RECOUNT = false; RC_FAIL = 0;
+      $('#anaBox').innerHTML = '<div class="msg er">Сервер не відповідає. ' +
+        'Порахований шматок збережено — натисніть ще раз пізніше.</div>';
+      return;
+    }
+    $('#anaBox').innerHTML = '<div class="msg inf">Звʼязок обірвався, пробую далі…</div>';
+    setTimeout(recount, 1500);
   });
 }
+var RC_FAIL = 0;
 
 /* Межа тарифу шукається подвоєнням: 40 → 80 → 160… доки сервер не впреться.
    Тому тиснемо доти, доки він каже «стало більше». Якщо на якомусь кроці
@@ -2515,6 +2529,7 @@ $('#anaLimits').addEventListener('click', function () {
 });
 
 $('#anaFresh').addEventListener('click', function () {
+  RC_N = 0; RC_FAIL = 0;
   if (RECOUNT) return;
   RECOUNT = true;
   $('#anaBox').innerHTML = '<div class="msg inf">Рахую…</div>';
