@@ -8,7 +8,7 @@
 <title>Бардачок — керування</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<link rel="stylesheet" href="styles.css?v=20260828-0200">
+<link rel="stylesheet" href="styles.css?v=20260828-0400">
 <style>
   body{overflow:auto}
   .wrap{max-width:620px;margin:0 auto;padding:26px 16px 60px}
@@ -140,7 +140,7 @@
     <button data-t="t-set">Налашт.</button>
   </div>
   <div class="msg inf" id="info">Завантаження…</div>
-  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260828-0200</div>
+  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260828-0400</div>
   <div id="topStrip"></div>
 
   <div class="pane on" id="t-home">
@@ -863,7 +863,7 @@ function post(path, body, ms) {
     var t = setTimeout(function () {
       try { ctl.abort(); } catch (e) {}
       resolve({ ok: false, error: 'Сервер не відповів за ' + Math.round((ms || 25000) / 1000) +
-        ' с. Спробуйте ще раз — можливо, він саме перераховує базу.' });
+        ' с. Спробуйте ще раз.' });
     }, ms || 25000);
     p.then(function (d) { clearTimeout(t); resolve(d); }, function (err) {
       clearTimeout(t);
@@ -2633,7 +2633,7 @@ function plates(restart) {
 function engines() {
   var box = $('#engOut');
   box.innerHTML = '<div class="msg inf">Питаю всі три двигуни…</div>';
-  post('/admin/act', { what: 'engines' }, 70000).then(function (d) {
+  post('/admin/act', { what: 'engines' }, 60000).then(function (d) {
     if (!d.ok) { box.innerHTML = '<div class="msg er">' + esc(d.error || 'Не вдалося.') + '</div>'; return; }
     var h = '<div class="msg ' + (d.live ? 'ok' : 'er') + '">' + esc(d.message) + '</div>';
     (d.engines || []).forEach(function (e) {
@@ -2645,18 +2645,34 @@ function engines() {
         (e.seen ? '<br>у сховищі лежить: ' + esc(e.seen) : '') + '</small></div>' +
         '<div class="vl">' + (e.ok ? (e.ms / 1000).toFixed(1) + 'с' : '—') + '</div></div>';
     });
-    if ((d.eyes || []).length) {
-      h += '<div class="sect" style="margin:16px 0 8px">Чи бачать фото</div>' +
-        '<div class="note" style="margin:0 0 8px">Це про «Горить чек?». Перевірено ' +
+    /* Зір — окремим запитом. Разом вони не встигали, і власник бачив
+       «Сервер не відповів за 70 с» замість результату. */
+    box.innerHTML = h + '<div class="msg inf" style="margin-top:12px">' +
+      'Тепер перевіряю, чи бачать фото…</div>';
+    var head = h;
+
+    post('/admin/act', { what: 'eyes' }, 60000).then(function (e2) {
+      var t = head;
+      if (!e2.ok) {
+        box.innerHTML = t + '<div class="msg er" style="margin-top:12px">' +
+          'Фото перевірити не вдалося: ' + esc(e2.error || '') + '</div>';
+        return;
+      }
+      t += '<div class="sect" style="margin:16px 0 8px">Чи бачать фото</div>' +
+        '<div class="msg ' + (e2.eyesFree ? 'ok' : 'er') + '">' + esc(e2.message) + '</div>' +
+        '<div class="note" style="margin:8px 0">Це про «Горить чек?». Перевірено ' +
         'справжнім знімком, а не на слово.</div>';
-      d.eyes.forEach(function (e) {
-        h += '<div class="rw"><div class="lb">' + (e.ok ? '👁 ' : '🚫 ') + esc(e.title) +
+      (e2.eyes || []).forEach(function (e) {
+        t += '<div class="rw"><div class="lb">' + (e.ok ? '👁 ' : '🚫 ') + esc(e.title) +
           '<small>' + (e.ok ? 'розбирає знімки' : esc(e.note || 'не бачить')) +
           '</small></div><div class="vl">' + (e.ok ? (e.ms / 1000).toFixed(1) + 'с' : '—') +
           '</div></div>';
       });
-    }
-    box.innerHTML = h;
+      box.innerHTML = t;
+    }).catch(function () {
+      box.innerHTML = head + '<div class="msg er" style="margin-top:12px">' +
+        'Фото перевірити не встиг. Двигуни вище — перевірені.</div>';
+    });
   }).catch(function () {
     box.innerHTML = '<div class="msg er">Сервер не відповідає.</div>';
   });
