@@ -8,7 +8,7 @@
 <title>Бардачок — керування</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<link rel="stylesheet" href="styles.css?v=20260827-2000">
+<link rel="stylesheet" href="styles.css?v=20260828-0100">
 <style>
   body{overflow:auto}
   .wrap{max-width:620px;margin:0 auto;padding:26px 16px 60px}
@@ -140,7 +140,7 @@
     <button data-t="t-set">Налашт.</button>
   </div>
   <div class="msg inf" id="info">Завантаження…</div>
-  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260827-2000</div>
+  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260828-0100</div>
   <div id="topStrip"></div>
 
   <div class="pane on" id="t-home">
@@ -209,6 +209,27 @@
       відновити дані, якщо щось піде не так.
     </div>
     <div id="bkOut"></div>
+
+    <div class="sect" style="margin-top:18px">Відновити з копії</div>
+    <div class="note" style="margin:0 0 10px">
+      Оберіть файл копії. Спершу буде <b>репетиція</b>: нічого не запишеться,
+      але ви побачите, що саме в цьому файлі й чим воно відрізняється від
+      того, що зараз у сховищі.<br><br>
+      Записи, які вже є, <b>не затираються</b> — хіба що ви це окремо
+      дозволите. Тобто відновлення безпечне: воно тільки додає втрачене.
+    </div>
+    <input type="file" id="rsFile" accept="application/json,.json"
+      style="width:100%;padding:10px;border-radius:12px;background:var(--surf2);
+             color:var(--ink);border:1.5px solid transparent;font-size:13px">
+    <label style="display:flex;align-items:center;gap:9px;margin:12px 0 4px;font-size:13px">
+      <input type="checkbox" id="rsOver" style="width:18px;height:18px">
+      <span>Затирати те, що вже є (знадобиться лише на порожньому сховищі)</span>
+    </label>
+    <div class="quickrow" style="margin-top:10px">
+      <button class="btn sec" onclick="restore(true)">Репетиція</button>
+      <button class="btn" onclick="restore(false)">Відновити</button>
+    </div>
+    <div id="rsOut" style="margin-top:10px"></div>
     <div class="note" style="margin:8px 0 12px">Готовий документ: воронка, гроші,
       строки Преміуму, рух по днях, найчастіші авто, помилки. Відкриється в
       сусідній вкладці — звідти Друк → Зберегти як PDF. Персональних даних
@@ -2512,6 +2533,77 @@ function gemHint() {
     bad = '⚠️ У ключі є пробіл або перенос рядка — скопіювалось зайве.';
   box.innerHTML = bad;
   box.classList.toggle('hidden', !bad);
+}
+
+/* Відновлення з копії. Файл може бути на десятки мегабайтів, тому шлемо
+   частинами й показуємо рух: інакше людина сидить перед завислою кнопкою
+   і не знає, працює воно чи ні. */
+function restore(dry) {
+  var box = $('#rsOut');
+  var f = $('#rsFile').files && $('#rsFile').files[0];
+  if (!f) { box.innerHTML = '<div class="msg er">Спершу оберіть файл копії.</div>'; return; }
+
+  var over = !!($('#rsOver') && $('#rsOver').checked);
+  if (!dry && !confirm(over
+      ? 'Затерти наявні записи даними з копії? Це не можна скасувати.'
+      : 'Долити в сховище те, чого там немає? Наявне лишиться недоторканим.')) return;
+
+  box.innerHTML = '<div class="msg inf">Читаю файл…</div>';
+  var fr = new FileReader();
+  fr.onerror = function () { box.innerHTML = '<div class="msg er">Не вдалося прочитати файл.</div>'; };
+  fr.onload = function () {
+    var data;
+    try { data = JSON.parse(fr.result); }
+    catch (e) { box.innerHTML = '<div class="msg er">Це не файл копії — всередині не JSON.</div>'; return; }
+
+    var rows = data && (data['дані'] || data.rows);
+    if (!Array.isArray(rows) || !rows.length) {
+      box.innerHTML = '<div class="msg er">У файлі немає записів. Це точно копія Бардачка?</div>';
+      return;
+    }
+    /* Старі копії зберігали людей як {id, u}. Нові — пари «ключ / значення».
+       Приймаємо обидві: інакше найстаріша копія, та сама, що рятує, не зайшла б. */
+    if (!Array.isArray(rows[0])) {
+      rows = rows.filter(function (r) { return r && r.id && r.u; })
+                 .map(function (r) { return ['u:' + r.id, JSON.stringify(r.u)]; });
+      if (!rows.length) {
+        box.innerHTML = '<div class="msg er">Незнайомий вигляд копії.</div>'; return;
+      }
+    }
+
+    var i = 0, tot = { wrote: 0, fresh: 0, same: 0, differ: 0, skipped: 0, bad: 0 };
+    (function step() {
+      if (i >= rows.length) {
+        box.innerHTML = '<div class="msg ok">' + (dry
+          ? ('Репетиція завершена. Записів у копії: ' + rows.length +
+             '. Нових для сховища — ' + tot.fresh + ', однакових — ' + tot.same +
+             ', відрізняються — ' + tot.differ + '.<br><br>Якщо це те, чого ви очікували — ' +
+             'тисніть «Відновити».')
+          : ('Готово. Записано: ' + tot.wrote + '. Пропущено (вже було) — ' + tot.skipped +
+             (tot.bad ? ('. Зіпсованих рядків — ' + tot.bad) : '') +
+             '.<br><br>Перевірте цифри в «Огляді».')) + '</div>';
+        if (!dry) stats(true);
+        return;
+      }
+      var part = rows.slice(i, i + 200);
+      box.innerHTML = '<div class="msg inf">' + (dry ? 'Звіряю' : 'Відновлюю') + ': ' +
+        i + ' з ' + rows.length + '…</div>';
+      post('/admin/restore', { rows: part, dry: !!dry, overwrite: over }, 40000)
+        .then(function (d) {
+          if (!d.ok) { box.innerHTML = '<div class="msg er">' + esc(d.error || 'Не вдалося') + '</div>'; return; }
+          ['wrote', 'fresh', 'same', 'differ', 'skipped', 'bad'].forEach(function (k) {
+            tot[k] += (d[k] || 0);
+          });
+          i += part.length;
+          setTimeout(step, 60);
+        })
+        .catch(function () {
+          box.innerHTML = '<div class="msg er">Звʼязок обірвався на ' + i +
+            '. Записане збережено — натисніть ще раз, воно продовжить.</div>';
+        });
+    })();
+  };
+  fr.readAsText(f);
 }
 
 /* Разова побудова покажчика номерів. Йде пачками, тому тиснемо самі, доки

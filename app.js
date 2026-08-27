@@ -13,7 +13,7 @@ var API = 'https://bardachok.kasebaby24.workers.dev';
 var QR_FOR = 'TWqHKxsLAdGMPC7kY4i3r2GQxNJ2U6vQXv';   // до цієї адреси намальовано usdt-qr.png
 var USDT_CONTRACT = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';   // USDT у мережі TRON
 
-var BUILD = '20260827-2000';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
+var BUILD = '20260828-0100';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
 var BOOT_T0 = Date.now();
 
 var tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
@@ -1227,6 +1227,21 @@ function drawFines() {
 }
 
 /* ---------- СЕРВІС ---------- */
+/* Скільки давніших записів чекає в архіві. Сервер каже це при кожному
+   відкритті — тут лише малюємо кнопку, коли є що показувати. */
+var ARCH = {};
+var ARCH_GOT = {};
+
+function archMore(kind) {
+  if (ARCH_GOT[kind]) return '';
+  var n = ARCH[kind] || 0;
+  if (!n) return '';
+  return '<button class="btn sec" style="margin-top:10px" data-do="archLoad" ' +
+    'data-k="' + kind + '">Показати давніші записи (' + n + ')</button>' +
+    '<div class="note" style="margin-top:6px">Щоб застосунок працював швидко, ' +
+    'давня історія зберігається окремо. Вона нікуди не зникла.</div>';
+}
+
 function drawService() {
   var el = $('#s-service');
   if (!S.cars.length) { el.innerHTML = '<div class="empty">Спочатку додайте авто в Гаражі.</div>'; return; }
@@ -1284,6 +1299,10 @@ function drawService() {
         (np ? ' · ' + np + ' фото' : '') + '</small></div>' +
         '<div class="vl">' + (r.cost ? money(r.cost) : '—') + '</div></button>';
     }).join('') + '</div>';
+
+    /* Записи, які не влізли у щоденний запис, лежать в архіві. Людина має
+       бачити, що вони НЕ зникли, і могти їх дістати. */
+    h += archMore('service');
 
     h += '<div class="promo" style="margin-top:12px"><b>Продаєте авто? <em>Це ваш козир.</em></b>' +
       '<p>Підтверджена історія обслуговування знімає половину питань покупця й тримає ціну.</p>' +
@@ -2529,7 +2548,7 @@ function sendReport() {
   /* Спершу свіжий стан із сервера: у звіт потрапляло фото, яке людина вже
      видалила, — застосунок про це просто не знав. */
   var fresh = api('/api/me', {}, 20000).then(function (d) {
-    if (d && d.ok && d.data) { S = d.data; PRO = d.premium; }
+    if (d && d.ok && d.data) { S = d.data; PRO = d.premium; ARCH = d.arch || ARCH; }
   }).catch(function () {});
 
   var ready = Promise.all([
@@ -2810,6 +2829,35 @@ function drawDocs() {
   el.innerHTML = h;
 }
 
+/* Документи зашифровані ключем, який живе в телефоні. Якщо людина втратить
+   і телефон, і хмару Telegram — файли не відкриє ніхто, включно з власником
+   застосунку. Це не помилка, це наслідок шифрування: інакше знімки паспорта
+   міг би читати сторонній.
+   Тому після ПЕРШОГО документа кажемо про це прямо й один раз. Мовчати
+   не можна: людина дізнається про втрату тоді, коли документи вже потрібні. */
+function keyWarn() {
+  var seen = false;
+  try { seen = localStorage.getItem('bd_keywarn') === '1'; } catch (e) {}
+  if (seen) return;
+  if (!DOCS || DOCS.length !== 1) return;        // рівно перший документ
+  try { localStorage.setItem('bd_keywarn', '1'); } catch (e) {}
+
+  setTimeout(function () {
+    openSheet('Збережіть код відновлення',
+      '<div class="alert hot"><div class="ic">' + ic('alert', 18) + '</div><div class="bd">' +
+      '<b>Ваші документи зашифровані</b>' +
+      '<p>Ключ від них лежить у цьому телефоні. Ніхто інший їх не прочитає — ' +
+      'ні сторонні, ні навіть ми.</p></div></div>' +
+      '<p style="margin:0 0 14px;font-size:13.5px;color:var(--ink2);line-height:1.6">' +
+      'Зворотний бік: якщо телефон загубиться або застосунок перевстановиться, ' +
+      '<b>документи не відкриє ніхто</b>. Відновити їх буде неможливо.<br><br>' +
+      'Тому збережіть код відновлення просто зараз — це займе пів хвилини. ' +
+      'Надішліть його собі в бот, і він лежатиме в листуванні.</p>' +
+      '<button class="btn" data-do="keyBackup">Показати код і зберегти</button>' +
+      '<button class="btn sec" data-close="1">Пізніше</button>');
+  }, 700);
+}
+
 function docPick() {
   if (DOCS && DOCS.length >= DOC_LIMIT && !PRO) { needPro('docs'); return; }
   if (!hasKey()) { ensureKey(function () { docPick(); }); return; }
@@ -2898,6 +2946,7 @@ function docShoot() {
           inp.remove();
           closeSheet(); DIRTY['s-docs'] = 0; drawDocs(); haptic('medium');
           toast('Документ у бардачку', 'ok');
+          keyWarn();
         }).catch(function () { toast('Немає зв’язку'); });
         });
       };
@@ -4643,6 +4692,8 @@ var DO = {
     }).catch(function () { t.disabled = false; toast('Немає звʼязку', 'er'); });
   },
 
+  keyBackup: function () { DO.keyShow(); },
+
   keyShow: function () {
     var raw;
     try { raw = localStorage.getItem(KEY_STORE); } catch (e) { raw = null; }
@@ -4768,6 +4819,26 @@ var DO = {
   },
   valuate: function () { valuate(); },
   parts:   function () { partsAsk(); },
+
+  /* Дістати давню історію. Довантажуємо в той самий список — далі вона
+     показується як звичайні записи, бо вона ними й є. */
+  archLoad: function (el) {
+    var kind = el && el.dataset && el.dataset.k;
+    if (!kind || ARCH_GOT[kind]) return;
+    el.disabled = true;
+    el.textContent = 'Дістаю…';
+    api('/api/history', { what: [kind] }, 25000).then(function (d) {
+      if (!d.ok) { el.disabled = false; toast(d.error || 'Не вдалося', 'er'); return; }
+      var old = (d.arch && d.arch[kind]) || [];
+      var seen = {};
+      (S[kind] || []).forEach(function (r) { if (r && r.id) seen[r.id] = 1; });
+      old.forEach(function (r) { if (r && r.id && !seen[r.id]) S[kind].push(r); });
+      ARCH_GOT[kind] = 1;
+      toast('Додано записів: ' + old.length, 'ok');
+      DIRTY['s-service'] = 0; DIRTY['s-fuel'] = 0; DIRTY['s-exp'] = 0;
+      render();
+    }).catch(function () { el.disabled = false; toast('Немає звʼязку', 'er'); });
+  },
   /* Артикул у магазині диктують уголос — краще дати скопіювати. */
   cpCode:  function (el) {
     var c = el && el.dataset && el.dataset.code;
@@ -5501,6 +5572,7 @@ function start() {
     CUR_SHOW = (d.data && d.data.curr) || 'UAH';
     UNIT = (d.data && d.data.units === 'mi') ? 'mi' : 'km';
     S = d.data; PRO = d.premium; CFG = d.cfg || {}; REF = d.ref || {};
+    ARCH = d.arch || {};              // скільки давніх записів чекає окремо
 
     /* даємо заставці показатись хоча б раз — інакше вона блимає й це
        виглядає як збій, а не як анімація */
