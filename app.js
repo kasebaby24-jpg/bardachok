@@ -13,7 +13,7 @@ var API = 'https://bardachok.kasebaby24.workers.dev';
 var QR_FOR = 'TWqHKxsLAdGMPC7kY4i3r2GQxNJ2U6vQXv';   // до цієї адреси намальовано usdt-qr.png
 var USDT_CONTRACT = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';   // USDT у мережі TRON
 
-var BUILD = '20260827-1300';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
+var BUILD = '20260827-2000';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
 var BOOT_T0 = Date.now();
 
 var tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
@@ -3482,18 +3482,47 @@ function partsGo(what) {
     var h = '<div class="kv"><span>Деталь</span><b>' + esc(P.part || what) + '</b></div>';
     h += '<div class="kv"><span>Артикул оригіналу</span><b>' +
       (P.oem ? esc(P.oem) : 'звірте за VIN') + '</b></div>';
+    if (P.fit) h += '<div class="note" style="margin:8px 0 0">' + esc(P.fit) + '</div>';
 
+    /* Артикул поруч із брендом — головне, що людина понесе в магазин.
+       Дотик копіює його: диктувати номер продавцю по памʼяті ніхто не хоче. */
     h += '<div class="h2">Що ставити</div><div class="card list wrap">' +
       (P.options || []).map(function (o) {
         var t = String(o.tier || '');
         var col = t.indexOf('заводськ') > -1 ? 'var(--good)'
                 : t.indexOf('оригінал') > -1 ? 'var(--lime)'
                 : t.indexOf('бюджет') > -1 ? 'var(--mut)' : 'var(--ink2)';
-        return '<div class="it" style="cursor:default"><div class="dt">' + ic('wrench', 16) + '</div>' +
+        var code = o.code ? '<b style="font-family:ui-monospace,Menlo,monospace;' +
+          'font-size:12px;color:var(--ink2)">' + esc(o.code) + '</b>' : '';
+        return '<div class="it"' + (o.code ? ' data-do="cpCode" data-code="' + esc(o.code) + '"' :
+            ' style="cursor:default"') + '><div class="dt">' + ic('wrench', 16) + '</div>' +
           '<div class="tx"><b>' + esc(o.brand || '') + '</b><small style="color:' + col + '">' +
-          esc(t) + (o.note ? ' · ' + esc(o.note) : '') + '</small></div>' +
-          '<div class="vl" style="font-size:12px">' + esc(o.price || '') + '</div></div>';
+          esc(t) + (o.note ? ' · ' + esc(o.note) : '') + '</small>' +
+          (code ? '<small>' + code + (o.code ? ' · дотик копіює' : '') + '</small>' : '') +
+          '</div><div class="vl" style="font-size:12px">' + esc(o.price || '') + '</div></div>';
       }).join('') + '</div>';
+
+    /* Те, заради чого власник просив переробити підбір: та сама деталь
+       стоїть на десятку інших машин, і під іменем дешевшої марки коштує
+       менше. Без цього блоку екран був «нуль корисної інформації». */
+    if (P.same && P.same.length) {
+      h += '<div class="h2">Ця сама деталь підійде від</div><div class="card list wrap">' +
+        P.same.map(function (a) {
+          return '<div class="it" style="cursor:default"><div class="dt">' + ic('car', 16) + '</div>' +
+            '<div class="tx"><b>' + esc(a.car || '') + '</b>' +
+            (a.why ? '<small>' + esc(a.why) + '</small>' : '') + '</div></div>';
+        }).join('') + '</div>' +
+        '<div class="note">Питайте деталь і за цими назвами — часто та сама коробка ' +
+        'коштує помітно дешевше. Артикул звіряйте з продавцем.</div>';
+    }
+
+    if (P.vary && P.vary.length) {
+      h += '<div class="h2">Тут легко купити не те</div><div class="card list wrap">' +
+        P.vary.map(function (c) {
+          return '<div class="it" style="cursor:default"><div class="dt">' + ic('alert', 16) + '</div>' +
+            '<div class="tx"><b style="font-weight:500;font-size:13.5px">' + esc(c) + '</b></div></div>';
+        }).join('') + '</div>';
+    }
 
     if (P.best) h += '<div class="alert"><div class="ic">' + ic('check', 18) + '</div>' +
       '<div class="bd"><b>Що брати</b><p>' + esc(P.best) + '</p></div></div>';
@@ -4739,6 +4768,13 @@ var DO = {
   },
   valuate: function () { valuate(); },
   parts:   function () { partsAsk(); },
+  /* Артикул у магазині диктують уголос — краще дати скопіювати. */
+  cpCode:  function (el) {
+    var c = el && el.dataset && el.dataset.code;
+    if (!c) return;
+    copy(c);
+    toast('Артикул ' + c + ' скопійовано');
+  },
   partsGo: function () { partsGo(); },
   partHint: function (t) { partsGo(t.dataset.q); },
 

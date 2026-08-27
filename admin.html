@@ -8,7 +8,7 @@
 <title>Бардачок — керування</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<link rel="stylesheet" href="styles.css?v=20260827-1300">
+<link rel="stylesheet" href="styles.css?v=20260827-2000">
 <style>
   body{overflow:auto}
   .wrap{max-width:620px;margin:0 auto;padding:26px 16px 60px}
@@ -140,7 +140,7 @@
     <button data-t="t-set">Налашт.</button>
   </div>
   <div class="msg inf" id="info">Завантаження…</div>
-  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260827-1300</div>
+  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260827-2000</div>
   <div id="topStrip"></div>
 
   <div class="pane on" id="t-home">
@@ -150,6 +150,7 @@
     <div><b id="stP">—</b><small>преміум</small></div>
     <div><b id="stR">—</b><small>по рефералу</small></div>
     <div><b id="stI">—</b><small>запрошують</small></div>
+    <div><b id="stNew">—</b><small id="stNewSub">сьогодні</small></div>
   </div>
 
   <div class="card">
@@ -164,6 +165,21 @@
       хто відкрив вікно оплати. Це не оплати й не гроші — на зароблене й на Преміум
       людей це не впливає ніяк.</div>
     <div id="actOut"></div>
+  </div>
+
+  <div class="card">
+    <div class="sect">Пошук за номером авто</div>
+    <div class="note" style="margin:0 0 10px">У вкладці <b>Люди</b> введіть номер
+      (AA1234BB) — знайдеться власник і його записи. Кирилицю й латиницю
+      сприймає однаково, пробіли й дефіси не заважають.<br><br>
+      Це пошук <b>лише по тому, що люди самі вписали у свій Бардачок</b>.
+      До жодного державного реєстру застосунок не звертається й нічого
+      стороннього не збирає.</div>
+    <div class="note" style="margin:0 0 12px">Номери, вписані до 27.08.2026,
+      у швидкому покажчику відсутні — знайдуться повільним перебором.
+      Кнопка нижче додає їх один раз.</div>
+    <button class="btn sec" onclick="plates()">Побудувати покажчик номерів</button>
+    <div id="plOut" style="margin-top:10px"></div>
   </div>
 
   <div class="card">
@@ -312,7 +328,7 @@
   <div class="card">
     <div class="sect">Усі користувачі</div>
     <div class="field" style="margin-bottom:9px">
-      <input type="text" id="pQ" placeholder="Імʼя, нік або Telegram ID" autocomplete="off"
+      <input type="text" id="pQ" placeholder="Номер авто, імʼя, нік або Telegram ID" autocomplete="off"
              style="text-align:left">
     </div>
     <div class="seg wrap" id="pFilter">
@@ -606,7 +622,23 @@
   </div>
 
   <div class="card">
-    <div class="sect">Безкоштовний ШІ — Google Gemini</div>
+    <div class="sect">Безкоштовний запас №1 — Groq</div>
+    <div class="note" style="margin:0 0 10px"><b>Навіщо.</b> Щоб при порожньому
+      рахунку Anthropic усе працювало далі — і текст, і <b>фото приборки</b>.
+      Безкоштовний рівень, картка не потрібна, відповідає швидко.</div>
+    <div class="note" style="margin:0 0 12px"><b>Де взяти (2 хвилини).</b><br>
+      1. Відкрийте <b>console.groq.com</b><br>
+      2. Увійдіть (Google або пошта)<br>
+      3. Ліворуч <b>API Keys</b> → <b>Create API Key</b><br>
+      4. Скопіюйте (починається на <b>gsk_</b>) і вставте сюди → <b>Зберегти</b><br>
+      5. Внизу <b>Перевірити двигуни</b> — там видно, чи прийнявся</div>
+    <div class="rw col"><div class="lb">Ключ Groq</div>
+      <input type="text" id="groqKey" style="text-align:left" placeholder="gsk_…"></div>
+    <div id="groqNow" class="note"></div>
+  </div>
+
+  <div class="card">
+    <div class="sect">Безкоштовний запас №2 — Google Gemini</div>
     <div class="note" style="margin:0 0 10px"><b>Навіщо.</b> Щоб преміум-функції
       працювали <b>завжди</b> — навіть якщо ви забули поповнити рахунок Anthropic.
       Сервер питає двигуни по черзі й показує відповідь того, хто відповів першим:
@@ -617,6 +649,12 @@
       <b>3. Cloudflare</b> — входить у ваш тариф $5. Простіший, але живий.
       <br><br>
       Людина різниці не бачить: вона просто отримує відповідь.</div>
+    <div class="note" style="margin:0 0 12px;border-left:3px solid var(--lime,#C6F32C);padding-left:10px">
+      <b>Якщо не працює — це не ви.</b> Влітку 2026 Google частині акаунтів видає
+      ключі вигляду <b>AQ.…</b> і сам їх не приймає. Полагодити це з нашого боку
+      неможливо. Спробуйте створити ключ з <b>іншого акаунта Google</b>.<br><br>
+      І головне: <b>без Gemini усе одно все працює</b> — лишаються Claude і
+      Cloudflare. Gemini був запасом, а не необхідністю.</div>
     <div class="note" style="margin:0 0 12px"><b>Де взяти (2 хвилини).</b><br>
       1. Відкрийте <b>aistudio.google.com</b><br>
       2. Увійдіть акаунтом Google<br>
@@ -631,6 +669,7 @@
     <div class="rw col"><div class="lb">Питати спершу<small>кого запитувати першим</small></div>
       <select id="aiEngine" style="text-align:left">
         <option value="">Claude (платно, найстабільніше)</option>
+        <option value="groq">Groq (безкоштовно, Claude як запасний)</option>
         <option value="gemini">Gemini (безкоштовно, Claude як запасний)</option>
       </select></div>
     <div id="gemNow" class="note"></div>
@@ -741,7 +780,7 @@
 var API = 'https://bardachok.kasebaby24.workers.dev';
 
 var NUM = ['premiumMonth','premiumHalf','premiumYear','freeCars','freeVin','autoPay','remindInsurance','remindService','oilInterval','refLimit'];
-var TXT = ['contactTg','wfpMerchant','wfpDomain','usdtAddress','adminId','channel','riaKey','geminiKey'];
+var TXT = ['contactTg','wfpMerchant','wfpDomain','usdtAddress','adminId','channel','riaKey','geminiKey','groqKey'];
 var KEY = '';
 var BILLS = [];          // за що власник платить сам — редагується нижче
 var $ = function (s) { return document.querySelector(s); };
@@ -847,6 +886,15 @@ $('#pass').addEventListener('keydown', function (e) { if (e.key === 'Enter') doL
 function doLogin(fromTelegram) {
   var p = fromTelegram ? '' : $('#pass').value;
   if (!fromTelegram && !p) { show('gErr', 'Введіть пароль', true); return; }
+  /* Пароль їде заголовком, а заголовки приймають лише латиницю. Кирилична
+     літера валить сам виклик ще до сервера, і панель показувала «Сервер не
+     відповідає» — тобто людина шукала поломку там, де її немає. */
+  if (!fromTelegram && /[^\x20-\x7E]/.test(p)) {
+    show('gErr', 'У паролі є кирилиця або емодзі. Такий пароль неможливо ' +
+      'передати серверу. Змініть ADMIN_PASSWORD у Cloudflare на латиницю, ' +
+      'цифри й знаки.', true);
+    return;
+  }
   KEY = p;
   if ($('#login')) $('#login').disabled = true;
   show('gErr', '', false);
@@ -917,9 +965,12 @@ function doLogin(fromTelegram) {
         var host = $('#panel');
         host.insertBefore(w, host.firstChild);
       }
+      /* Вантажимо ЛИШЕ те, що людина зараз бачить. Раніше при відкритті
+         летіло шість запитів одразу — списки людей, оплати, помилки — і
+         панель «завантажувалась вічність», хоча на екрані був Огляд.
+         Решта підтягнеться, коли відкриють свою вкладку. */
       load(); stats(); errors(); pays();
       var qf = $('#qrFile'); if (qf) qf.addEventListener('change', qrPick);
-      people();
       var pq = $('#pQ');
       if (pq) pq.addEventListener('input', function () {
         /* Пошук — намір конкретніший за фільтр. Якщо не скинути фільтр, людина
@@ -959,6 +1010,12 @@ function load() {
     newsDraw(); newsState();
     if ($('#aiEngine') && d.aiEngine !== undefined) $('#aiEngine').value = d.aiEngine || '';
     gemHint();
+    var qn = $('#groqNow');
+    if (qn) qn.innerHTML = d.groqKey
+      ? (d.aiEngine === 'groq'
+          ? '✅ Groq увімкнено — питаємо його першим, Claude лишається запасним.'
+          : '🔑 Ключ збережено. Groq підхопить, щойно Claude замовкне.')
+      : 'Ключа Groq немає. Це найпростіший спосіб мати безкоштовний запас.';
     var gn = $('#gemNow');
     if (gn) gn.innerHTML = d.geminiKey
       ? (d.aiEngine === 'gemini'
@@ -983,6 +1040,25 @@ function load() {
   }).catch(function () { show('info', 'Не вдалося завантажити налаштування.', true); $('#info').className = 'msg er'; });
 }
 
+/* Панель у Telegram відкривають по десять разів на день, і щоразу вона
+   починала з порожнього екрана, доки не доїде важке зведення. Тому останню
+   відповідь тримаємо в памʼяті вкладки: цифри зʼявляються МИТТЄВО, а свіжі
+   тихо приїжджають слідом і замінюють їх. Дані тут не таємні — це ті самі
+   числа, що й на екрані, і живуть вони до закриття вкладки. */
+function statsCache(d) {
+  try { sessionStorage.setItem('bStats', JSON.stringify({ at: Date.now(), d: d })); }
+  catch (e) {}
+}
+function statsCached() {
+  try {
+    var r = JSON.parse(sessionStorage.getItem('bStats') || 'null');
+    /* Старіше за годину не показуємо навіть на мить: краще прочерк, ніж
+       вчорашня цифра, яку приймуть за сьогоднішню. */
+    if (r && r.d && Date.now() - r.at < 3600000) return r;
+  } catch (e) {}
+  return null;
+}
+
 function stats(fresh) {
   /* Спершу — легкий запит: він маленький і швидкий, тож головні цифри
      зʼявляються майже завжди. Повне зведення тягнемо окремо; якщо воно
@@ -993,12 +1069,32 @@ function stats(fresh) {
     var _l = d.stats || {};
     if ($('#stR')) $('#stR').textContent = nfm(_l.viaRef || 0);
     if ($('#stI')) $('#stI').textContent = nfm(_l.inviters || 0);
+
+    /* Скільки прийшло сьогодні — головна цифра, яку власник відкриває
+       панель подивитись. Рахується без обходу бази, тому завжди свіжа. */
+    var nt = $('#stNew');
+    if (nt) {
+      var a = d.newToday || 0, b = d.newPrev || 0;
+      nt.textContent = a ? '+' + nfm(a) : '0';
+      var sub = $('#stNewSub');
+      if (sub) sub.textContent = b ? ('учора +' + nfm(b)) : 'сьогодні';
+      nt.style.color = a > b ? 'var(--lime)' : '';
+    }
     var box0 = $('#anaBox');
     if (box0 && !box0.dataset.full) box0.innerHTML =
       '<div class="note">Головні цифри вже тут. Тягну решту зведення…</div>';
   }).catch(function () {});
 
-  post('/admin/stats', fresh ? { fresh: 1 } : {}).then(function (d) {
+  /* Спершу малюємо те, що вже бачили — щоб екран не був порожній. */
+  var c = statsCached();
+  if (c && !$('#stCount').dataset.painted) {
+    try { drawStats(c.d, true); } catch (e) {}
+  }
+
+/* Малювання винесено окремо: та сама відповідь приходить двома шляхами —
+   свіжа з сервера і збережена з памʼяті вкладки. Мати два однакових
+   куски коду для цього не можна: розійдуться при першій же правці. */
+function drawStats(d, fromCache) {
     /* Мовчазна відмова — найгірше: видно порожню панель і незрозуміло чому. */
     if (!d.ok) {
       var box = $('#stCount');
@@ -1046,6 +1142,17 @@ function stats(fresh) {
             '</div><b>' + r.sent + '</b></div>';
         }).join('');
     }
+  /* Поки цифри з памʼяті — кажемо це вголос, щоб їх не сплутали зі свіжими. */
+  var ctc = $('#stCount');
+  if (ctc) {
+    ctc.dataset.painted = '1';
+    if (fromCache) ctc.innerHTML = '<div class="msg inf">Показую те, що бачили минулого разу. Свіжі цифри вже їдуть…</div>';
+  }
+}
+
+  post('/admin/stats', fresh ? { fresh: 1 } : {}).then(function (d) {
+    if (d && d.ok) statsCache(d);
+    drawStats(d, false);
   }).catch(function () {});
 }
 
@@ -1652,8 +1759,17 @@ function drawTech(d) {
           ai.perCall ? 'одне звернення коштує ' +
             (ai.perCall < 1 ? String(Math.round(ai.perCall * 10) / 10).replace('.', ',') + ' цента'
                             : '$' + (ai.perCall / 100).toFixed(2)) +
-            ' · виміряно за ' + nfm(ai.calls || 0) + ' зверненнями'
+            ' · виміряно за ' + nfm(ai.paid || ai.calls || 0) + ' платними'
                       : 'поки замало звернень, щоб порахувати середнє'],
+        /* Скільки роботи забрали безкоштовні двигуни — це і є відповідь на
+           «навіщо я вписував ті ключі». Раніше платні й безкоштовні лежали
+           в одній купі, і середня ціна звернення виходила заниженою. */
+        ['Звернень до ШІ', nfm(ai.calls || 0),
+          (ai.freeCalls
+            ? nfm(ai.freeCalls) + ' з них безкоштовно (' +
+              Math.round((ai.freeCalls / Math.max(1, ai.calls)) * 100) + '%) — ' +
+              'ці гроші ви не заплатили'
+            : 'усі платні — безкоштовні двигуни поки не вмикались')],
         ['Витрачено сьогодні', '$' + (ai.todaySpent || 0).toFixed(2),
           ai.cap ? 'межа на добу $' + ai.cap : 'межі на добу немає'],
         ['Витрачається за день', '$' + (ai.perDay || 0).toFixed(2),
@@ -2246,9 +2362,14 @@ function backup() {
       all = all.concat(d.rows || []);
       pages++;
       if (out) out.innerHTML = '<div class="msg inf">Зібрано записів: ' + all.length + '…</div>';
-      if (d.cursor && pages < 300) { cur = d.cursor; step(); return; }
+      /* Сторінку могли віддати не повністю (скінчився час або запас звернень) —
+         тоді курсор той самий, і ми просто йдемо ще раз із того ж місця. */
+      if ((d.cursor || d.partial) && pages < 900 && !d.done) { cur = d.cursor; step(); return; }
 
-      var payload = { зібрано: d.at, версія: d.version, записів: all.length, дані: all };
+      /* Копія — це пари «ключ / значення» рівно як у сховищі. Розбирати
+         їх тут не можна: на новому місці має лягти побайтово те саме. */
+      var payload = { зібрано: d.at, версія: d.version, записів: all.length,
+                      вигляд: 'ключ-значення', дані: all };
       var name = 'bardachok-копія-' + new Date().toISOString().slice(0, 16).replace(':', '-') + '.json';
       try {
         var a = document.createElement('a');
@@ -2393,6 +2514,28 @@ function gemHint() {
   box.classList.toggle('hidden', !bad);
 }
 
+/* Разова побудова покажчика номерів. Йде пачками, тому тиснемо самі, доки
+   сервер не скаже «готово» — людині досить одного натискання. */
+var PL_N = 0;
+function plates(restart) {
+  var box = $('#plOut');
+  if (restart) PL_N = 0;
+  if (++PL_N > 60) { box.innerHTML = '<div class="msg er">Забагато за раз. ' +
+    'Натисніть ще раз — продовжить з того ж місця.</div>'; PL_N = 0; return; }
+  box.innerHTML = '<div class="msg inf">Проходжу базу…</div>';
+  post('/admin/act', { what: 'plates', restart: !!restart }, 30000).then(function (d) {
+    if (!d.ok) { PL_N = 0;
+      box.innerHTML = '<div class="msg er">' + esc(d.error || 'Не вдалося.') + '</div>'; return; }
+    box.innerHTML = '<div class="msg ' + (d.done ? 'ok' : 'inf') + '">' + esc(d.message) + '</div>';
+    if (!d.done) setTimeout(function () { plates(); }, 400);
+    else PL_N = 0;
+  }).catch(function () {
+    PL_N = 0;
+    box.innerHTML = '<div class="msg er">Сервер не відповідає. Пройдене збережено — ' +
+      'натисніть ще раз.</div>';
+  });
+}
+
 /* Перевірка двигунів. Власник має БАЧИТИ, що ключ працює, а не вірити на слово.
    Кожен рядок — окремий двигун: живий / чому мовчить / за скільки відповів. */
 function engines() {
@@ -2410,6 +2553,17 @@ function engines() {
         (e.seen ? '<br>у сховищі лежить: ' + esc(e.seen) : '') + '</small></div>' +
         '<div class="vl">' + (e.ok ? (e.ms / 1000).toFixed(1) + 'с' : '—') + '</div></div>';
     });
+    if ((d.eyes || []).length) {
+      h += '<div class="sect" style="margin:16px 0 8px">Чи бачать фото</div>' +
+        '<div class="note" style="margin:0 0 8px">Це про «Горить чек?». Перевірено ' +
+        'справжнім знімком, а не на слово.</div>';
+      d.eyes.forEach(function (e) {
+        h += '<div class="rw"><div class="lb">' + (e.ok ? '👁 ' : '🚫 ') + esc(e.title) +
+          '<small>' + (e.ok ? 'розбирає знімки' : esc(e.note || 'не бачить')) +
+          '</small></div><div class="vl">' + (e.ok ? (e.ms / 1000).toFixed(1) + 'с' : '—') +
+          '</div></div>';
+      });
+    }
     box.innerHTML = h;
   }).catch(function () {
     box.innerHTML = '<div class="msg er">Сервер не відповідає.</div>';
@@ -2666,6 +2820,17 @@ $('#mvDocs').addEventListener('click', function () {
   moveDocs(0);
 });
 
+/* Кожна вкладка тягне своє при ПЕРШОМУ відкритті, далі — тільки якщо
+   попросять «оновити». Так панель відкривається за один запит замість
+   шести, а людина не чекає на дані, яких не дивиться. */
+var TAB_DONE = {};
+function tabLoad(t, again) {
+  if (!again && TAB_DONE[t]) return;
+  TAB_DONE[t] = 1;
+  if (t === 't-tech') tech();
+  else if (t === 't-users') people();
+}
+
 /* вкладки */
 [].forEach.call(document.querySelectorAll('#tabs button'), function (b) {
   b.addEventListener('click', function () {
@@ -2676,7 +2841,7 @@ $('#mvDocs').addEventListener('click', function () {
       var on = p.id === t || (t === 't-set' && p.id === 't-set-b');
       p.classList.toggle('on', on);
     });
-    if (t === 't-tech') tech();
+    tabLoad(t);
     window.scrollTo(0, 0);
   });
 });
