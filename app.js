@@ -13,7 +13,7 @@ var API = 'https://bardachok.kasebaby24.workers.dev';
 var QR_FOR = 'TWqHKxsLAdGMPC7kY4i3r2GQxNJ2U6vQXv';   // до цієї адреси намальовано usdt-qr.png
 var USDT_CONTRACT = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';   // USDT у мережі TRON
 
-var BUILD = '20260828-1015';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
+var BUILD = '20260828-1130';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
 var BOOT_T0 = Date.now();
 
 var tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
@@ -2819,7 +2819,13 @@ function drawDocs() {
     '<div class="chat-head" style="padding:0 0 12px">' +
       '<div class="ic-box">' + ic('doc', 20) + '</div>' +
       '<div style="flex:1;min-width:0"><b style="display:block;font-size:15px;font-weight:700">Документи</b>' +
-      '<small style="color:var(--mut);font-size:12px">' + DOCS.length + ' з ' + DOC_LIMIT + '</small></div></div>' +
+      /* Коли Преміум сплив, документів може бути більше за межу — і «8 з 1»
+         виглядало як поломка або як погроза. Усе завантажене лишається
+         доступним завжди; межа стосується лише нових. */
+      '<small style="color:var(--mut);font-size:12px">' +
+        (DOCS.length > DOC_LIMIT
+          ? DOCS.length + ' ' + plural(DOCS.length, 'документ', 'документи', 'документів')
+          : DOCS.length + ' з ' + DOC_LIMIT) + '</small></div></div>' +
     '<p style="margin:0 0 13px;font-size:12.5px;color:var(--mut);line-height:1.5">' +
       'Знімки техпаспорта, страховки, прав. Забули вдома — відкрили тут.</p>' +
     '<div class="safe">' +
@@ -2831,6 +2837,10 @@ function drawDocs() {
         'переживе чистку кешу і новий телефон</span></div>' +
     '</div>' +
     '<button class="btn' + (DOCS.length >= DOC_LIMIT ? ' sec' : '') + '" data-do="docAdd">Додати документ</button>' +
+    (DOCS.length > DOC_LIMIT && !PRO
+      ? '<div class="note">Усі ' + DOCS.length + ' лишаються при вас і відкриваються як завжди. ' +
+        'Преміум потрібен лише щоб додавати нові.</div>'
+      : '') +
     '</div>';
 
   if (DOCS.length) {
