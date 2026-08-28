@@ -13,7 +13,7 @@ var API = 'https://bardachok.kasebaby24.workers.dev';
 var QR_FOR = 'TWqHKxsLAdGMPC7kY4i3r2GQxNJ2U6vQXv';   // до цієї адреси намальовано usdt-qr.png
 var USDT_CONTRACT = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';   // USDT у мережі TRON
 
-var BUILD = '20260828-0610';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
+var BUILD = '20260828-0705';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
 var BOOT_T0 = Date.now();
 
 var tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
@@ -503,7 +503,7 @@ function needPro(what) {
         '<em>' + uahOf(CFG.premiumHalf) + '</em></button>' +
       '<button class="best" data-do="buy" data-plan="year"><small>Рік</small><b>' + usd(CFG.premiumYear) + '</b>' +
         '<em>' + uahOf(CFG.premiumYear) + '</em></button>' +
-    '</div>');
+    '</div>' + payHint());
 }
 
 function openSheet(title, html) {
@@ -1536,7 +1536,7 @@ function drawMore() {
           '<em>' + uahOf(CFG.premiumHalf) + '</em></button>' +
         '<button class="best" data-do="buy" data-plan="year"><small>Рік</small><b>' + usd(CFG.premiumYear) + '</b>' +
           '<em>' + uahOf(CFG.premiumYear) + '</em></button>' +
-      '</div></div>';
+      '</div>' + payHint() + '</div>';
   } else {
     h += '<div class="promo"><b>Преміум <em>активний</em></b>' +
       '<p>Діє до ' + fmtDate(S.premiumUntil) + '. Голосове внесення й питання про авто увімкнені.</p></div>';
@@ -2298,6 +2298,27 @@ function checkNewPremium() {
   try { localStorage.setItem('b_pro', now); } catch (e) {}
   if (now && now !== was) setTimeout(function () { premiumWelcome(S.premiumUntil); }, 700);
 }
+
+/* Підпис під цінами: людина має бачити, ЧИМ можна заплатити, ще до того як
+   натисне «купити». Найчастіша причина не купити — не «дорого», а «я не
+   знаю, як це оплатити». Показуємо лише коли банка справді увімкнена:
+   обіцяти спосіб, якого немає, гірше, ніж мовчати. */
+function payHint() {
+  var pay = CFG.pay || {};
+  if (!pay.mono) return '';
+  /* Не flex, а звичайний рядок тексту: у flex значок відривався на власний
+     рядок над написом. І <b> тут доводиться перебивати повністю — усередині
+     .promo він оголошений як display:block з іншим шрифтом, через що рядок
+     ламався на три й читався як заголовок. */
+  return '<div style="margin-top:12px;text-align:center;font-size:12.5px;' +
+    'font-weight:500;color:var(--mut);line-height:1.45">' +
+    '<span style="display:inline-block;vertical-align:-2px;margin-right:5px;opacity:.75">' +
+      ic('idcard', 13) + '</span>' +
+    'Оплата <b style="display:inline;margin:0;font-family:inherit;font-size:12.5px;' +
+      'font-weight:700;letter-spacing:0;color:var(--ink2)">будь-якою карткою</b>' +
+    ' — переказом на банку monobank</div>';
+}
+
 
 function paywallHtml(what) {
   return '<div class="msg inf">' + esc(what) + ' — у Преміумі.</div>' +
@@ -5714,7 +5735,7 @@ try {
 start();
 
 /* хуки для перевірки */
-window.__app = { get S() { return S; }, get PRO() { return PRO; }, show: show, render: render, DO: DO,
+window.__app = { get S() { return S; }, get PRO() { return PRO; }, get CFG() { return CFG; }, show: show, render: render, DO: DO,
   refresh: function (f) { return refresh(f); }, get loaded() { return LOADED; },
   /* для знімків і перевірок: показати готовий розбір значка без камери */
   lampShow: function (L) { return lampShow(L, false); } };
