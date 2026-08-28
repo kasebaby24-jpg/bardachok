@@ -13,7 +13,7 @@ var API = 'https://bardachok.kasebaby24.workers.dev';
 var QR_FOR = 'TWqHKxsLAdGMPC7kY4i3r2GQxNJ2U6vQXv';   // до цієї адреси намальовано usdt-qr.png
 var USDT_CONTRACT = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';   // USDT у мережі TRON
 
-var BUILD = '20260828-0705';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
+var BUILD = '20260828-0810';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
 var BOOT_T0 = Date.now();
 
 var tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
@@ -105,6 +105,13 @@ function money(n) {
 /* для дрібних сум на кшталт вартості кілометра */
 function money2(n) { return ((n || 0) / curRate()).toFixed(2) + ' ' + curSign(); }
 function usd(n) { return '$' + (Math.round(n * 100) / 100).toFixed(2).replace(/\.00$/, ''); }
+
+/* Ціна задається й показується в доларах, гривня — другим рядком за курсом
+   НБУ. Пробували навпаки (гривня великим) — власник сказав, що з доларом
+   зрозуміліше: це та сама ціна незалежно від курсу й способу оплати. */
+function byCard() { return !!((CFG.pay || {}).mono); }
+function priceBig(n) { return usd(n); }
+function priceSmall(n) { return uahOf(n); }
 function uahOf(n) {                       // скільки це в гривнях за курсом НБУ
   var r = (CFG.rates && CFG.rates.USD) || parseFloat(CFG.usd) || 0;
   return r ? '≈ ' + nfmt(n * r) + ' ₴' : '';
@@ -497,12 +504,12 @@ function needPro(what) {
         '<div class="tx"><b>' + x[0] + '</b><small>' + x[1] + '</small></div></div>';
     }).join('') + '</div>' +
     '<div class="plans" style="margin-top:14px">' +
-      '<button data-do="buy" data-plan="month"><small>Місяць</small><b>' + usd(CFG.premiumMonth) + '</b>' +
-        '<em>' + uahOf(CFG.premiumMonth) + '</em></button>' +
-      '<button data-do="buy" data-plan="half"><small>Півроку</small><b>' + usd(CFG.premiumHalf) + '</b>' +
-        '<em>' + uahOf(CFG.premiumHalf) + '</em></button>' +
-      '<button class="best" data-do="buy" data-plan="year"><small>Рік</small><b>' + usd(CFG.premiumYear) + '</b>' +
-        '<em>' + uahOf(CFG.premiumYear) + '</em></button>' +
+      '<button data-do="buy" data-plan="month"><small>Місяць</small><b>' + priceBig(CFG.premiumMonth) + '</b>' +
+        '<em>' + priceSmall(CFG.premiumMonth) + '</em></button>' +
+      '<button data-do="buy" data-plan="half"><small>Півроку</small><b>' + priceBig(CFG.premiumHalf) + '</b>' +
+        '<em>' + priceSmall(CFG.premiumHalf) + '</em></button>' +
+      '<button class="best" data-do="buy" data-plan="year"><small>Рік</small><b>' + priceBig(CFG.premiumYear) + '</b>' +
+        '<em>' + priceSmall(CFG.premiumYear) + '</em></button>' +
     '</div>' + payHint());
 }
 
@@ -1530,12 +1537,12 @@ function drawMore() {
       '<p>Голосове внесення, питання про своє авто, кілька машин, звіти для покупця та перевірки. ' +
       'Один вчасно спійманий штраф уже окупає місяць.</p>' +
       '<div class="plans">' +
-        '<button data-do="buy" data-plan="month"><small>Місяць</small><b>' + usd(CFG.premiumMonth) + '</b>' +
-          '<em>' + uahOf(CFG.premiumMonth) + '</em></button>' +
-        '<button data-do="buy" data-plan="half"><small>Півроку</small><b>' + usd(CFG.premiumHalf) + '</b>' +
-          '<em>' + uahOf(CFG.premiumHalf) + '</em></button>' +
-        '<button class="best" data-do="buy" data-plan="year"><small>Рік</small><b>' + usd(CFG.premiumYear) + '</b>' +
-          '<em>' + uahOf(CFG.premiumYear) + '</em></button>' +
+        '<button data-do="buy" data-plan="month"><small>Місяць</small><b>' + priceBig(CFG.premiumMonth) + '</b>' +
+          '<em>' + priceSmall(CFG.premiumMonth) + '</em></button>' +
+        '<button data-do="buy" data-plan="half"><small>Півроку</small><b>' + priceBig(CFG.premiumHalf) + '</b>' +
+          '<em>' + priceSmall(CFG.premiumHalf) + '</em></button>' +
+        '<button class="best" data-do="buy" data-plan="year"><small>Рік</small><b>' + priceBig(CFG.premiumYear) + '</b>' +
+          '<em>' + priceSmall(CFG.premiumYear) + '</em></button>' +
       '</div>' + payHint() + '</div>';
   } else {
     h += '<div class="promo"><b>Преміум <em>активний</em></b>' +
@@ -5167,12 +5174,19 @@ var DO = {
     if (CFG.usdt) ways += '<button class="btn' + (pay.mono ? ' sec' : '') + '" data-do="payUsdt" data-plan="' + p + '">Оплатити в USDT</button>';
     if (pay.crypto) ways += '<button class="btn sec" data-do="payGo" ' +
                             'data-plan="' + p + '" data-m="crypto">Через @CryptoBot</button>';
-    if (pay.card)   ways += '<button class="btn sec" data-do="payGo" data-plan="' + p + '" data-m="card">Карткою</button>';
+    /* Коли банка увімкнена, «карткою» — це вона. Тому другий картковий шлях
+       називаємо інакше, інакше в списку два майже однакові підписи і
+       незрозуміло, чим вони різні. */
+    if (pay.card)   ways += '<button class="btn sec" data-do="payGo" data-plan="' + p + '" data-m="card">' +
+                            (pay.mono ? 'Через платіжний сервіс' : 'Карткою') + '</button>';
 
     openSheet('Преміум · ' + name,
       '<div class="hero" style="margin-bottom:12px">' +
         '<div class="hero-top"><span>До сплати</span>' + ic('star', 18) + '</div>' +
-        '<b>' + price + ' USDT</b>' +
+        /* Коли платити можна карткою, «5 USDT» у заголовку збиває з пантелику:
+           людина не платить криптою. Показуємо просто ціну, а спосіб вона
+           обирає кнопкою нижче. */
+        '<b>' + (pay.mono ? usd(price) : price + ' USDT') + '</b>' +
         '<small>' + (uah ? uah + ' за курсом НБУ' : 'мережа TRC-20') + '</small></div>' +
       '<div class="card"><div class="kv"><span>Тариф</span><b>' + name + '</b></div>' +
       '<div class="kv"><span>Термін</span><b>' +
