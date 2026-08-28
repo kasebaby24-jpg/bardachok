@@ -13,7 +13,7 @@ var API = 'https://bardachok.kasebaby24.workers.dev';
 var QR_FOR = 'TWqHKxsLAdGMPC7kY4i3r2GQxNJ2U6vQXv';   // до цієї адреси намальовано usdt-qr.png
 var USDT_CONTRACT = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';   // USDT у мережі TRON
 
-var BUILD = '20260828-0810';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
+var BUILD = '20260828-0900';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
 var BOOT_T0 = Date.now();
 
 var tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
@@ -192,6 +192,11 @@ var ICONS = {
   charge: '<path d="M4 20V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v15M3 20h12"/><path d="M14 10h2.5a1.5 1.5 0 0 1 1.5 1.5v5a1.5 1.5 0 0 0 3 0V8"/><path d="M9.5 6 7 10.5h2.5L8.5 14"/>',
   wrench: '<path d="M14.7 6.3a4 4 0 1 0 3 3L21 6l-3-3-3.3 3.3Z"/><path d="M11.5 12.5 5 19l-2-2 6.5-6.5"/>',
   money:  '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.3v9.4M9.6 9.6h4.2a1.7 1.7 0 0 1 0 3.4h-3.6a1.7 1.7 0 0 0 0 3.4h4.2"/>',
+  /* Штраф — квитанція з відривною частиною. Монета з гривнею на цьому місці
+     виглядала брудно: на 20 пікселях знак валюти всередині кола злипається.
+     Документ зі знаком оклику теж пробували — надто схожий на «Документи»,
+     які стоять рядком нижче. */
+  fine:   '<path d="M4 7.5h16a1 1 0 0 1 1 1V11a2 2 0 0 0 0 4v2.5a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V15a2 2 0 0 0 0-4V8.5a1 1 0 0 1 1-1Z"/><path d="M15.5 9v1.5M15.5 12.8v1.5M15.5 16.5V18"/>',
   search: '<circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.4-4.4"/>',
   shield: '<path d="M12 3 5 6v6c0 4.2 2.9 7.6 7 9 4.1-1.4 7-4.8 7-9V6l-7-3Z"/>',
   oil:    '<path d="M5 9h9l3 3h3v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2Z"/><path d="M8 9V6h5"/><circle cx="8" cy="18" r="1.4"/><circle cx="17" cy="18" r="1.4"/>',
@@ -876,7 +881,7 @@ function attentionBase() {
   (S.fines || []).filter(function (f) { return !f.paid; }).forEach(function (f) {
     var d = f.half ? daysLeft(f.until) : null;
     out.push({
-      lvl: (d !== null && d <= 3) ? 'hot' : 'warn', ic: 'money', t: 'Несплачений штраф',
+      lvl: (d !== null && d <= 3) ? 'hot' : 'warn', ic: 'fine', t: 'Несплачений штраф',
       p: f.half && d !== null && d >= 0
         ? 'Знижка 50% ще ' + (d === 0 ? 'сьогодні' : d + ' ' + dayWord(d)) + '. Зараз — ' + money(f.amount / 2) + '.'
         : 'До сплати ' + money(f.amount) + '.',
