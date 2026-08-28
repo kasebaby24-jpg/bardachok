@@ -8,7 +8,7 @@
 <title>Бардачок — керування</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<link rel="stylesheet" href="styles.css?v=20260828-0400">
+<link rel="stylesheet" href="styles.css?v=20260828-0610">
 <style>
   body{overflow:auto}
   .wrap{max-width:620px;margin:0 auto;padding:26px 16px 60px}
@@ -140,7 +140,7 @@
     <button data-t="t-set">Налашт.</button>
   </div>
   <div class="msg inf" id="info">Завантаження…</div>
-  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260828-0400</div>
+  <div class="note" id="ver" style="margin-top:-4px">Версія панелі: 20260828-0610</div>
   <div id="topStrip"></div>
 
   <div class="pane on" id="t-home">
@@ -486,6 +486,30 @@
     </div>
   </div>
 
+  <!-- БАНКА MONOBANK. Найзвичніший спосіб для українця: переказ із будь-якої
+       картки. У переказі не написано, хто це, зате є коментар — туди людина
+       вписує короткий код, і сервер зараховує за ним сам. -->
+  <div class="card">
+    <div class="sect">Оплата на банку monobank</div>
+    <div id="monoNow" class="note">Перевіряю…</div>
+
+    <div class="rw" style="margin-top:12px">
+      <div class="lb">Приймати оплату на банку<small>0 — люди не бачать кнопку «Оплатити карткою»</small></div>
+      <input type="number" id="monoOn" min="0" max="1"></div>
+    <button class="btn" id="monoToggle" style="margin-top:10px">Увімкнути</button>
+    <div class="note" style="margin-top:8px">Вимкнення прибирає кнопку одразу, але <b>не кидає</b> тих,
+      хто вже отримав код і зараз переказує гроші — їхні оплати зарахуються як завжди.</div>
+
+    <button class="btn sec" id="monoLoad" style="margin-top:14px">Показати мої банки</button>
+    <div id="monoList" style="margin-top:10px"></div>
+    <div id="monoOut" class="msg inf hidden"></div>
+    <button class="btn sec" id="monoCheck" style="margin-top:8px">Перевірити надходження зараз</button>
+    <div class="note" style="margin-top:8px">Потрібен секрет <b>MONO_TOKEN</b> у Cloudflare —
+      беріть його на <b>api.monobank.ua</b>. Він лише для читання виписки: переказати
+      з нього гроші неможливо. Але доступ до виписок усіх ваших рахунків він дає —
+      тримайте його як пароль.</div>
+  </div>
+
   <div class="card">
     <div class="sect">Оплата в USDT</div>
     <div class="rw"><div class="lb">Гаманець TRC-20<small>На нього переказують</small></div>
@@ -800,7 +824,7 @@
 /* ⚠️ Та сама адреса, що і в app.js */
 var API = 'https://bardachok.kasebaby24.workers.dev';
 
-var NUM = ['premiumMonth','premiumHalf','premiumYear','freeCars','freeVin','autoPay','remindInsurance','remindService','oilInterval','refLimit'];
+var NUM = ['premiumMonth','premiumHalf','premiumYear','freeCars','freeVin','autoPay','monoOn','remindInsurance','remindService','oilInterval','refLimit'];
 var TXT = ['contactTg','wfpMerchant','wfpDomain','usdtAddress','adminId','channel','riaKey','geminiKey','groqKey'];
 var KEY = '';
 var BILLS = [];          // за що власник платить сам — редагується нижче
@@ -1025,6 +1049,7 @@ function load() {
     .then(function (r) { return r.json(); }).then(function (d) {
     NUM.concat(TXT).forEach(function (k) { if (d[k] !== undefined && $('#' + k)) $('#' + k).value = d[k]; });
     if ($('#meId')) $('#meId').textContent = d.adminId || 'не вказано';
+    monoState(d);
     BILLS = Array.isArray(d.bills) ? d.bills : [];
     billsDraw();
     NEWS = d.news || null;
@@ -2904,6 +2929,95 @@ function tech() {
       'або воркер не працює. Відкрийте посилання нижче: журнал запитів.</div>';
   });
 }
+/* ------------------------------------------------------------------ */
+/* БАНКА MONOBANK                                                      */
+/* ------------------------------------------------------------------ */
+/* Банку власник вибирає зі списку, а не переписує її ідентифікатор руками:
+   переписаний з помилкою — і оплати тихо не зараховуються. */
+function monoState(cfg) {
+  var el = $('#monoNow');
+  if (!el || !cfg) return;
+  var picked = !!(cfg.monoJar && cfg.monoSend);
+  var on = picked && Number(cfg.monoOn);
+
+  if (!picked) {
+    el.innerHTML = '<div class="msg inf">Банку ще не вибрано. Натисніть «Показати мої банки» нижче.</div>';
+  } else if (on) {
+    el.innerHTML = '<div class="msg ok"><b>Оплата на банку працює.</b> Люди бачать кнопку ' +
+      '«Оплатити карткою».<br><span style="opacity:.6">' + esc(cfg.monoSend) + '</span></div>';
+  } else {
+    el.innerHTML = '<div class="msg inf"><b>Банку вибрано, але оплата вимкнена.</b> ' +
+      'Кнопки люди не бачать.<br><span style="opacity:.6">' + esc(cfg.monoSend) + '</span></div>';
+  }
+
+  if ($('#monoOn')) $('#monoOn').value = Number(cfg.monoOn) ? 1 : 0;
+  var b = $('#monoToggle');
+  if (b) {
+    b.textContent = on ? 'Вимкнути оплату на банку' : 'Увімкнути оплату на банку';
+    b.className = on ? 'btn sec' : 'btn';
+    b.disabled = !picked;
+    b.style.opacity = picked ? '' : '.5';
+  }
+}
+
+/* Вимикач одним натисканням: питати пароль ще раз і жати «Зберегти» внизу
+   сторінки — не те, що потрібно, коли треба швидко прибрати кнопку. */
+$('#monoToggle').addEventListener('click', function () {
+  var b = $('#monoToggle');
+  var turningOn = b.textContent.indexOf('Увімкнути') === 0;
+  b.disabled = true;
+  show('monoOut', turningOn ? 'Вмикаю…' : 'Вимикаю…', true);
+  post('/settings', { key: KEY, monoOn: turningOn ? 1 : 0 }).then(function (r) {
+    b.disabled = false;
+    if (!r.ok) { show('monoOut', r.error || 'Не вдалося', true); return; }
+    monoState(r.saved || {});
+    show('monoOut', turningOn
+      ? 'Увімкнено. Люди вже бачать кнопку «Оплатити карткою».'
+      : 'Вимкнено. Нові кнопки не показуються; ті, хто вже отримав код, оплату отримають.', true);
+  }).catch(function () {
+    b.disabled = false;
+    show('monoOut', 'Сервер не відповів.', true);
+  });
+});
+
+$('#monoLoad').addEventListener('click', function () {
+  $('#monoList').innerHTML = '<div class="note">Питаю monobank…</div>';
+  post('/admin/act', { what: 'jars' }).then(function (d) {
+    if (!d.ok) { $('#monoList').innerHTML = '<div class="msg er">' + esc(d.error || 'Не вдалося') + '</div>'; return; }
+    if (!d.jars || !d.jars.length) {
+      $('#monoList').innerHTML = '<div class="msg inf">Банок на цьому токені немає. ' +
+        'Створіть банку в monobank і натисніть ще раз.</div>';
+      return;
+    }
+    $('#monoList').innerHTML = d.jars.map(function (j) {
+      return '<button class="btn sec" style="text-align:left" ' +
+        'data-jar="' + esc(j.id) + '" data-send="' + esc(j.send) + '">' +
+        esc(j.title) + ' — ' + nfm(j.balance) + ' ₴' +
+        (j.send ? '' : '  (немає посилання на поповнення)') + '</button>';
+    }).join('');
+    [].forEach.call($('#monoList').querySelectorAll('button'), function (b) {
+      b.addEventListener('click', function () {
+        if (!b.dataset.send) { show('monoOut', 'У цієї банки немає посилання на поповнення — ' +
+          'увімкніть його в monobank.', true); return; }
+        post('/settings', { key: KEY, monoJar: b.dataset.jar, monoSend: b.dataset.send })
+          .then(function (r) {
+            if (!r.ok) { show('monoOut', r.error || 'Не вдалося зберегти', true); return; }
+            show('monoOut', 'Банку вибрано. Тепер натисніть «Увімкнути оплату на банку».', true);
+            monoState(r.saved || { monoJar: b.dataset.jar, monoSend: b.dataset.send });
+            $('#monoList').innerHTML = '';
+          });
+      });
+    });
+  }).catch(function () { $('#monoList').innerHTML = '<div class="msg er">Сервер не відповів.</div>'; });
+});
+
+$('#monoCheck').addEventListener('click', function () {
+  show('monoOut', 'Дивлюсь виписку…', true);
+  post('/admin/act', { what: 'mono' }).then(function (d) {
+    show('monoOut', d.ok ? d.message : (d.error || 'Не вдалося'), true);
+  }).catch(function () { show('monoOut', 'Сервер не відповів.', true); });
+});
+
 $('#techGo').addEventListener('click', tech);
 
 /* Переносимо пачками, доки сервер каже «ще лишились». */

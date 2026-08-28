@@ -13,7 +13,7 @@ var API = 'https://bardachok.kasebaby24.workers.dev';
 var QR_FOR = 'TWqHKxsLAdGMPC7kY4i3r2GQxNJ2U6vQXv';   // до цієї адреси намальовано usdt-qr.png
 var USDT_CONTRACT = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';   // USDT у мережі TRON
 
-var BUILD = '20260828-0400';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
+var BUILD = '20260828-0610';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
 var BOOT_T0 = Date.now();
 
 var tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
@@ -5139,8 +5139,12 @@ var DO = {
     var uah = uahOf(price);
 
     var ways = '';
-    if (CFG.usdt) ways += '<button class="btn" data-do="payUsdt" data-plan="' + p + '">Оплатити в USDT</button>';
-    if (pay.crypto) ways += '<button class="btn' + (CFG.usdt ? ' sec' : '') + '" data-do="payGo" ' +
+    /* Банка перша й головна: переказ з будь-якої картки, без гаманців і
+       без реєстрацій. USDT лишається для тих, хто вміє. */
+    if (pay.mono) ways += '<button class="btn" data-do="payMono" data-plan="' + p + '">' +
+                          'Оплатити карткою' + (uah ? ' — ' + uah : '') + '</button>';
+    if (CFG.usdt) ways += '<button class="btn' + (pay.mono ? ' sec' : '') + '" data-do="payUsdt" data-plan="' + p + '">Оплатити в USDT</button>';
+    if (pay.crypto) ways += '<button class="btn sec" data-do="payGo" ' +
                             'data-plan="' + p + '" data-m="crypto">Через @CryptoBot</button>';
     if (pay.card)   ways += '<button class="btn sec" data-do="payGo" data-plan="' + p + '" data-m="card">Карткою</button>';
 
@@ -5160,6 +5164,62 @@ var DO = {
   },
 
   /* переказ напряму на гаманець: показуємо адресу, суму і що робити далі */
+  /* Переказ на банку monobank. У банківському переказі не написано, хто це,
+     зате є коментар — тому людина вписує туди короткий код, і сервер
+     зараховує за ним сам. Головне тут: код має бути неможливо не помітити
+     і легко скопіювати, бо саме на ньому все тримається. */
+  payMono: function (t) {
+    var p = t.dataset.plan || 'month';
+    var name = p === 'year' ? 'Рік' : p === 'half' ? 'Півроку' : 'Місяць';
+    openSheet('Оплата карткою', '<div class="note">Готую…</div>');
+
+    api('/api/pay', { plan: p, method: 'mono' }).then(function (d) {
+      if (!d.ok) {
+        openSheet('Оплата карткою', '<div class="msg er">' +
+          esc(d.message || d.error || 'Не вдалося') + '</div>' +
+          (CFG.contactTg ? '<button class="btn sec" data-do="support">Написати в підтримку</button>' : ''));
+        return;
+      }
+
+      openSheet('Преміум · ' + name,
+        '<div class="hero" style="margin-bottom:12px">' +
+          '<div class="hero-top"><span>До сплати</span>' + ic('star', 18) + '</div>' +
+          '<b>' + nfmt(d.uah) + ' ₴</b>' +
+          '<small>переказ з будь-якої картки</small></div>' +
+
+        '<div class="steps" style="margin-bottom:13px">' +
+          '<div><i>1</i><div><b>Скопіюйте код</b>' +
+            '<p>Він потрібен, щоб я впізнав саме ваш переказ.</p></div></div>' +
+          '<div><i>2</i><div><b>Відкрийте банку й переказуйте ' + nfmt(d.uah) + ' ₴</b>' +
+            '<p>Будь-яка картка — Приват, моно, інша.</p></div></div>' +
+          '<div><i>3</i><div><b>Вставте код у «Коментар»</b>' +
+            '<p>Без нього я не побачу, кому вмикати Преміум.</p></div></div>' +
+        '</div>' +
+
+        '<div class="card" style="text-align:center;padding:16px 14px">' +
+          '<div class="lb" style="margin-bottom:6px">Код для коментаря</div>' +
+          '<div style="font-family:var(--disp);font-weight:800;font-size:29px;' +
+            'letter-spacing:.06em;margin-bottom:11px">' + esc(d.code) + '</div>' +
+          '<button class="btn sec" data-do="copyCode" data-v="' + esc(d.code) + '">Скопіювати код</button>' +
+        '</div>' +
+
+        '<a class="btn" style="text-decoration:none;display:block;text-align:center;margin-top:11px" ' +
+          'href="' + esc(d.link) + '" target="_blank" rel="noopener">Відкрити банку</a>' +
+        '<div id="payErr2"></div>' +
+        '<div class="msg inf" style="margin-top:11px">Преміум увімкнеться <b>сам</b> ' +
+          'за одну–дві хвилини після переказу. Застосунок можна не тримати відкритим.</div>' +
+        (CFG.contactTg ? '<button class="btn sec" data-do="support">Написати в підтримку</button>' : ''));
+
+      watchPayment();
+    });
+  },
+
+  copyCode: function (t) {
+    copy(t.dataset.v);
+    toast('Код скопійовано — вставте його в коментар переказу');
+    haptic('light');
+  },
+
   payUsdt: function (t) {
     var p = t.dataset.plan || 'month';
     var box = document.getElementById('payErr');
