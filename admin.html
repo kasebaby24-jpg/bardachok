@@ -8,7 +8,7 @@
 <title>Бардачок — керування</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<link rel="stylesheet" href="styles.css?v=20260828-1130">
+<link rel="stylesheet" href="styles.css?v=20260901-2100">
 <style>
   body{overflow:auto}
   .wrap{max-width:620px;margin:0 auto;padding:26px 16px 60px}
@@ -1414,7 +1414,18 @@ function broadcast(test) {
   post('/admin/send', { text: text, who: $('#bcWho').value, test: !!test, tgId: $('#bcMe').value })
     .then(function (d) {
       b1.disabled = b2.disabled = false;
-      if (!d.ok) { show('bcOk', '', false); show('bcEr', d.error || 'Не вдалося.', true); return; }
+      if (!d.ok) {
+        show('bcOk', '', false); show('bcEr', d.error || 'Не вдалося.', true);
+        /* Розсилка вже йде — не просто показуємо помилку, а ПІДХОПЛЮЄМО її:
+           запускаємо опитування, яке і штовхає її далі, і показує лічильник.
+           Без цього зависла розсилка нікого не рухала й нічого не показувала. */
+        if (!test && /ще йде|вже йде/i.test(d.error || '')) {
+          show('bcEr', '', false);
+          show('bcOk', 'Розсилка вже йде — підхоплюю…', true);
+          watchSend();
+        }
+        return;
+      }
       if (d.test) { show('bcOk', 'Надіслано вам. Подивіться в боті.', true); return; }
       /* Тридцять тисяч повідомлень не влазять в один запит — сервер шле їх
          пачками. Показуємо, скільки вже пішло, доки не закінчить. */
@@ -3073,6 +3084,21 @@ function tabLoad(t, again) {
   TAB_DONE[t] = 1;
   if (t === 't-tech') tech();
   else if (t === 't-users') people();
+  else if (t === 't-msg') resumeSend();
+}
+
+/* Відкрили вкладку «Звʼязок» — одразу питаємо, чи не висить розсилка.
+   Якщо висить — підхоплюємо: опитування штовхає її далі й показує
+   лічильник. Раніше цього не було, і зависла розсилка стояла мовчки,
+   бо єдиним двигуном лишався розклад раз на пʼять хвилин. */
+function resumeSend() {
+  if (typeof post !== 'function') return;
+  post('/admin/send-status', {}).then(function (d) {
+    if (d && d.ok && d.job && !d.job.done) {
+      show('bcOk', 'Знайшлась розсилка, що йде — підхоплюю…', true);
+      watchSend();
+    }
+  }).catch(function () {});
 }
 
 /* вкладки */
