@@ -913,3 +913,17 @@ input,select,textarea{-webkit-appearance:none;appearance:none}
 .list a.it b, .list a.it small, .list a.it .vl{color:inherit}
 .list a.it .vl{color:var(--ink)}
 .list a.it small{color:var(--mut)}
+
+/* Осінні листочки — сезонний штрих при відкритті. Під вікнами (z-index 45,
+   а сторіз — 100), кліки проходять наскрізь. Малює app.js лише восени. */
+.leaves{position:fixed;inset:0;pointer-events:none;z-index:45;overflow:hidden}
+.leaves span{position:absolute;top:-9%;opacity:0;will-change:transform;
+  animation-name:leafFall;animation-timing-function:linear;animation-fill-mode:forwards;
+  filter:drop-shadow(0 2px 3px rgba(0,0,0,.25))}
+@keyframes leafFall{
+  0%{opacity:0;transform:translateY(-10vh) translateX(0) rotate(0deg)}
+  12%{opacity:.92}
+  88%{opacity:.92}
+  100%{opacity:0;transform:translateY(112vh) translateX(46px) rotate(300deg)}
+}
+@media (prefers-reduced-motion:reduce){.leaves{display:none}}

@@ -13,7 +13,7 @@ var API = 'https://bardachok.kasebaby24.workers.dev';
 var QR_FOR = 'TWqHKxsLAdGMPC7kY4i3r2GQxNJ2U6vQXv';   // до цієї адреси намальовано usdt-qr.png
 var USDT_CONTRACT = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';   // USDT у мережі TRON
 
-var BUILD = '20260828-1130';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
+var BUILD = '20260910-1500';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
 var BOOT_T0 = Date.now();
 
 var tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
@@ -2299,6 +2299,38 @@ function checkNews() {
     markSeen('nw_' + n.id);
     newsShow();
   }, 900);
+}
+
+/* ------------------------------------------------------------------ */
+/* ОСІНЬ — кілька листочків при відкритті.                             */
+/* ------------------------------------------------------------------ */
+/* Лагідний сезонний штрих: тільки восени (вересень–листопад), раз на
+   день, кілька листочків повільно падають і зникають. Суто декоративно —
+   pointer-events:none, під вікнами, знімає себе саме. Хто вимкнув анімацію
+   в системі — не бачить нічого. */
+function autumn() {
+  var m = new Date().getMonth();                 // 8,9,10 = вересень–листопад
+  if (m < 8 || m > 10) return;
+  try { if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return; } catch (e) {}
+  try {
+    var day = new Date().toISOString().slice(0, 10);
+    if (localStorage.getItem('b_leaf') === day) return;   // раз на день, не при кожному відкритті
+    localStorage.setItem('b_leaf', day);
+  } catch (e) {}
+  var wrap = document.createElement('div');
+  wrap.className = 'leaves';
+  var kinds = ['🍂', '🍁', '🍂', '🍁'];
+  for (var i = 0; i < 8; i++) {
+    var s = document.createElement('span');
+    s.textContent = kinds[i % kinds.length];
+    s.style.left = (4 + Math.random() * 92).toFixed(1) + '%';
+    s.style.fontSize = (15 + Math.random() * 12).toFixed(0) + 'px';
+    s.style.animationDelay = (Math.random() * 3).toFixed(2) + 's';
+    s.style.animationDuration = (6 + Math.random() * 3.5).toFixed(2) + 's';
+    wrap.appendChild(s);
+  }
+  document.body.appendChild(wrap);
+  setTimeout(function () { if (wrap.parentNode) wrap.parentNode.removeChild(wrap); }, 13000);
 }
 
 /* Преміум могли увімкнути, поки застосунок був закритий. Порівнюємо з тим,
@@ -4939,13 +4971,12 @@ var DO = {
 
   odo: function () {
     var car = activeCar(); if (!car) return;
-    openSheet('Пробіг', fld('oOdo', 'Скільки зараз на одометрі, км', { mode: 'numeric', val: car.odo }) +
+    openSheet('Пробіг', fld('oOdo', 'Скільки зараз на одометрі, ' + dU(), { mode: 'numeric', val: dOut(car.odo) }) +
       '<div id="oErr"></div><button class="btn" data-do="saveOdo">Зберегти</button>');
   },
   saveOdo: function () {
-    var v = numv('oOdo');
-    if (v == null) { document.getElementById('oErr').innerHTML = '<div class="msg er">Введіть число.</div>'; return; }
-    act({ action: 'odo', odo: v }, closeSheet);
+    if (numv('oOdo') == null) { document.getElementById('oErr').innerHTML = '<div class="msg er">Введіть число.</div>'; return; }
+    act({ action: 'odo', odo: dIn(val('oOdo')) }, closeSheet);
   },
 
   fuel: function () {
@@ -5697,6 +5728,7 @@ function start() {
       /* Новини — після привітання про Преміум: якщо збіглося і те, і те,
          спершу людині кажуть про оплату, а вже потім про можливості. */
       checkNews();
+      autumn();
     }, left);
   }).catch(function () {
     bootFail('Немає зв’язку із сервером.<br>Перевірте інтернет і спробуйте ще раз.');
