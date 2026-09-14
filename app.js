@@ -13,7 +13,7 @@ var API = 'https://bardachok.kasebaby24.workers.dev';
 var QR_FOR = 'TWqHKxsLAdGMPC7kY4i3r2GQxNJ2U6vQXv';   // до цієї адреси намальовано usdt-qr.png
 var USDT_CONTRACT = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';   // USDT у мережі TRON
 
-var BUILD = '20260910-1500';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
+var BUILD = '20260914-1200';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
 var BOOT_T0 = Date.now();
 
 var tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
@@ -1536,6 +1536,11 @@ function spend2(carId, days, back) {
 function drawMore() {
   var el = $('#s-more');
   var h = '';
+  /* Рідна «Додати на головний екран» від Telegram (з версії 8.0). Дає іконку
+     Бардачка на телефоні; тап відкриває міні-апп одразу, з усім входом —
+     без переробки під PWA. Показуємо кнопку лише де це підтримується. */
+  var canHome = tg && tg.isVersionAtLeast && tg.isVersionAtLeast('8.0') &&
+                typeof tg.addToHomeScreen === 'function';
 
   if (!PRO) {
     h += '<div class="promo"><b>Бардачок <em>Преміум</em></b>' +
@@ -1568,6 +1573,14 @@ function drawMore() {
     (CFG.contactTg ? itemBtn('chat', 'Підтримка', 'Написати, якщо щось не так', 'do:support') : '') +
     itemBtn('car', 'Мої авто', S.cars.length + ' ' + plural(S.cars.length, 'авто', 'авто', 'авто'), 'tab:s-cars') +
     '</div>';
+
+  if (canHome) {
+    h += '<button class="chbtn" id="homeBtn" data-do="addHome" style="margin-top:12px">' +
+      '<span class="chbtn-ic">' + ic('car', 17) + '</span>' +
+      '<span class="chbtn-tx"><b>Додати на головний екран</b>' +
+      '<small>іконка Бардачка на телефоні — відкривається як застосунок</small></span>' +
+      '<span class="chbtn-go">' + ic('back', 14) + '</span></button>';
+  }
 
 
   /* Той самий блок, що й на головному екрані: показується, лише поки
@@ -1648,6 +1661,18 @@ function drawMore() {
        'Дати й суми ви вносите самі — я лише стежу, щоб нічого не забулось.</div>';
 
   el.innerHTML = h;
+
+  /* Якщо іконка вже на екрані (або платформа не вміє) — ховаємо кнопку,
+     щоб не пропонувати вдруге. Перевірка асинхронна, тому після innerHTML. */
+  if (canHome && tg.checkHomeScreenStatus) {
+    try {
+      tg.checkHomeScreenStatus(function (s) {
+        if (s === 'added' || s === 'unsupported') {
+          var b = $('#homeBtn'); if (b) b.style.display = 'none';
+        }
+      });
+    } catch (e) {}
+  }
 }
 function itemBtn(name, t, s, go, locked) {
   return '<button class="it" data-go="' + go + '"><div class="dt">' + ic(name, 17) + '</div>' +
@@ -4804,6 +4829,18 @@ var DO = {
   },
 
   reload: function () { try { location.reload(); } catch (e) {} },
+
+  /* Рідна Telegram: додати іконку Бардачка на головний екран телефона. */
+  addHome: function () {
+    try {
+      if (tg && typeof tg.addToHomeScreen === 'function') {
+        tg.addToHomeScreen();
+        haptic('light');
+      } else {
+        toast('Оновіть Telegram — ця функція у новіших версіях');
+      }
+    } catch (e) { toast('Не вдалося додати'); }
+  },
 
   setCurr: function (t) {
     var c = t.dataset.v;
