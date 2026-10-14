@@ -13,7 +13,7 @@ var API = 'https://bardachok.kasebaby24.workers.dev';
 var QR_FOR = 'TWqHKxsLAdGMPC7kY4i3r2GQxNJ2U6vQXv';   // до цієї адреси намальовано usdt-qr.png
 var USDT_CONTRACT = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';   // USDT у мережі TRON
 
-var BUILD = '20260914-1200';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
+var BUILD = '20261014-1339';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
 var BOOT_T0 = Date.now();
 
 var tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
@@ -99,11 +99,11 @@ function curSign() { return CUR_SIGNS[CUR_SHOW] || '₴'; }
 function money(n) {
   var v = (n || 0) / curRate();
   if (CUR_SHOW !== 'UAH' && Math.abs(v) < 1000)
-    return (Math.round(v * 100) / 100).toFixed(2).replace(/\.00$/, '') + ' ' + curSign();
-  return nfmt(v) + ' ' + curSign();
+    return (Math.round(v * 100) / 100).toFixed(2).replace(/\.00$/, '') + '\u00a0' + curSign();
+  return nfmt(v) + '\u00a0' + curSign();      // нерозривний: «₴» не відривається на новий рядок
 }
 /* для дрібних сум на кшталт вартості кілометра */
-function money2(n) { return ((n || 0) / curRate()).toFixed(2) + ' ' + curSign(); }
+function money2(n) { return ((n || 0) / curRate()).toFixed(2) + '\u00a0' + curSign(); }
 function usd(n) { return '$' + (Math.round(n * 100) / 100).toFixed(2).replace(/\.00$/, ''); }
 
 /* Ціна задається й показується в доларах, гривня — другим рядком за курсом
@@ -212,6 +212,10 @@ var ICONS = {
   check:  '<path d="m5 12.5 4.5 4.5L19 7.5"/>',
   chart:  '<path d="M4 19V9M10 19V5M16 19v-7M22 19H2"/>',
   doc:    '<path d="M6 3h7l5 5v13H6V3Z"/><path d="M13 3v5h5M9 13h6M9 17h4"/>',
+  mega:   '<path d="M4 10v4a1 1 0 0 0 1 1h2l9 4.5V4.5L7 9H5a1 1 0 0 0-1 1Z"/><path d="M7 15l1.2 4.2a1 1 0 0 0 1 .8h.8a1 1 0 0 0 1-1.2L10.3 16.6"/><path d="M19.5 9.5a3 3 0 0 1 0 5"/>',
+  mic:    '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M9 21h6"/>',
+  bell:   '<path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15L6 16Z"/><path d="M10 20.5a2 2 0 0 0 4 0"/>',
+  report: '<path d="M6 3h7l5 5v13H6V3Z"/><path d="M13 3v5h5M9.5 17v-3M12 17v-5M14.5 17v-2"/>',
   chat:   '<path d="M4 5h16v11H9l-5 4V5Z"/><path d="M8.5 10.5h.5M11.5 10.5h.5M14.5 10.5h.5"/>',
   crash:  '<path d="M12 3v4M5.6 5.6l2.8 2.8M3 12h4M5.6 18.4l2.8-2.8M12 21v-4M18.4 18.4l-2.8-2.8M21 12h-4M18.4 5.6l-2.8 2.8"/><circle cx="12" cy="12" r="2.6"/>',
   globe:  '<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.5 2.6 2.5 14.4 0 17M12 3.5c-2.5 2.6-2.5 14.4 0 17"/>',
@@ -881,10 +885,12 @@ function attentionBase() {
   (S.fines || []).filter(function (f) { return !f.paid; }).forEach(function (f) {
     var d = f.half ? daysLeft(f.until) : null;
     out.push({
-      lvl: (d !== null && d <= 3) ? 'hot' : 'warn', ic: 'fine', t: 'Несплачений штраф',
+      /* «Горить» лише поки знижка ще жива і лишилось ≤3 дні. Коли строк минув,
+         d стає мінусовим — раніше це теж було «≤3», і картка червоніла назавжди. */
+      lvl: (d !== null && d >= 0 && d <= 3) ? 'hot' : 'warn', ic: 'fine', t: 'Несплачений штраф',
       p: f.half && d !== null && d >= 0
         ? 'Знижка 50% ще ' + (d === 0 ? 'сьогодні' : d + ' ' + dayWord(d)) + '. Зараз — ' + money(f.amount / 2) + '.'
-        : 'До сплати ' + money(f.amount) + '.',
+        : (f.half ? 'Знижка минула. ' : '') + 'До сплати ' + money(f.amount) + '. Сплатили — позначте у «Штрафах».',
       d: f.half && d !== null && d >= 0 ? d + ' ' + dayWord(d) : money(f.amount),
       go: 'tab:s-fines',
     });
@@ -1049,7 +1055,8 @@ function drawTour() {
         (s.last ? '' : '<button class="st-skip" data-do="tourDone">Пропустити</button>') + '</div>' +
 
       '<div class="st-body">' +
-        '<h2>' + esc(s.t).replace(/\n/g, '<br>') + '</h2>' +
+        '<h2>' + (i === 0 ? 'Усе про <span class="tw" data-tw="авто|штрафи|ТО|страховку|витрати">авто</span><br>в одному місці'
+                          : esc(s.t).replace(/\n/g, '<br>')) + '</h2>' +
         '<p>' + esc(s.p) + '</p>' +
         storyArt(s.art) +
         (s.fact ? '<div class="st-fact">' + esc(s.fact) + '</div>' : '') +
@@ -1199,7 +1206,9 @@ function drawFines() {
   if (hot) {
     var d = daysLeft(hot.until);
     h += '<div class="count"><div class="lb">Знижка 50% спливає через</div>' +
-      '<b>' + d + '</b><div class="sb">' + dayWord(d) + ' · до ' + fmtDate(hot.until) + '</div>' +
+      '<div class="cring"><svg viewBox="0 0 120 120"><circle class="tr" cx="60" cy="60" r="52"/>' +
+        '<circle class="pv" cx="60" cy="60" r="52" pathLength="100" style="--p:' + Math.max(4, Math.min(100, d / 10 * 100)) + '"/></svg>' +
+        '<b>' + d + '</b></div><div class="sb">' + dayWord(d) + ' · до ' + fmtDate(hot.until) + '</div>' +
       '<div class="pair"><s>' + money(hot.amount) + '</s><strong>' + money(hot.amount / 2) + '</strong></div>' +
       '<button class="btn" style="margin-top:15px" data-do="payFine" data-id="' + hot.id + '">Позначити сплаченим</button>' +
       '</div>';
@@ -1227,12 +1236,14 @@ function drawFines() {
     h += '<div class="h2">Історія</div><div class="card list">' + list.map(function (f) {
       var dd = f.half ? daysLeft(f.until) : null;
       var sub = fmtDate(f.date) + ' · ' + (f.paid ? 'сплачено' :
-        (f.half && dd !== null && dd >= 0 ? 'знижка ще ' + dd + ' ' + dayWord(dd) : 'не сплачено'));
-      return '<div class="it"><div class="dt">' + ic(f.paid ? 'check' : 'money', 17) + '</div>' +
+        (f.half && dd !== null && dd >= 0 ? 'знижка ще ' + dd + ' ' + dayWord(dd) :
+         f.half ? 'знижка минула' : 'не сплачено'));
+      return '<button class="it" data-do="fineOpen" data-id="' + f.id + '"><div class="dt">' + ic(f.paid ? 'check' : 'money', 17) + '</div>' +
         '<div class="tx"><b>' + esc(f.title) + '</b><small>' + sub + '</small></div>' +
         '<div class="vl" style="color:' + (f.paid ? 'var(--good)' : 'var(--bad)') + '">' +
-        money(f.paid && f.half ? f.amount / 2 : f.amount) + '</div></div>';
-    }).join('') + '</div>';
+        money(f.paid && f.half ? f.amount / 2 : f.amount) + '</div></button>';
+    }).join('') + '</div>' +
+    '<div class="note">Натисніть на штраф, щоб позначити сплаченим або видалити.</div>';
   }
 
   el.innerHTML = h;
@@ -1405,7 +1416,7 @@ function drawMoney() {
   /* стовпчики за пів року */
   var mm = spendMonths(car.id, 6);
   if (mm.some(function (r) { return r.total > 0; })) {
-    h += '<div class="card"><div class="card-h"><b>Помісячно</b>' +
+    h += '<div class="card"><div class="card-h"><b>Помісячно' + tipI('Усі ваші записи за кожен місяць: паливо, сервіс, штрафи й інше. Середнє — за останні пів року.') + '</b>' +
       '<span>' + money(mm.reduce(function (a, r) { return a + r.total; }, 0) / 6) + ' у середньому</span></div>' +
       chartBars(mm) + '</div>';
   }
@@ -1430,7 +1441,7 @@ function drawMoney() {
   /* витрата пального */
   var cons = consumption(car.id);
   if (cons) {
-    h += '<div class="card"><div class="card-h"><b>Витрата</b>' +
+    h += '<div class="card"><div class="card-h"><b>Витрата' + tipI('Беремо заправки між двома повними баками: скільки залили, ділимо на пройдені кілометри і множимо на 100.') + '</b>' +
       '<span>за ' + distTxt(cons.dist) + '</span></div>' +
       '<div class="two-num">' +
         '<div><small>у середньому</small><b>' + cons.per100.toFixed(1) + '</b></div>' +
@@ -1564,11 +1575,11 @@ function drawMore() {
     itemBtn('money', 'Скільки коштує авто', 'Оцінка й що взяти натомість', 'do:valuate', !PRO) +
     itemBtn('wrench', 'Запчастини й аналоги', 'Оригінал чи аналог — з цінами', 'do:parts', !PRO) +
     itemBtn('search', 'Перевірка по VIN', 'Що це за авто насправді', 'tab:s-vin', !PRO && !vinFree()) +
-    itemBtn('chat', 'Голосове внесення', 'Надиктували боту — записалось', 'tab:s-voice', !PRO) +
+    itemBtn('mic', 'Голосове внесення', 'Надиктували боту — записалось', 'tab:s-voice', !PRO) +
     itemBtn('chat', 'Питання про авто', 'Стукає, гріється, не заводиться', 'tab:s-ask', !PRO) +
-    itemBtn('alert', 'Нагадування', 'ГРМ, техогляд, що завгодно', 'tab:s-rem') +
+    itemBtn('bell', 'Нагадування', 'ГРМ, техогляд, що завгодно', 'tab:s-rem') +
     itemBtn('doc', 'Документи', 'Техпаспорт, страховка, права', 'tab:s-docs') +
-    itemBtn('doc', 'Звіт для покупця', 'PDF із сервісною книжкою', 'tab:s-report', !PRO) +
+    itemBtn('report', 'Звіт для покупця', 'PDF із сервісною книжкою', 'tab:s-report', !PRO) +
     itemBtn('crash', 'Що робити при ДТП', 'Покроково, без паніки', 'tab:s-crash') +
     (CFG.contactTg ? itemBtn('chat', 'Підтримка', 'Написати, якщо щось не так', 'do:support') : '') +
     itemBtn('car', 'Мої авто', S.cars.length + ' ' + plural(S.cars.length, 'авто', 'авто', 'авто'), 'tab:s-cars') +
@@ -1634,6 +1645,15 @@ function drawMore() {
       'Не зарахувалась оплата, зник запис, незрозуміло як щось зробити — ' +
       'напишіть, розберемось.</p>' +
       '<button class="btn" data-do="support">Написати в підтримку</button></div>';
+  }
+
+  /* Для бізнесу: СТО, мийки, страхові, магазини запчастин. Окрема кнопка,
+     щоб комерційні пропозиції не губились серед звернень у підтримку. */
+  if (CFG.contactTg) {
+    h += '<button class="chbtn" data-do="adsInfo">' +
+      '<span class="chbtn-ic">' + ic('mega', 17) + '</span>' +
+      '<span class="chbtn-tx"><b>Реклама і співпраця</b><small>для СТО, мийок, страхових і магазинів</small></span>' +
+      '<span class="chbtn-go">' + ic('back', 14) + '</span></button>';
   }
 
   /* Канал — окремою невеликою кнопкою, а не рядком у переліку з десяти
@@ -1837,7 +1857,7 @@ function drawAsk() {
       '<div style="flex:1;min-width:0">' +
         '<b style="display:block;font-size:15px;font-weight:700">Помічник</b>' +
         '<small style="color:var(--mut);font-size:12px">' +
-          (car ? 'знає ваш ' + esc(carName(car)) + (car.odo ? ' · ' + distTxt(car.odo) : '')
+          (car ? 'знає ваш ' + esc(carName(car)) + (car.odo ? ' · <span style="white-space:nowrap">' + distTxt(car.odo) + '</span>' : '')
                : 'додайте авто, щоб відповіді були точнішими') + '</small>' +
       '</div>' +
       (CHAT.length ? '<button class="chat-clear" data-do="chatClear">Очистити</button>' : '') +
@@ -1928,6 +1948,17 @@ function rpStats(carId) {
            since: dates[0] || null, qty: qty, cons: consumption(carId) };
 }
 
+/* Шрифти для звіту. Полотно не чекає на шрифт саме — якщо його ще не
+   завантажено, малює запасним. fonts.ready чекає лише на ті, що вже є на
+   екрані, тому потрібні накреслення просимо явно. */
+function rpFonts() {
+  if (!document.fonts || !document.fonts.load) return Promise.resolve();
+  return Promise.all(['800 32px Unbounded', '700 52px "Inter Tight"', '400 24px Inter',
+                      '500 24px Inter', '600 24px Inter', '700 24px Inter'].map(function (f) {
+    return document.fonts.load(f).catch(function () {});
+  })).then(function () { return document.fonts.ready; });
+}
+
 function rpPages(car, photos) {
   var st = rpStats(car.id);
   var isEV = car.fuel === 'electric';
@@ -1944,7 +1975,7 @@ function rpPages(car, photos) {
     x.fillStyle = '#0F1310'; x.fillRect(0, 0, RP_W, 132);
     x.fillStyle = '#D7FF3E'; x.font = '800 32px Unbounded, sans-serif';
     x.fillText('БАРДАЧОК', RP_M, 80);
-    x.fillStyle = '#8A9382'; x.font = '600 22px "IBM Plex Sans", sans-serif';
+    x.fillStyle = '#8A9382'; x.font = '600 22px Inter, sans-serif';
     var t = 'ЗВІТ ПРО ДОГЛЯД ЗА АВТО';
     x.fillText(t, RP_W - RP_M - x.measureText(t).width, 78);
     y = 132 + 78;
@@ -1953,18 +1984,18 @@ function rpPages(car, photos) {
   function room(need) { if (y + need > RP_H - 190) newPage(); }  // 190 — місце під підпис і колонтитул
 
   function h1(t) {
-    room(90); x.fillStyle = '#0F1310'; x.font = '800 52px Unbounded, sans-serif';
+    room(90); x.fillStyle = '#0F1310'; x.font = '700 52px "Inter Tight", sans-serif';
     x.fillText(t, RP_M, y); y += 22;
   }
   function h2(t, need) {
     room((need || 110) + 26); y += 26;
-    x.fillStyle = '#5B6455'; x.font = '700 21px "IBM Plex Sans", sans-serif';
+    x.fillStyle = '#5B6455'; x.font = '700 21px Inter, sans-serif';
     x.fillText(t.toUpperCase(), RP_M, y); y += 16;
     x.fillStyle = '#E4E8DE'; x.fillRect(RP_M, y, RP_W - RP_M * 2, 2); y += 40;
   }
   function para(t, size, color) {
     x.fillStyle = color || '#3C443A';
-    x.font = '400 ' + (size || 24) + 'px "IBM Plex Sans", sans-serif';
+    x.font = '400 ' + (size || 24) + 'px Inter, sans-serif';
     var words = String(t).split(' '), line = '', max = RP_W - RP_M * 2;
     words.forEach(function (w) {
       var tryLine = line ? line + ' ' + w : w;
@@ -1974,7 +2005,7 @@ function rpPages(car, photos) {
     if (line) { room(40); x.fillText(line, RP_M, y); y += (size || 24) + 12; }
   }
   function clip(t, max) {
-    x.font = '400 24px "IBM Plex Sans", sans-serif';
+    x.font = '400 24px Inter, sans-serif';
     t = String(t == null ? '' : t);
     if (x.measureText(t).width <= max) return t;
     while (t.length > 1 && x.measureText(t + '…').width > max) t = t.slice(0, -1);
@@ -1989,9 +2020,9 @@ function rpPages(car, photos) {
   function rows(items) {
     items.forEach(function (it) {
       room(48);
-      x.fillStyle = '#5B6455'; x.font = '400 24px "IBM Plex Sans", sans-serif';
+      x.fillStyle = '#5B6455'; x.font = '400 24px Inter, sans-serif';
       x.fillText(it[0], RP_M, y + 26);
-      x.fillStyle = '#0F1310'; x.font = '600 24px "IBM Plex Sans", sans-serif';
+      x.fillStyle = '#0F1310'; x.font = '600 24px Inter, sans-serif';
       x.fillText(it[1], RP_W - RP_M - x.measureText(it[1]).width, y + 26);
       x.fillStyle = '#EFF2EB'; x.fillRect(RP_M, y + 43, RP_W - RP_M * 2, 1);
       y += 46;
@@ -2004,9 +2035,9 @@ function rpPages(car, photos) {
       for (var j = 0; j < 2 && items[i + j]; j++) {
         var it = items[i + j], cx = RP_M + j * (colW + 20);
         x.fillStyle = '#F5F7F2'; rrect(cx, y, colW, cellH, 18); x.fill();
-        x.fillStyle = '#6B7464'; x.font = '600 20px "IBM Plex Sans", sans-serif';
+        x.fillStyle = '#6B7464'; x.font = '600 20px Inter, sans-serif';
         x.fillText(it[0].toUpperCase(), cx + 26, y + 42);
-        x.fillStyle = '#0F1310'; x.font = '700 32px "IBM Plex Sans", sans-serif';
+        x.fillStyle = '#0F1310'; x.font = '700 32px Inter, sans-serif';
         x.fillText(clip(it[1], colW - 52), cx + 26, y + 86);
       }
       y += cellH + 16;
@@ -2019,10 +2050,10 @@ function rpPages(car, photos) {
   h1([car.make, car.model].filter(Boolean).join(' ') || 'Автомобіль');
   y += 46;
   var sub = [car.year, FUEL_UA[car.fuel], car.plate].filter(Boolean).join('  ·  ');
-  x.fillStyle = '#5B6455'; x.font = '500 26px "IBM Plex Sans", sans-serif';
+  x.fillStyle = '#5B6455'; x.font = '500 26px Inter, sans-serif';
   x.fillText(sub, RP_M, y); y += 20;
   if (car.vin) {
-    y += 26; x.fillStyle = '#8A9382'; x.font = '500 22px "IBM Plex Sans", sans-serif';
+    y += 26; x.fillStyle = '#8A9382'; x.font = '500 22px Inter, sans-serif';
     x.fillText('VIN  ' + car.vin, RP_M, y);
   }
   y += 26;
@@ -2070,7 +2101,7 @@ function rpPages(car, photos) {
     para('Записів поки немає.', 24, '#8A9382');
   } else {
     var cols = [RP_M, RP_M + 258, RP_M + 440, RP_W - RP_M];   // дата з роком широка
-    x.fillStyle = '#8A9382'; x.font = '600 19px "IBM Plex Sans", sans-serif';
+    x.fillStyle = '#8A9382'; x.font = '600 19px Inter, sans-serif';
     x.fillText('ДАТА', cols[0], y); x.fillText('ПРОБІГ', cols[1], y); x.fillText('ЩО ЗРОБЛЕНО', cols[2], y);
     var sc = 'СУМА'; x.fillText(sc, cols[3] - x.measureText(sc).width, y);
     y += 22;
@@ -2078,7 +2109,7 @@ function rpPages(car, photos) {
     st.srv.slice(0, 90).forEach(function (r, i) {
       room(64);
       if (i % 2 === 0) { x.fillStyle = '#FAFBF8'; x.fillRect(RP_M - 14, y - 8, RP_W - RP_M * 2 + 28, 54); }
-      x.fillStyle = '#0F1310'; x.font = '400 24px "IBM Plex Sans", sans-serif';
+      x.fillStyle = '#0F1310'; x.font = '400 24px Inter, sans-serif';
       x.fillText(fmtDateY(r.date), cols[0], y + 28);
       x.fillStyle = '#3C443A';
       x.fillText(r.odo ? nfmt(r.odo) : '—', cols[1], y + 28);
@@ -2086,7 +2117,7 @@ function rpPages(car, photos) {
       var what = r.title || KIND_UA[r.kind] || 'Обслуговування';
       x.fillText(clip(what, cols[3] - cols[2] - 190), cols[2], y + 28);
       var s = r.cost ? money(r.cost) : '—';
-      x.font = '600 24px "IBM Plex Sans", sans-serif';
+      x.font = '600 24px Inter, sans-serif';
       x.fillText(s, cols[3] - x.measureText(s).width, y + 28);
       y += 54;
     });
@@ -2129,9 +2160,9 @@ function rpPages(car, photos) {
         x.save(); rrect(px, y, PW, hh, 14); x.clip();
         x.drawImage(ph.img, px + Math.round((PW - w) / 2), y + Math.round((hh - h3) / 2), w, h3);
         x.restore();
-        x.fillStyle = '#0F1310'; x.font = '600 22px "IBM Plex Sans", sans-serif';
+        x.fillStyle = '#0F1310'; x.font = '600 22px Inter, sans-serif';
         x.fillText(clip(ph.title || 'Робота', PW), px, y + hh + 32);
-        x.fillStyle = '#8A9382'; x.font = '400 20px "IBM Plex Sans", sans-serif';
+        x.fillStyle = '#8A9382'; x.font = '400 20px Inter, sans-serif';
         x.fillText(fmtDate(ph.date), px, y + hh + 58);
       });
       y += hh + 78;
@@ -2143,12 +2174,12 @@ function rpPages(car, photos) {
     var c2 = p.getContext('2d');
     var last = i === pages.length - 1;
     if (last) {                              // підпис — на останній сторінці, окремий аркуш не потрібен
-      c2.fillStyle = '#8A9382'; c2.font = '400 21px "IBM Plex Sans", sans-serif';
+      c2.fillStyle = '#8A9382'; c2.font = '400 21px Inter, sans-serif';
       c2.fillText('Записи вносив власник авто у застосунку Бардачок. Звіт показує, як за машиною', RP_M, RP_H - 148);
       c2.fillText('доглядали: що і коли обслуговували, скільки в це вклали.', RP_M, RP_H - 118);
     }
     c2.fillStyle = '#E4E8DE'; c2.fillRect(RP_M, RP_H - 96, RP_W - RP_M * 2, 2);
-    c2.fillStyle = '#8A9382'; c2.font = '400 20px "IBM Plex Sans", sans-serif';
+    c2.fillStyle = '#8A9382'; c2.font = '400 20px Inter, sans-serif';
     c2.fillText('Сформовано ' + fmtDateY(today()), RP_M, RP_H - 58);
     var pn = 'Сторінка ' + (i + 1) + ' з ' + pages.length;
     c2.fillText(pn, RP_W - RP_M - c2.measureText(pn).width, RP_H - 58);
@@ -2326,38 +2357,6 @@ function checkNews() {
   }, 900);
 }
 
-/* ------------------------------------------------------------------ */
-/* ОСІНЬ — кілька листочків при відкритті.                             */
-/* ------------------------------------------------------------------ */
-/* Лагідний сезонний штрих: тільки восени (вересень–листопад), раз на
-   день, кілька листочків повільно падають і зникають. Суто декоративно —
-   pointer-events:none, під вікнами, знімає себе саме. Хто вимкнув анімацію
-   в системі — не бачить нічого. */
-function autumn() {
-  var m = new Date().getMonth();                 // 8,9,10 = вересень–листопад
-  if (m < 8 || m > 10) return;
-  try { if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return; } catch (e) {}
-  try {
-    var day = new Date().toISOString().slice(0, 10);
-    if (localStorage.getItem('b_leaf') === day) return;   // раз на день, не при кожному відкритті
-    localStorage.setItem('b_leaf', day);
-  } catch (e) {}
-  var wrap = document.createElement('div');
-  wrap.className = 'leaves';
-  var kinds = ['🍂', '🍁', '🍂', '🍁'];
-  for (var i = 0; i < 8; i++) {
-    var s = document.createElement('span');
-    s.textContent = kinds[i % kinds.length];
-    s.style.left = (4 + Math.random() * 92).toFixed(1) + '%';
-    s.style.fontSize = (15 + Math.random() * 12).toFixed(0) + 'px';
-    s.style.animationDelay = (Math.random() * 3).toFixed(2) + 's';
-    s.style.animationDuration = (6 + Math.random() * 3.5).toFixed(2) + 's';
-    wrap.appendChild(s);
-  }
-  document.body.appendChild(wrap);
-  setTimeout(function () { if (wrap.parentNode) wrap.parentNode.removeChild(wrap); }, 13000);
-}
-
 /* Преміум могли увімкнути, поки застосунок був закритий. Порівнюємо з тим,
    що бачили минулого разу, і вітаємо один раз. */
 function checkNewPremium() {
@@ -2419,7 +2418,7 @@ function rpMoneyPages(car) {
     x.fillStyle = '#0F1310'; x.fillRect(0, 0, RP_W, 132);
     x.fillStyle = '#D7FF3E'; x.font = '800 32px Unbounded, sans-serif';
     x.fillText('БАРДАЧОК', RP_M, 80);
-    x.fillStyle = '#8A9382'; x.font = '600 22px "IBM Plex Sans", sans-serif';
+    x.fillStyle = '#8A9382'; x.font = '600 22px Inter, sans-serif';
     var t = 'ЗВІТ ПРО ВИТРАТИ';
     x.fillText(t, RP_W - RP_M - x.measureText(t).width, 78);
     y = 210;
@@ -2427,16 +2426,16 @@ function rpMoneyPages(car) {
   function room(n) { if (y + n > RP_H - 190) newPage(); }
   function h2(t, need) {
     room((need || 110) + 26); y += 26;
-    x.fillStyle = '#5B6455'; x.font = '700 21px "IBM Plex Sans", sans-serif';
+    x.fillStyle = '#5B6455'; x.font = '700 21px Inter, sans-serif';
     x.fillText(t.toUpperCase(), RP_M, y); y += 16;
     x.fillStyle = '#E4E8DE'; x.fillRect(RP_M, y, RP_W - RP_M * 2, 2); y += 40;
   }
   function rows(items) {
     items.forEach(function (it) {
       room(48);
-      x.fillStyle = '#5B6455'; x.font = '400 24px "IBM Plex Sans", sans-serif';
+      x.fillStyle = '#5B6455'; x.font = '400 24px Inter, sans-serif';
       x.fillText(it[0], RP_M, y + 26);
-      x.fillStyle = '#0F1310'; x.font = '600 24px "IBM Plex Sans", sans-serif';
+      x.fillStyle = '#0F1310'; x.font = '600 24px Inter, sans-serif';
       x.fillText(it[1], RP_W - RP_M - x.measureText(it[1]).width, y + 26);
       x.fillStyle = '#EFF2EB'; x.fillRect(RP_M, y + 43, RP_W - RP_M * 2, 1);
       y += 46;
@@ -2450,9 +2449,9 @@ function rpMoneyPages(car) {
 
   newPage();
 
-  x.fillStyle = '#0F1310'; x.font = '800 52px Unbounded, sans-serif';
+  x.fillStyle = '#0F1310'; x.font = '700 52px "Inter Tight", sans-serif';
   x.fillText(carName(car), RP_M, y); y += 46;
-  x.fillStyle = '#5B6455'; x.font = '500 26px "IBM Plex Sans", sans-serif';
+  x.fillStyle = '#5B6455'; x.font = '500 26px Inter, sans-serif';
   x.fillText([car.year, FUEL_UA[car.fuel], car.plate].filter(Boolean).join('  ·  '), RP_M, y);
   y += 30;
 
@@ -2460,9 +2459,9 @@ function rpMoneyPages(car) {
   room(190);
   var bw = RP_W - RP_M * 2;
   x.fillStyle = '#D7FF3E'; rrect(RP_M, y, bw, 170, 24); x.fill();
-  x.fillStyle = 'rgba(16,19,14,.62)'; x.font = '600 22px "IBM Plex Sans", sans-serif';
+  x.fillStyle = 'rgba(16,19,14,.62)'; x.font = '600 22px Inter, sans-serif';
   x.fillText('ВИТРАЧЕНО ЗА РІК', RP_M + 30, y + 52);
-  x.fillStyle = '#10130E'; x.font = '800 62px Unbounded, sans-serif';
+  x.fillStyle = '#10130E'; x.font = '700 62px "Inter Tight", sans-serif';
   x.fillText(money(year.total), RP_M + 30, y + 124);
   y += 190;
 
@@ -2475,7 +2474,7 @@ function rpMoneyPages(car) {
     var cx = RP_M + i * (colW + gap);
     x.fillStyle = i === 11 ? '#0F1310' : '#DEE4D6';
     rrect(cx, y + H - hh, colW, hh, Math.min(colW / 2, 7)); x.fill();
-    x.fillStyle = '#8A9382'; x.font = '500 17px "IBM Plex Sans", sans-serif';
+    x.fillStyle = '#8A9382'; x.font = '500 17px Inter, sans-serif';
     var lw = x.measureText(r.label).width;
     x.fillText(r.label, cx + (colW - lw) / 2, y + H + 26);
   });
@@ -2524,12 +2523,12 @@ function rpMoneyPages(car) {
   pages.forEach(function (p, i) {
     var c2 = p.getContext('2d');
     if (i === pages.length - 1) {
-      c2.fillStyle = '#8A9382'; c2.font = '400 21px "IBM Plex Sans", sans-serif';
+      c2.fillStyle = '#8A9382'; c2.font = '400 21px Inter, sans-serif';
       c2.fillText('Дані взяті з ваших записів у Бардачку. Суми в інших валютах', RP_M, RP_H - 148);
       c2.fillText('переведені в гривню за курсом НБУ на день внесення.', RP_M, RP_H - 118);
     }
     c2.fillStyle = '#E4E8DE'; c2.fillRect(RP_M, RP_H - 96, RP_W - RP_M * 2, 2);
-    c2.fillStyle = '#8A9382'; c2.font = '400 20px "IBM Plex Sans", sans-serif';
+    c2.fillStyle = '#8A9382'; c2.font = '400 20px Inter, sans-serif';
     c2.fillText('Сформовано ' + fmtDateY(today()), RP_M, RP_H - 58);
     var pn = 'Сторінка ' + (i + 1) + ' з ' + pages.length;
     c2.fillText(pn, RP_W - RP_M - c2.measureText(pn).width, RP_H - 58);
@@ -2543,7 +2542,7 @@ function sendMoneyReport() {
   if (!car) return;
   if (!PRO) { needPro('report'); return; }
   toast('Готую звіт…');
-  var ready = document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve();
+  var ready = rpFonts();
   ready.then(function () {
     var pages;
     try { pages = rpMoneyPages(car); }
@@ -2642,7 +2641,7 @@ function sendReport() {
   }).catch(function () {});
 
   var ready = Promise.all([
-    document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve(),
+    rpFonts(),
     fresh,
   ]);
 
@@ -3178,6 +3177,26 @@ function shrinkImage(file, cb) {
     img.src = fr.result;
   };
   fr.readAsDataURL(file);
+}
+
+/* Картка штрафу з історії. Раніше рядок був просто текстом: прострочений
+   штраф не можна було ні позначити сплаченим, ні прибрати — він так і висів. */
+function fineOpen(id) {
+  var f = (S.fines || []).filter(function (x) { return x.id === id; })[0];
+  if (!f) return;
+  var dd = f.half ? daysLeft(f.until) : null;
+  var live = f.half && !f.paid && dd !== null && dd >= 0;
+  var st = f.paid ? 'сплачено' : live ? 'знижка ще ' + dd + ' ' + dayWord(dd) :
+           f.half ? 'знижка минула' : 'не сплачено';
+  var h = '<div class="kv"><span>Дата постанови</span><b>' + fmtDate(f.date) + '</b></div>' +
+    '<div class="kv"><span>Звідки</span><b>' + (f.half ? 'камера' : 'патрульний') + '</b></div>' +
+    '<div class="kv"><span>Сума</span><b>' + money(f.amount) + '</b></div>' +
+    (live ? '<div class="kv"><span>Зі знижкою до ' + fmtDate(f.until) + '</span><b>' + money(f.amount / 2) + '</b></div>' : '') +
+    '<div class="kv"><span>Стан</span><b>' + st + '</b></div>';
+  if (!f.paid) h += '<button class="btn" style="margin-top:16px" data-do="payFine" data-id="' + f.id + '">Позначити сплаченим</button>';
+  h += '<button class="btn dan"' + (f.paid ? ' style="margin-top:16px"' : '') +
+       ' data-do="delAsk" data-id="' + f.id + '">Видалити штраф</button>';
+  openSheet(f.title || 'Штраф', h);
 }
 
 function srvRec(id) {
@@ -4105,7 +4124,7 @@ function benchCard(car) {
       ' ' + (isEV ? 'кВт·год' : 'л') + '</b></div>' +
       (mine ? '<div class="kv"><span>У вас</span><b style="color:' +
         (d > 0.4 ? 'var(--hot)' : 'var(--lime)') + '">' + mine.per100.toFixed(1) +
-        ' · ' + (d > 0 ? '+' : '') + d.toFixed(1) + '</b></div>' : '');
+        (Math.abs(d) < 0.05 ? ' · так само' : ' · ' + (d > 0 ? '+' : '') + d.toFixed(1)) + '</b></div>' : '');
   }
   if (BENCH.year) {
     var my = own ? own.perMonth * 12 : null;
@@ -4393,7 +4412,7 @@ function drawCrash() {
      'а не штраф. Надайте допомогу, якщо вмієте.'],
     ['Фотографуйте до того, як щось зрушите',
      'Загальний план з розміткою і знаками · обидва номери · усі пошкодження зблизька · ' +
-     'сліди гальмування · position коліс · документи другого водія. Краще 30 фото, ніж потім доводити.'],
+     'сліди гальмування · положення коліс · документи другого водія. Краще 30 фото, ніж потім доводити.'],
     ['Зберіть дані другого учасника',
      'ПІБ, телефон, номер авто, серія полісу і назва страховика. Сфотографуйте його поліс і права — ' +
      'це швидше й надійніше, ніж переписувати.'],
@@ -4428,11 +4447,10 @@ function drawCrash() {
     '</div>' +
 
     '<div class="h2">Що робити</div>' +
-    '<div class="card list">' + steps.map(function (x, i) {
-      return '<div class="it" style="align-items:flex-start">' +
-        '<div class="dt" style="background:var(--lime);color:#10130E;font-family:var(--disp);font-weight:800;font-size:13px">' + (i + 1) + '</div>' +
-        '<div class="tx"><b style="white-space:normal;line-height:1.35">' + x[0] + '</b>' +
-        '<small style="display:block;margin-top:4px;line-height:1.5">' + x[1] + '</small></div></div>';
+    '<div class="acc">' + steps.map(function (x, i) {
+      return '<div class="acc-it' + (i === 0 ? ' open' : '') + '"><button class="acc-hd" data-acc="1">' +
+        '<span class="acc-n">' + (i + 1) + '</span><b>' + x[0] + '</b><i class="acc-pl">+</i></button>' +
+        '<div class="acc-bd"><div><p>' + x[1] + '</p></div></div></div>';
     }).join('') + '</div>' +
 
     '<div class="h2">Чого не робити ніколи</div>' +
@@ -4515,10 +4533,12 @@ function formCar(car) {
       fld('cOil', 'Пробіг останньої заміни масла', { mode: 'numeric', ph: 'напр. 82000', val: c.lastOilOdo }) +
       '<div class="field"><label>Як їздите<small style="color:var(--mut);font-weight:500">' +
         ' — від цього залежить строк заміни масла</small></label>' +
-        '<div class="seg wrap" id="cUse">' +
+        '<div class="seg use3" id="cUse">' +
           ['city', 'mix', 'trip'].map(function (m) {
+            /* під кожним варіантом — сам інтервал, щоб не гадати, що зміниться */
             return '<button type="button" data-v="' + m + '" class="' +
-              ((c.use || 'mix') === m ? 'on' : '') + '">' + USE_UA[m] + '</button>';
+              ((c.use || 'mix') === m ? 'on' : '') + '">' + USE_UA[m] +
+              '<small>кожні ' + distTxt(oilIv({ use: m })) + '</small></button>';
           }).join('') + '</div></div>' + '</div>' +
     '<div id="carErr"></div>' +
     '<button class="btn" data-do="saveCar">' + (c.id ? 'Зберегти' : 'Додати авто') + '</button>' +
@@ -4859,6 +4879,28 @@ var DO = {
   },
 
   /* Підтримка має бути під рукою скрізь, де людині може стати незрозуміло. */
+  adsInfo: function () {
+    openSheet('Реклама і співпраця',
+      '<p style="margin:0 0 12px;font-size:14px;color:var(--ink2);line-height:1.55">' +
+      'Бардачком щодня користуються водії: вносять заправки, ремонти, штрафи. ' +
+      'Якщо у вас автосервіс, мийка, шиномонтаж, страхування чи магазин запчастин — ' +
+      'напишіть, підберемо формат, який буде корисним і вам, і водіям.</p>' +
+      '<p style="margin:0 0 16px;font-size:12.5px;color:var(--mut);line-height:1.5">' +
+      'Відповідаємо особисто в Telegram.</p>' +
+      '<button class="btn" data-do="adsWrite">Написати про співпрацю</button>' +
+      '<button class="btn sec" data-close="1">Закрити</button>');
+  },
+  adsWrite: function () {
+    if (!CFG.contactTg) { toast('Контакт ще не вказано'); return; }
+    /* ?text= одразу вписує перше повідомлення — людині лишається натиснути «надіслати» */
+    var u = 'https://t.me/' + CFG.contactTg + '?text=' +
+            encodeURIComponent('Вітаю! Пишу щодо реклами / співпраці з Бардачком.');
+    try {
+      if (tg && tg.openTelegramLink) tg.openTelegramLink(u);
+      else if (tg && tg.openLink) tg.openLink(u);
+      else window.open(u, '_blank');
+    } catch (e) { copy('https://t.me/' + CFG.contactTg); toast('Скопіював контакт'); }
+  },
   support: function () {
     if (!CFG.contactTg) { toast('Контакт підтримки ще не вказано'); return; }
     var u = 'https://t.me/' + CFG.contactTg;
@@ -5119,7 +5161,11 @@ var DO = {
     act({ action: 'addFine', title: val('nTitle') || 'Штраф', amount: a,
           date: val('nDate'), camera: !on || on.dataset.v === '1' }, closeSheet);
   },
-  payFine: function (t) { act({ action: 'payFine', id: t.dataset.id }); },
+  payFine: function (t) {
+    var inSheet = !!(t.closest && t.closest('#sheet'));
+    act({ action: 'payFine', id: t.dataset.id }, inSheet ? closeSheet : null);
+  },
+  fineOpen: function (t) { fineOpen(t.dataset.id); },
 
   delAsk: function (t) {
     var id = t.dataset.id;
@@ -5716,8 +5762,8 @@ function start() {
   try {
     if (tg) {
       tg.ready(); tg.expand();
-      if (tg.setHeaderColor) tg.setHeaderColor('#0B0D0C');
-      if (tg.setBackgroundColor) tg.setBackgroundColor('#0B0D0C');
+      if (tg.setHeaderColor) tg.setHeaderColor('#0A0B0C');
+      if (tg.setBackgroundColor) tg.setBackgroundColor('#0A0B0C');
       if (tg.disableVerticalSwipes) tg.disableVerticalSwipes();
     }
   } catch (e) {}
@@ -5765,7 +5811,6 @@ function start() {
       /* Новини — після привітання про Преміум: якщо збіглося і те, і те,
          спершу людині кажуть про оплату, а вже потім про можливості. */
       checkNews();
-      autumn();
     }, left);
   }).catch(function () {
     bootFail('Немає зв’язку із сервером.<br>Перевірте інтернет і спробуйте ще раз.');
@@ -5837,4 +5882,37 @@ window.__app = { get S() { return S; }, get PRO() { return PRO; }, get CFG() { r
   refresh: function (f) { return refresh(f); }, get loaded() { return LOADED; },
   /* для знімків і перевірок: показати готовий розбір значка без камери */
   lampShow: function (L) { return lampShow(L, false); } };
+
+/* ------------------------------------------------------------------ */
+/* ПІДКАЗКИ «i», ХВИЛЯ НА КНОПКАХ, АКОРДЕОН ДТП, ДРУКАРКА (10.2026)    */
+/* ------------------------------------------------------------------ */
+function tipI(text) {
+  return '<button class="tip-i" data-tip="1" aria-label="Як це пораховано">i<span class="tip-b">' + esc(text) + '</span></button>';
+}
+document.addEventListener('pointerdown', function (e) {           // хвиля світла на кнопці
+  var b = e.target.closest && e.target.closest('.btn, .chip');
+  if (!b) return;
+  b.classList.remove('wave'); void b.offsetWidth; b.classList.add('wave');
+  setTimeout(function () { b.classList.remove('wave'); }, 900);
+});
+document.addEventListener('click', function (e) {
+  var a = e.target.closest && e.target.closest('[data-acc]');     // акордеон
+  if (a) { a.parentNode.classList.toggle('open'); return; }
+  var t = e.target.closest && e.target.closest('[data-tip]');     // підказка «i»
+  document.querySelectorAll('.tip-i.on').forEach(function (x) { if (x !== t) x.classList.remove('on'); });
+  if (t) { e.stopPropagation(); t.classList.toggle('on'); }
+}, true);
+(function typewriter() {                                          // друкарка: 95 / 55 / 1400 / 260 мс
+  var st = { w: 0, n: 0, del: false };
+  function tick() {
+    var el = document.querySelector('.tw[data-tw]');
+    if (!el) { setTimeout(tick, 400); return; }
+    var words = el.getAttribute('data-tw').split('|'), w = words[st.w % words.length], delay;
+    if (!st.del) { st.n++; el.textContent = w.slice(0, st.n); delay = st.n >= w.length ? (st.del = true, 1400) : 95; }
+    else { st.n--; el.textContent = w.slice(0, st.n); delay = 55; if (st.n <= 0) { st.del = false; st.w++; delay = 260; } }
+    setTimeout(tick, delay);
+  }
+  setTimeout(tick, 1200);
+})();
+
 })();
