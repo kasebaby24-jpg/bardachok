@@ -13,7 +13,7 @@ var API = 'https://bardachok.kasebaby24.workers.dev';
 var QR_FOR = 'TWqHKxsLAdGMPC7kY4i3r2GQxNJ2U6vQXv';   // до цієї адреси намальовано usdt-qr.png
 var USDT_CONTRACT = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';   // USDT у мережі TRON
 
-var BUILD = '20261014-1339';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
+var BUILD = '20261014-1630';   // видно внизу «Ще» — щоб не гадати, яка версія відкрита
 var BOOT_T0 = Date.now();
 
 var tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
@@ -216,6 +216,7 @@ var ICONS = {
   mic:    '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M9 21h6"/>',
   bell:   '<path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15L6 16Z"/><path d="M10 20.5a2 2 0 0 0 4 0"/>',
   report: '<path d="M6 3h7l5 5v13H6V3Z"/><path d="M13 3v5h5M9.5 17v-3M12 17v-5M14.5 17v-2"/>',
+  arr:    '<path d="M7 17 17 7"/><path d="M9 7h8v8"/>',
   chat:   '<path d="M4 5h16v11H9l-5 4V5Z"/><path d="M8.5 10.5h.5M11.5 10.5h.5M14.5 10.5h.5"/>',
   crash:  '<path d="M12 3v4M5.6 5.6l2.8 2.8M3 12h4M5.6 18.4l2.8-2.8M12 21v-4M18.4 18.4l-2.8-2.8M21 12h-4M18.4 5.6l-2.8 2.8"/><circle cx="12" cy="12" r="2.6"/>',
   globe:  '<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.5 2.6 2.5 14.4 0 17M12 3.5c-2.5 2.6-2.5 14.4 0 17"/>',
@@ -223,6 +224,7 @@ var ICONS = {
   star:   '<path d="m12 4 2.4 5 5.6.8-4 3.9 1 5.5-5-2.7-5 2.7 1-5.5-4-3.9 5.6-.8L12 4Z"/>',
   back:   '<path d="M15 5 8 12l7 7"/>',
   rain:   '<path d="M12 3.5c3 3.6 5 6.1 5 8.2a5 5 0 0 1-10 0c0-2.1 2-4.6 5-8.2Z"/>',
+  moon:   '<path d="M19.5 14.6A7.8 7.8 0 1 1 9.4 4.5a6.3 6.3 0 0 0 10.1 10.1Z"/>',
   sun:    '<circle cx="12" cy="12" r="4"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M19.1 4.9l-1.8 1.8M6.7 17.3l-1.8 1.8"/>',
   snow:   '<path d="M12 2v20M4 7l16 10M20 7 4 17"/>',
   idcard: '<rect x="3" y="5.5" width="18" height="13" rx="2.5"/><circle cx="8.5" cy="11" r="2"/>' +
@@ -959,13 +961,17 @@ function paint(id) {
   }
 }
 
+/* Кольори кільця — через змінні теми: у світлій темі лайм на білому не видно,
+   а статуси (червоний, помаранчевий) мають бути темнішими. */
+var RING_VAR = { '#D7FF3E': 'var(--ring-ok)', '#FF5A4A': 'var(--bad)', '#FFB340': 'var(--warn)', '#3ED598': 'var(--good)' };
 function ringSvg(pct, color, empty) {
   var C = 232.5, off = C * (1 - Math.max(0, Math.min(1, pct)));
+  var col = RING_VAR[color] || color;
   return '<div class="gauge"><svg width="84" height="84" viewBox="0 0 88 88">' +
-    '<circle cx="44" cy="44" r="37" stroke="#252C30" stroke-width="9" fill="none"/>' +
-    '<circle cx="44" cy="44" r="37" stroke="' + color + '" stroke-width="9" fill="none" ' +
+    '<circle cx="44" cy="44" r="37" style="stroke:var(--ring-track)" stroke-width="9" fill="none"/>' +
+    '<circle cx="44" cy="44" r="37" style="stroke:' + col + '" stroke-width="9" fill="none" ' +
     'stroke-linecap="round" stroke-dasharray="' + C + '" stroke-dashoffset="' + off + '"/>' +
-    '</svg><div class="lab" style="color:' + color + '">' + (empty ? '—' : Math.round(pct * 100) + '%') + '</div></div>';
+    '</svg><div class="lab" style="color:' + col + '">' + (empty ? '—' : Math.round(pct * 100) + '%') + '</div></div>';
 }
 
 /* ------------------------------------------------------------------ */
@@ -1072,6 +1078,7 @@ function drawTour() {
       (s.last ? '<div class="note" style="text-align:center;margin-top:8px">' +
                 'Займе хвилину. VIN не обовʼязковий.</div>' : '') +
     '</div>';
+  if (i === 0) twKick();
 }
 
 function drawHome() {
@@ -1133,7 +1140,7 @@ function drawHome() {
          '<p>Найближчим часом нічого не горить. Я попереджу заздалегідь.</p></div></div>';
   } else {
     h += att.map(function (a) {
-      return '<div class="alert ' + (a.lvl === 'hot' ? 'hot' : '') + '" data-go="' + a.go + '">' +
+      return '<div class="alert ' + (a.lvl === 'hot' ? 'hot' : '') + '" data-k="' + a.ic + '" data-go="' + a.go + '">' +
         '<div class="ic">' + ic(a.ic, 19) + '</div><div class="bd"><b>' + esc(a.t) + '</b><p>' + esc(a.p) + '</p></div>' +
         '<div class="dd">' + esc(a.d) + '</div></div>';
     }).join('');
@@ -1147,7 +1154,7 @@ function drawHome() {
     '<p>' + (PRO
       ? 'Сфотографуйте панель — скажу, що це і чи можна їхати'
       : 'Сфотографуйте панель — і за секунди знаєте, панікувати чи ні. У Преміумі') + '</p></div>' +
-    '<div class="go">' + ic('back', 16) + '</div></div>';
+    '<div class="go">' + ic('arr', 16) + '</div></div>';
 
   h += '<div class="h2">Швидко</div><div class="quick">' +
     '<button data-do="fuel">' + ic(isEV ? 'charge' : 'fuel', 21) + (isEV ? 'Зарядка' : 'Заправка') + '</button>' +
@@ -1162,7 +1169,7 @@ function drawHome() {
       '<div class="nt-ic">' + ic(nt.kind === 'warn' ? 'alert' : 'star', 17) + '</div>' +
       '<div class="tx">' + (nt.title ? '<b>' + esc(nt.title) + '</b>' : '') +
       '<p>' + esc(nt.text) + '</p></div>' +
-      '<div class="nt-go">' + ic('back', 15) + '</div></div>' + h;
+      '<div class="nt-go">' + ic('arr', 15) + '</div></div>' + h;
   }
 
   var nd = nudges(car);
@@ -1180,7 +1187,7 @@ function drawHome() {
     '<div class="tx"><b>Спитати про авто</b>' +
     '<p>' + (PRO ? 'Стукає, гріється, не заводиться — відповім з вашою книжкою перед очима'
                  : 'Помічник знає ваш ' + esc(carName(car)) + '. Відкрийте в Преміумі') + '</p></div>' +
-    '<div class="go">' + ic('back', 16) + '</div></div>';
+    '<div class="go">' + ic('arr', 16) + '</div></div>';
 
   var pctFuel = sp.total > 0 ? sp.fuel / sp.total : 0;
   h += '<div class="h2">Витрати за 30 днів<span class="act" data-go="tab:s-money">детально</span></div>' +
@@ -1300,7 +1307,7 @@ function drawService() {
     '<div class="tx"><b>Потрібна запчастина?</b>' +
     '<p>' + (PRO ? 'Покажу оригінал і аналоги, які точно підійдуть, з цінами'
                  : 'Оригінал чи аналог — з цінами. Відкрийте в Преміумі') + '</p></div>' +
-    '<div class="go">' + ic('back', 16) + '</div></div>';
+    '<div class="go">' + ic('arr', 16) + '</div></div>';
 
   h += reglCard(car);
 
@@ -1590,7 +1597,7 @@ function drawMore() {
       '<span class="chbtn-ic">' + ic('car', 17) + '</span>' +
       '<span class="chbtn-tx"><b>Додати на головний екран</b>' +
       '<small>іконка Бардачка на телефоні — відкривається як застосунок</small></span>' +
-      '<span class="chbtn-go">' + ic('back', 14) + '</span></button>';
+      '<span class="chbtn-go">' + ic('arr', 14) + '</span></button>';
   }
 
 
@@ -1624,6 +1631,15 @@ function drawMore() {
       }).join('') +
     '</div></div>';
 
+  h += '<div class="card" style="margin-top:12px"><div class="card-h"><b>Тема</b>' +
+    '<span>' + (themeNight() ? 'ніч' : 'день') + '</span></div>' +
+    '<div class="seg" id="thmPick">' +
+      [['auto', 'Як у Telegram'], ['day', 'День'], ['night', 'Ніч']].map(function (c) {
+        return '<button type="button" data-do="setTheme" data-v="' + c[0] + '"' +
+               (themeMode() === c[0] ? ' class="on"' : '') + '>' + c[1] + '</button>';
+      }).join('') +
+    '</div></div>';
+
   /* Милі й галони. Пробіг лежить у кілометрах — змінюється лише те, в чому
      показувати й у чому вводити. Клієнт зі США мав вводити кілометри й сам
      перераховувати; тепер не має. */
@@ -1653,7 +1669,7 @@ function drawMore() {
     h += '<button class="chbtn" data-do="adsInfo">' +
       '<span class="chbtn-ic">' + ic('mega', 17) + '</span>' +
       '<span class="chbtn-tx"><b>Реклама і співпраця</b><small>для СТО, мийок, страхових і магазинів</small></span>' +
-      '<span class="chbtn-go">' + ic('back', 14) + '</span></button>';
+      '<span class="chbtn-go">' + ic('arr', 14) + '</span></button>';
   }
 
   /* Канал — окремою невеликою кнопкою, а не рядком у переліку з десяти
@@ -1662,7 +1678,7 @@ function drawMore() {
     h += '<button class="chbtn" data-do="channel">' +
       '<span class="chbtn-ic">' + ic('star', 17) + '</span>' +
       '<span class="chbtn-tx"><b>Наш канал</b><small>новини, поради, оновлення</small></span>' +
-      '<span class="chbtn-go">' + ic('back', 14) + '</span></button>';
+      '<span class="chbtn-go">' + ic('arr', 14) + '</span></button>';
   }
 
   /* Подяка — тихим рядком у самому кінці меню. Картка на пів екрана
@@ -1953,8 +1969,8 @@ function rpStats(carId) {
    екрані, тому потрібні накреслення просимо явно. */
 function rpFonts() {
   if (!document.fonts || !document.fonts.load) return Promise.resolve();
-  return Promise.all(['800 32px Unbounded', '700 52px "Inter Tight"', '400 24px Inter',
-                      '500 24px Inter', '600 24px Inter', '700 24px Inter'].map(function (f) {
+  return Promise.all(['800 32px Unbounded', '800 52px Unbounded', '400 24px "IBM Plex Sans"',
+                      '500 24px "IBM Plex Sans"', '600 24px "IBM Plex Sans"', '700 24px "IBM Plex Sans"'].map(function (f) {
     return document.fonts.load(f).catch(function () {});
   })).then(function () { return document.fonts.ready; });
 }
@@ -1975,7 +1991,7 @@ function rpPages(car, photos) {
     x.fillStyle = '#0F1310'; x.fillRect(0, 0, RP_W, 132);
     x.fillStyle = '#D7FF3E'; x.font = '800 32px Unbounded, sans-serif';
     x.fillText('БАРДАЧОК', RP_M, 80);
-    x.fillStyle = '#8A9382'; x.font = '600 22px Inter, sans-serif';
+    x.fillStyle = '#8A9382'; x.font = '600 22px "IBM Plex Sans", sans-serif';
     var t = 'ЗВІТ ПРО ДОГЛЯД ЗА АВТО';
     x.fillText(t, RP_W - RP_M - x.measureText(t).width, 78);
     y = 132 + 78;
@@ -1984,18 +2000,18 @@ function rpPages(car, photos) {
   function room(need) { if (y + need > RP_H - 190) newPage(); }  // 190 — місце під підпис і колонтитул
 
   function h1(t) {
-    room(90); x.fillStyle = '#0F1310'; x.font = '700 52px "Inter Tight", sans-serif';
+    room(90); x.fillStyle = '#0F1310'; x.font = '800 52px Unbounded, sans-serif';
     x.fillText(t, RP_M, y); y += 22;
   }
   function h2(t, need) {
     room((need || 110) + 26); y += 26;
-    x.fillStyle = '#5B6455'; x.font = '700 21px Inter, sans-serif';
+    x.fillStyle = '#5B6455'; x.font = '700 21px "IBM Plex Sans", sans-serif';
     x.fillText(t.toUpperCase(), RP_M, y); y += 16;
     x.fillStyle = '#E4E8DE'; x.fillRect(RP_M, y, RP_W - RP_M * 2, 2); y += 40;
   }
   function para(t, size, color) {
     x.fillStyle = color || '#3C443A';
-    x.font = '400 ' + (size || 24) + 'px Inter, sans-serif';
+    x.font = '400 ' + (size || 24) + 'px "IBM Plex Sans", sans-serif';
     var words = String(t).split(' '), line = '', max = RP_W - RP_M * 2;
     words.forEach(function (w) {
       var tryLine = line ? line + ' ' + w : w;
@@ -2005,7 +2021,7 @@ function rpPages(car, photos) {
     if (line) { room(40); x.fillText(line, RP_M, y); y += (size || 24) + 12; }
   }
   function clip(t, max) {
-    x.font = '400 24px Inter, sans-serif';
+    x.font = '400 24px "IBM Plex Sans", sans-serif';
     t = String(t == null ? '' : t);
     if (x.measureText(t).width <= max) return t;
     while (t.length > 1 && x.measureText(t + '…').width > max) t = t.slice(0, -1);
@@ -2020,9 +2036,9 @@ function rpPages(car, photos) {
   function rows(items) {
     items.forEach(function (it) {
       room(48);
-      x.fillStyle = '#5B6455'; x.font = '400 24px Inter, sans-serif';
+      x.fillStyle = '#5B6455'; x.font = '400 24px "IBM Plex Sans", sans-serif';
       x.fillText(it[0], RP_M, y + 26);
-      x.fillStyle = '#0F1310'; x.font = '600 24px Inter, sans-serif';
+      x.fillStyle = '#0F1310'; x.font = '600 24px "IBM Plex Sans", sans-serif';
       x.fillText(it[1], RP_W - RP_M - x.measureText(it[1]).width, y + 26);
       x.fillStyle = '#EFF2EB'; x.fillRect(RP_M, y + 43, RP_W - RP_M * 2, 1);
       y += 46;
@@ -2035,9 +2051,9 @@ function rpPages(car, photos) {
       for (var j = 0; j < 2 && items[i + j]; j++) {
         var it = items[i + j], cx = RP_M + j * (colW + 20);
         x.fillStyle = '#F5F7F2'; rrect(cx, y, colW, cellH, 18); x.fill();
-        x.fillStyle = '#6B7464'; x.font = '600 20px Inter, sans-serif';
+        x.fillStyle = '#6B7464'; x.font = '600 20px "IBM Plex Sans", sans-serif';
         x.fillText(it[0].toUpperCase(), cx + 26, y + 42);
-        x.fillStyle = '#0F1310'; x.font = '700 32px Inter, sans-serif';
+        x.fillStyle = '#0F1310'; x.font = '700 32px "IBM Plex Sans", sans-serif';
         x.fillText(clip(it[1], colW - 52), cx + 26, y + 86);
       }
       y += cellH + 16;
@@ -2050,10 +2066,10 @@ function rpPages(car, photos) {
   h1([car.make, car.model].filter(Boolean).join(' ') || 'Автомобіль');
   y += 46;
   var sub = [car.year, FUEL_UA[car.fuel], car.plate].filter(Boolean).join('  ·  ');
-  x.fillStyle = '#5B6455'; x.font = '500 26px Inter, sans-serif';
+  x.fillStyle = '#5B6455'; x.font = '500 26px "IBM Plex Sans", sans-serif';
   x.fillText(sub, RP_M, y); y += 20;
   if (car.vin) {
-    y += 26; x.fillStyle = '#8A9382'; x.font = '500 22px Inter, sans-serif';
+    y += 26; x.fillStyle = '#8A9382'; x.font = '500 22px "IBM Plex Sans", sans-serif';
     x.fillText('VIN  ' + car.vin, RP_M, y);
   }
   y += 26;
@@ -2101,7 +2117,7 @@ function rpPages(car, photos) {
     para('Записів поки немає.', 24, '#8A9382');
   } else {
     var cols = [RP_M, RP_M + 258, RP_M + 440, RP_W - RP_M];   // дата з роком широка
-    x.fillStyle = '#8A9382'; x.font = '600 19px Inter, sans-serif';
+    x.fillStyle = '#8A9382'; x.font = '600 19px "IBM Plex Sans", sans-serif';
     x.fillText('ДАТА', cols[0], y); x.fillText('ПРОБІГ', cols[1], y); x.fillText('ЩО ЗРОБЛЕНО', cols[2], y);
     var sc = 'СУМА'; x.fillText(sc, cols[3] - x.measureText(sc).width, y);
     y += 22;
@@ -2109,7 +2125,7 @@ function rpPages(car, photos) {
     st.srv.slice(0, 90).forEach(function (r, i) {
       room(64);
       if (i % 2 === 0) { x.fillStyle = '#FAFBF8'; x.fillRect(RP_M - 14, y - 8, RP_W - RP_M * 2 + 28, 54); }
-      x.fillStyle = '#0F1310'; x.font = '400 24px Inter, sans-serif';
+      x.fillStyle = '#0F1310'; x.font = '400 24px "IBM Plex Sans", sans-serif';
       x.fillText(fmtDateY(r.date), cols[0], y + 28);
       x.fillStyle = '#3C443A';
       x.fillText(r.odo ? nfmt(r.odo) : '—', cols[1], y + 28);
@@ -2117,7 +2133,7 @@ function rpPages(car, photos) {
       var what = r.title || KIND_UA[r.kind] || 'Обслуговування';
       x.fillText(clip(what, cols[3] - cols[2] - 190), cols[2], y + 28);
       var s = r.cost ? money(r.cost) : '—';
-      x.font = '600 24px Inter, sans-serif';
+      x.font = '600 24px "IBM Plex Sans", sans-serif';
       x.fillText(s, cols[3] - x.measureText(s).width, y + 28);
       y += 54;
     });
@@ -2160,9 +2176,9 @@ function rpPages(car, photos) {
         x.save(); rrect(px, y, PW, hh, 14); x.clip();
         x.drawImage(ph.img, px + Math.round((PW - w) / 2), y + Math.round((hh - h3) / 2), w, h3);
         x.restore();
-        x.fillStyle = '#0F1310'; x.font = '600 22px Inter, sans-serif';
+        x.fillStyle = '#0F1310'; x.font = '600 22px "IBM Plex Sans", sans-serif';
         x.fillText(clip(ph.title || 'Робота', PW), px, y + hh + 32);
-        x.fillStyle = '#8A9382'; x.font = '400 20px Inter, sans-serif';
+        x.fillStyle = '#8A9382'; x.font = '400 20px "IBM Plex Sans", sans-serif';
         x.fillText(fmtDate(ph.date), px, y + hh + 58);
       });
       y += hh + 78;
@@ -2174,12 +2190,12 @@ function rpPages(car, photos) {
     var c2 = p.getContext('2d');
     var last = i === pages.length - 1;
     if (last) {                              // підпис — на останній сторінці, окремий аркуш не потрібен
-      c2.fillStyle = '#8A9382'; c2.font = '400 21px Inter, sans-serif';
+      c2.fillStyle = '#8A9382'; c2.font = '400 21px "IBM Plex Sans", sans-serif';
       c2.fillText('Записи вносив власник авто у застосунку Бардачок. Звіт показує, як за машиною', RP_M, RP_H - 148);
       c2.fillText('доглядали: що і коли обслуговували, скільки в це вклали.', RP_M, RP_H - 118);
     }
     c2.fillStyle = '#E4E8DE'; c2.fillRect(RP_M, RP_H - 96, RP_W - RP_M * 2, 2);
-    c2.fillStyle = '#8A9382'; c2.font = '400 20px Inter, sans-serif';
+    c2.fillStyle = '#8A9382'; c2.font = '400 20px "IBM Plex Sans", sans-serif';
     c2.fillText('Сформовано ' + fmtDateY(today()), RP_M, RP_H - 58);
     var pn = 'Сторінка ' + (i + 1) + ' з ' + pages.length;
     c2.fillText(pn, RP_W - RP_M - c2.measureText(pn).width, RP_H - 58);
@@ -2418,7 +2434,7 @@ function rpMoneyPages(car) {
     x.fillStyle = '#0F1310'; x.fillRect(0, 0, RP_W, 132);
     x.fillStyle = '#D7FF3E'; x.font = '800 32px Unbounded, sans-serif';
     x.fillText('БАРДАЧОК', RP_M, 80);
-    x.fillStyle = '#8A9382'; x.font = '600 22px Inter, sans-serif';
+    x.fillStyle = '#8A9382'; x.font = '600 22px "IBM Plex Sans", sans-serif';
     var t = 'ЗВІТ ПРО ВИТРАТИ';
     x.fillText(t, RP_W - RP_M - x.measureText(t).width, 78);
     y = 210;
@@ -2426,16 +2442,16 @@ function rpMoneyPages(car) {
   function room(n) { if (y + n > RP_H - 190) newPage(); }
   function h2(t, need) {
     room((need || 110) + 26); y += 26;
-    x.fillStyle = '#5B6455'; x.font = '700 21px Inter, sans-serif';
+    x.fillStyle = '#5B6455'; x.font = '700 21px "IBM Plex Sans", sans-serif';
     x.fillText(t.toUpperCase(), RP_M, y); y += 16;
     x.fillStyle = '#E4E8DE'; x.fillRect(RP_M, y, RP_W - RP_M * 2, 2); y += 40;
   }
   function rows(items) {
     items.forEach(function (it) {
       room(48);
-      x.fillStyle = '#5B6455'; x.font = '400 24px Inter, sans-serif';
+      x.fillStyle = '#5B6455'; x.font = '400 24px "IBM Plex Sans", sans-serif';
       x.fillText(it[0], RP_M, y + 26);
-      x.fillStyle = '#0F1310'; x.font = '600 24px Inter, sans-serif';
+      x.fillStyle = '#0F1310'; x.font = '600 24px "IBM Plex Sans", sans-serif';
       x.fillText(it[1], RP_W - RP_M - x.measureText(it[1]).width, y + 26);
       x.fillStyle = '#EFF2EB'; x.fillRect(RP_M, y + 43, RP_W - RP_M * 2, 1);
       y += 46;
@@ -2449,9 +2465,9 @@ function rpMoneyPages(car) {
 
   newPage();
 
-  x.fillStyle = '#0F1310'; x.font = '700 52px "Inter Tight", sans-serif';
+  x.fillStyle = '#0F1310'; x.font = '800 52px Unbounded, sans-serif';
   x.fillText(carName(car), RP_M, y); y += 46;
-  x.fillStyle = '#5B6455'; x.font = '500 26px Inter, sans-serif';
+  x.fillStyle = '#5B6455'; x.font = '500 26px "IBM Plex Sans", sans-serif';
   x.fillText([car.year, FUEL_UA[car.fuel], car.plate].filter(Boolean).join('  ·  '), RP_M, y);
   y += 30;
 
@@ -2459,9 +2475,9 @@ function rpMoneyPages(car) {
   room(190);
   var bw = RP_W - RP_M * 2;
   x.fillStyle = '#D7FF3E'; rrect(RP_M, y, bw, 170, 24); x.fill();
-  x.fillStyle = 'rgba(16,19,14,.62)'; x.font = '600 22px Inter, sans-serif';
+  x.fillStyle = 'rgba(16,19,14,.62)'; x.font = '600 22px "IBM Plex Sans", sans-serif';
   x.fillText('ВИТРАЧЕНО ЗА РІК', RP_M + 30, y + 52);
-  x.fillStyle = '#10130E'; x.font = '700 62px "Inter Tight", sans-serif';
+  x.fillStyle = '#10130E'; x.font = '800 62px Unbounded, sans-serif';
   x.fillText(money(year.total), RP_M + 30, y + 124);
   y += 190;
 
@@ -2474,7 +2490,7 @@ function rpMoneyPages(car) {
     var cx = RP_M + i * (colW + gap);
     x.fillStyle = i === 11 ? '#0F1310' : '#DEE4D6';
     rrect(cx, y + H - hh, colW, hh, Math.min(colW / 2, 7)); x.fill();
-    x.fillStyle = '#8A9382'; x.font = '500 17px Inter, sans-serif';
+    x.fillStyle = '#8A9382'; x.font = '500 17px "IBM Plex Sans", sans-serif';
     var lw = x.measureText(r.label).width;
     x.fillText(r.label, cx + (colW - lw) / 2, y + H + 26);
   });
@@ -2523,12 +2539,12 @@ function rpMoneyPages(car) {
   pages.forEach(function (p, i) {
     var c2 = p.getContext('2d');
     if (i === pages.length - 1) {
-      c2.fillStyle = '#8A9382'; c2.font = '400 21px Inter, sans-serif';
+      c2.fillStyle = '#8A9382'; c2.font = '400 21px "IBM Plex Sans", sans-serif';
       c2.fillText('Дані взяті з ваших записів у Бардачку. Суми в інших валютах', RP_M, RP_H - 148);
       c2.fillText('переведені в гривню за курсом НБУ на день внесення.', RP_M, RP_H - 118);
     }
     c2.fillStyle = '#E4E8DE'; c2.fillRect(RP_M, RP_H - 96, RP_W - RP_M * 2, 2);
-    c2.fillStyle = '#8A9382'; c2.font = '400 20px Inter, sans-serif';
+    c2.fillStyle = '#8A9382'; c2.font = '400 20px "IBM Plex Sans", sans-serif';
     c2.fillText('Сформовано ' + fmtDateY(today()), RP_M, RP_H - 58);
     var pn = 'Сторінка ' + (i + 1) + ' з ' + pages.length;
     c2.fillText(pn, RP_W - RP_M - c2.measureText(pn).width, RP_H - 58);
@@ -2590,7 +2606,7 @@ function drawReport() {
       '<div class="askcard-ic">' + ic('money', 20) + '</div>' +
       '<div class="tx"><b>Скільки коштує ваше авто' + (PRO ? '' : lockIc()) + '</b>' +
       '<p>Оцінка за ринком і що можна взяти натомість у цій же ціні</p></div>' +
-      '<div class="go">' + ic('back', 16) + '</div></div>' +
+      '<div class="go">' + ic('arr', 16) + '</div></div>' +
     (st.srv.length ? '' :
       '<div class="note">Поки що книжка порожня. Внесіть хоч кілька робіт — звіт стане переконливим.</div>');
 }
@@ -4674,6 +4690,8 @@ var DO = {
     setTimeout(function () { DO.addCar(); }, 260);
   },
 
+  themeFlip: function () { haptic('light'); setTheme(themeNight() ? 'day' : 'night'); },
+  setTheme: function (t) { setTheme(t.dataset.v); },
   setUnits: function (t) {
     var u = t.dataset.v === 'mi' ? 'mi' : 'km';
     if (u === UNIT) return;
@@ -5680,6 +5698,7 @@ function show(id) {
   $$('.nav button').forEach(function (b) { b.classList.toggle('on', b.dataset.tab === tab); });
   $('#scroll').scrollTop = 0;
   if (tg && tg.BackButton) { if (PARENT[id]) tg.BackButton.show(); else tg.BackButton.hide(); }
+  if (id === 's-tour' && STORY === 0) twKick();     // друкарка після повернення до знайомства
 }
 
 document.addEventListener('click', function (e) {
@@ -5758,12 +5777,49 @@ function bootFail(msg) {
   if (sp) sp.style.display = 'none';
 }
 
+/* ------------------------------------------------------------------ */
+/* ТЕМА: ДЕНЬ / НІЧ                                                    */
+/* ------------------------------------------------------------------ */
+/* «Як у Telegram» — за замовчуванням: застосунок бере тему, яку людина
+   вже обрала в месенджері. Вибір зберігається на телефоні. Перший кадр
+   фарбує маленький скрипт в index.html — тут та сама логіка. */
+var THEME_BG = { day: '#ECEDEF', night: '#0E0F10' };
+function themeMode() {
+  var m = 'auto';
+  try { m = localStorage.getItem('b_theme') || 'auto'; } catch (e) {}
+  return m === 'day' || m === 'night' ? m : 'auto';
+}
+function themeNight() {
+  var m = themeMode();
+  return m === 'night' || (m === 'auto' && !!tg && tg.colorScheme === 'dark');
+}
+function applyTheme() {
+  var night = themeNight(), bg = night ? THEME_BG.night : THEME_BG.day;
+  document.documentElement.classList.toggle('dk', night);
+  var mt = document.querySelector('meta[name="theme-color"]');
+  if (mt) mt.setAttribute('content', bg);
+  var b = document.getElementById('thmBtn');
+  if (b) b.innerHTML = ic(night ? 'sun' : 'moon', 18);
+  try {
+    if (tg && tg.setHeaderColor) tg.setHeaderColor(bg);
+    if (tg && tg.setBackgroundColor) tg.setBackgroundColor(bg);
+    if (tg && tg.setBottomBarColor && tg.isVersionAtLeast && tg.isVersionAtLeast('7.10')) tg.setBottomBarColor(bg);
+  } catch (e) {}
+}
+function setTheme(m) {
+  try { if (m === 'auto') localStorage.removeItem('b_theme'); else localStorage.setItem('b_theme', m); } catch (e) {}
+  applyTheme();
+  var pick = document.getElementById('thmPick');
+  if (pick) pick.querySelectorAll('button').forEach(function (x) { x.classList.toggle('on', x.dataset.v === themeMode()); });
+}
+
 function start() {
   try {
     if (tg) {
       tg.ready(); tg.expand();
-      if (tg.setHeaderColor) tg.setHeaderColor('#0A0B0C');
-      if (tg.setBackgroundColor) tg.setBackgroundColor('#0A0B0C');
+      applyTheme();
+      /* людина перемкнула тему в самому Telegram — підхоплюємо, якщо стоїть «як у Telegram» */
+      if (tg.onEvent) tg.onEvent('themeChanged', function () { if (themeMode() === 'auto') applyTheme(); });
       if (tg.disableVerticalSwipes) tg.disableVerticalSwipes();
     }
   } catch (e) {}
@@ -5900,19 +5956,23 @@ document.addEventListener('click', function (e) {
   if (a) { a.parentNode.classList.toggle('open'); return; }
   var t = e.target.closest && e.target.closest('[data-tip]');     // підказка «i»
   document.querySelectorAll('.tip-i.on').forEach(function (x) { if (x !== t) x.classList.remove('on'); });
-  if (t) { e.stopPropagation(); t.classList.toggle('on'); }
-}, true);
-(function typewriter() {                                          // друкарка: 95 / 55 / 1400 / 260 мс
-  var st = { w: 0, n: 0, del: false };
-  function tick() {
-    var el = document.querySelector('.tw[data-tw]');
-    if (!el) { setTimeout(tick, 400); return; }
-    var words = el.getAttribute('data-tw').split('|'), w = words[st.w % words.length], delay;
-    if (!st.del) { st.n++; el.textContent = w.slice(0, st.n); delay = st.n >= w.length ? (st.del = true, 1400) : 95; }
-    else { st.n--; el.textContent = w.slice(0, st.n); delay = 55; if (st.n <= 0) { st.del = false; st.w++; delay = 260; } }
-    setTimeout(tick, delay);
+  document.querySelectorAll('.card.tip-open').forEach(function (c) { c.classList.remove('tip-open'); });
+  if (t) {
+    e.stopPropagation(); t.classList.toggle('on');
+    var c = t.closest('.card'); if (c && t.classList.contains('on')) c.classList.add('tip-open');
   }
-  setTimeout(tick, 1200);
-})();
+}, true);
+/* Друкарка в першій сторіз: 95 / 55 / 1400 / 260 мс. Запускає її drawTour;
+   щойно знайомство сховали — зупиняється сама, нічого не опитує у фоні. */
+var TW = { t: 0, w: 0, n: 0, del: false };
+function twKick() { clearTimeout(TW.t); TW.t = setTimeout(twTick, 900); }
+function twTick() {
+  var el = document.querySelector('#s-tour.on .tw[data-tw]');
+  if (!el) return;
+  var words = el.getAttribute('data-tw').split('|'), w = words[TW.w % words.length], delay;
+  if (!TW.del) { TW.n++; el.textContent = w.slice(0, TW.n); delay = TW.n >= w.length ? (TW.del = true, 1400) : 95; }
+  else { TW.n--; el.textContent = w.slice(0, TW.n); delay = 55; if (TW.n <= 0) { TW.del = false; TW.w++; delay = 260; } }
+  TW.t = setTimeout(twTick, delay);
+}
 
 })();

@@ -1,16 +1,26 @@
 <!DOCTYPE html>
-<html lang="uk">
+<html lang="uk" class="v3">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, user-scalable=no">
-<meta name="theme-color" content="#0A0B0C">
+<meta name="theme-color" content="#ECEDEF">
 <title>Бардачок</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&family=Inter+Tight:wght@500..800&family=Unbounded:wght@700;800&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@300;400;500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <link rel="icon" href="icon.png">
-<link rel="stylesheet" href="styles.css?v=20261014-1339">
+<link rel="stylesheet" href="styles.css?v=20261014-1630">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script>
+/* День / ніч — до першого малювання, щоб не блимало. Логіка та сама, що в applyTheme(). */
+(function () {
+  var m = 'auto';
+  try { m = localStorage.getItem('b_theme') || 'auto'; } catch (e) {}
+  var w = window.Telegram && Telegram.WebApp;
+  if (m === 'night' || (m === 'auto' && w && w.colorScheme === 'dark'))
+    document.documentElement.classList.add('dk');
+})();
+</script>
 </head>
 <body>
 
@@ -37,6 +47,7 @@
       <small id="topDate">—</small>
       <strong id="topName">Бардачок</strong>
     </div>
+    <button class="thm" id="thmBtn" data-do="themeFlip" aria-label="День або ніч"></button>
     <div class="avaWrap"><div class="ava" id="ava">—</div></div>
   </header>
 
@@ -85,6 +96,6 @@
   </div>
 </div>
 
-<script src="app.js?v=20261014-1339"></script>
+<script src="app.js?v=20261014-1630"></script>
 </body>
 </html>

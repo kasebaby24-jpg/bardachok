@@ -18,9 +18,11 @@
   --good:#3ED598;
   --warn:#FFB340;
   --bad:#FF5A4A;
-  --disp:'Inter Tight','Inter',system-ui,sans-serif;
-  --body:'Inter',system-ui,-apple-system,'Helvetica Neue',Arial,sans-serif;
+  --disp:'Unbounded','Trebuchet MS',sans-serif;
+  --body:'IBM Plex Sans','Helvetica Neue',Arial,sans-serif;
   --brand:'Unbounded','Trebuchet MS',sans-serif;   /* лише логотип */
+  --ring-track:#252C30;
+  --ring-ok:#D7FF3E;
   --safe-b:env(safe-area-inset-bottom,0px);
   --safe-t:env(safe-area-inset-top,0px);
 }
@@ -648,7 +650,7 @@ input,select,textarea{-webkit-appearance:none;appearance:none}
   width:32px;height:32px;flex:0 0 32px;border-radius:50%;display:grid;place-items:center;
   background:var(--surf2);position:relative;
 }
-.askcard .go .icn{color:var(--ink);transform:rotate(180deg)}
+.askcard .go .icn{color:var(--ink)}
 
 /* ---------------- покрокова інструкція ---------------- */
 .steps{display:grid;gap:16px}
@@ -805,7 +807,7 @@ input,select,textarea{-webkit-appearance:none;appearance:none}
   width:28px;height:28px;flex:0 0 28px;border-radius:50%;display:grid;place-items:center;
   background:rgba(255,255,255,.07);
 }
-.nt-go .icn{color:var(--ink2);transform:rotate(180deg)}
+.nt-go .icn{color:var(--ink2)}
 
 /* як саме захищені документи */
 .safe{display:grid;gap:11px;margin:4px 0 14px}
@@ -907,7 +909,7 @@ input,select,textarea{-webkit-appearance:none;appearance:none}
 .chbtn-tx{flex:1;min-width:0}
 .chbtn-tx b{display:block;font-size:14px;font-weight:700}
 .chbtn-tx small{display:block;color:var(--mut);font-size:11.5px;margin-top:2px}
-.chbtn-go .icn{color:var(--mut);transform:rotate(180deg)}
+.chbtn-go .icn{color:var(--mut)}
 
 /* Посилання всередині списків не мають виглядати як синій підкреслений
    текст із дев'яностих: у темній картці це нечитабельно. */
@@ -922,14 +924,6 @@ input,select,textarea{-webkit-appearance:none;appearance:none}
 .btn,.chip,.seg button,.pills button,.carswitch button,.quick button,.tips button,.st-back,.hint,.nav button{
   transition:transform .35s var(--ease),background-color .3s var(--ease),color .3s var(--ease),opacity .3s var(--ease)}
 .btn:active,.chip:active{transform:scale(.97)}
-.sheet{animation:up .62s var(--ease)}
-.sheet.out{animation:dn .42s var(--ease) forwards}
-/* 3. поява з легкого розмиття */
-.screen.on>*{animation:riseBlur .7s var(--ease) both}
-.screen.on>*:nth-child(2){animation-delay:.05s}
-.screen.on>*:nth-child(3){animation-delay:.1s}
-.screen.on>*:nth-child(n+4){animation-delay:.14s}
-@keyframes riseBlur{from{opacity:0;filter:blur(5px);transform:translate3d(0,16px,0)}}
 /* 2. хвиля світла на кнопках */
 .btn,.chip{position:relative;overflow:hidden;isolation:isolate}
 .btn::after,.chip::after{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;opacity:0;
@@ -964,7 +958,7 @@ input,select,textarea{-webkit-appearance:none;appearance:none}
   transition:opacity .3s var(--ease),transform .45s var(--ease),visibility .3s}
 .tip-i.on .tip-b{opacity:1;visibility:visible;transform:rotate(-2deg) scale(1)}
 .tip-i.on{background:var(--lime);color:#10130E}
-.card:has(.tip-i.on){overflow:visible;position:relative;z-index:5}
+.card.tip-open{overflow:visible;position:relative;z-index:5}
 /* 6. маркер у відповідях помічника */
 .bub.ai b{background:var(--lime);color:#10130E;padding:0 .16em .05em;border-radius:3px;
   -webkit-box-decoration-break:clone;box-decoration-break:clone}
@@ -985,85 +979,320 @@ input,select,textarea{-webkit-appearance:none;appearance:none}
 .cring .pv{stroke:#FF9284;stroke-linecap:round;stroke-dasharray:100;stroke-dashoffset:calc(100 - var(--p));animation:ringIn 1.4s var(--ease) both .2s}
 @keyframes ringIn{from{stroke-dashoffset:100}}
 .cring b{position:absolute;inset:0;display:grid;place-items:center;margin:0!important}
-@media (prefers-reduced-motion:reduce){.screen.on>*,.btn::after,.chip::after,.tw::after,.cring .pv{animation:none!important}}
+@media (prefers-reduced-motion:reduce){.btn::after,.chip::after,.tw::after,.cring .pv{animation:none!important}}
 
 /* стиль їзди: три рівні кнопки з інтервалом заміни масла під назвою */
 .seg.use3{display:grid;grid-template-columns:repeat(3,1fr)}
 .seg.use3 button{min-width:0;padding:10px 4px;line-height:1.25}
 .seg.use3 button small{display:block;margin-top:3px;font-size:11px;font-weight:500;opacity:.72}
 
-/* =====================================================================
-   ОНОВЛЕННЯ ДИЗАЙНУ (жовтень 2026)
-   Inter для тексту й Inter Tight для заголовків і цифр замість широкого
-   Unbounded: щільніше, спокійніше, цифри читаються як у банківському
-   застосунку. Сірі — нейтральний графіт без зеленого відтінку. Логотип
-   лишається фірмовим. Розміри підняті, бо Inter Tight вужчий.
-   ===================================================================== */
-html{font-synthesis:none}
-body{letter-spacing:-.011em}
-::selection{background:var(--lime);color:#10130E}
-
-/* шапка й заголовки розділів */
-.top .hi small{font-size:12.5px;letter-spacing:0}
-.top .hi strong{font-weight:700;font-size:21px;letter-spacing:-.035em}
-.ava{font-family:var(--disp);font-weight:700;font-size:16px;letter-spacing:-.02em;border-radius:15px}
-.h2{font-weight:700;font-size:18.5px;letter-spacing:-.032em;margin:28px 2px 12px}
-.h2 .act{font-size:13px;letter-spacing:-.01em}
-.h3{font-weight:650;letter-spacing:.06em;font-size:12px}
-.num{font-weight:700;letter-spacing:-.045em}
-.card-h b{font-weight:650;font-size:16px;letter-spacing:-.025em}
-.card-h span{font-size:12px}
-.sheet .hd h3{font-weight:700;font-size:20px;letter-spacing:-.035em}
-
-/* картки: тонший відблиск, трохи більше повітря */
-.card::before{background:linear-gradient(160deg,rgba(255,255,255,.05),transparent 40%)}
-.card{padding:18px}
-
-/* картка авто й головна плитка витрат: рівний лайм без «болотного» низу */
-.carcard{border-radius:28px;padding:20px;background:linear-gradient(155deg,#DEFF5C 0%,#CFF842 52%,#B9E82C 100%)}
-.carcard h3{font-weight:700;font-size:27px;letter-spacing:-.045em;line-height:1.04}
-.carcard .odo small{font-family:var(--body);font-weight:650;letter-spacing:.09em}
-.carcard .odo b{font-weight:700;font-size:36px;letter-spacing:-.055em}
-.carcard .plate{font-weight:650;letter-spacing:.07em}
-.hero{border-radius:28px;padding:19px 20px 21px;background:linear-gradient(155deg,#DEFF5C 0%,#CFF842 52%,#B9E82C 100%)}
-.hero b{font-weight:700;font-size:48px;letter-spacing:-.058em}
-
-/* великі цифри */
-.count b{font-weight:700;font-size:64px;letter-spacing:-.06em}
-.pair strong{font-weight:700;font-size:30px;letter-spacing:-.045em}
-.ring .v b{font-weight:700;font-size:33px;letter-spacing:-.05em}
-.gauge .lab{font-weight:650;font-size:15px;letter-spacing:-.03em}
-.tile b{font-weight:700;font-size:23px;letter-spacing:-.045em}
-.tile small{font-weight:550}
-.two-num b{font-weight:700;font-size:26px;letter-spacing:-.045em}
-.wxd b{font-weight:700;font-size:20px;letter-spacing:-.04em}
-.plans button b{font-weight:700;font-size:19px;letter-spacing:-.04em}
-.tips button{font-weight:700;font-size:18px;letter-spacing:-.03em}
-.promo b{font-weight:700;font-size:21px;letter-spacing:-.04em}
-.list .it .vl{font-weight:650;font-size:14px;letter-spacing:-.025em}
-.alert .dd{font-weight:650;font-size:13px;letter-spacing:-.02em}
-.bar .t span{font-weight:650;letter-spacing:-.02em}
-.acc-n{font-weight:700;font-size:14px}
-.chart .col span{font-weight:550}
-
-/* текст */
-.alert .bd b{font-size:14.5px;letter-spacing:-.018em}
-.list .it .tx b{font-size:14px;letter-spacing:-.015em}
-.kv{font-size:14px}
-.askcard .tx b,.chbtn-tx b,.notice .tx b,.nudge .tx b{letter-spacing:-.018em}
-
-/* кнопки */
-.btn{font-weight:650;font-size:15px;letter-spacing:-.018em;padding:16px;border-radius:18px}
-.seg button,.pills button,.carswitch button{font-weight:550;letter-spacing:-.01em}
-.seg button.on,.pills button.on{font-weight:650}
-.nav button{font-size:10px;font-weight:550;letter-spacing:-.005em}
-
-/* знайомство */
-.st-body h2{font-weight:700;font-size:36px;line-height:1.03;letter-spacing:-.05em;text-wrap:balance}
-.st-tag{font-weight:650;letter-spacing:.09em}
-.st-doc>b{font-weight:700;letter-spacing:-.03em}
-
 /* два поля в ряд (дати страховки) не мають розпирати колонку:
    поле дати має власну мінімальну ширину і вилазило за край */
 .two{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
 .two .field input{min-width:0;max-width:100%}
+
+/* =====================================================================
+   ДИЗАЙН 3 (жовтень 2026) — світлий, графічний
+   Суцільні кольорові блоки замість напівпрозорих карток, великі тонкі
+   цифри (Unbounded 300) і жирні заголовки, чорні «пігулки» й круглі
+   кнопки. Кожна тема має свій колір і тримає його всюди:
+   штрафи — корал, страховка/документи — жовтий, олива/сервіс — бузок,
+   нагадування — м'ята, авто — чорна картка, головна дія — лайм.
+   html.v3     — світле тло (як на референсах)
+   html.v3.dk  — темна «рамка» навколо тих самих світлих карток
+   ===================================================================== */
+html.v3{
+  --ground:#ECEDEF; --solid:#FFFFFF; --card:#FFFFFF;
+  --surf:rgba(14,15,16,.04); --surf2:rgba(14,15,16,.06); --surf3:rgba(14,15,16,.09);
+  --line:rgba(14,15,16,.08); --glass:rgba(255,255,255,.7);
+  --ink:#0F1011; --ink2:#3B3E42; --mut:#7A7E83;
+  --lime:#D7FF3E; --lime2:#BFEA2E;
+  --good:#12915A; --warn:#B87300; --bad:#D63F2A; --hot:#D9472B;
+  --black:#111214; --block:#111214; --soft:#F1F2F4;
+  --c-coral:#FFB6A6; --c-coral2:#FF9A85; --c-yellow:#F3F17E; --c-lav:#CDCFF8; --c-mint:#C2EBD5;
+  --ring-track:#ECEDEF; --ring-ok:#111214;
+  --onground:#0F1011; --onground-mut:#7A7E83;
+}
+html.v3.dk{ --ground:#0E0F10; --onground:#F4F5F6; --onground-mut:#8C9095; --block:#1F2023; }
+
+.v3 body{background:var(--ground);color:var(--ink)}
+.v3 body::before,.v3 body::after{display:none}
+
+/* ---- шапка ---- */
+.v3 .top .hi small{color:var(--onground-mut);font-size:12.5px}
+.v3 .top .hi strong{color:var(--onground);font-weight:700;font-size:23px;letter-spacing:-.03em}
+.v3 .top .hi strong::before{content:'Привіт, ';font-weight:400}
+.v3 .ava{background:var(--black);color:var(--lime);border-radius:50%;width:44px;height:44px;flex-basis:44px}
+.v3.dk .ava{background:var(--lime);color:var(--black)}
+.v3 .ava.pro::after{background:var(--lime);color:var(--black)}
+.v3.dk .ava.pro::after{background:#fff}
+
+/* ---- заголовки розділів і текст на тлі ---- */
+.v3 .h2{color:var(--onground);font-weight:600;font-size:17px;letter-spacing:-.02em;margin:26px 4px 12px}
+.v3 .h2 .act{font-family:var(--body);background:var(--black);color:#fff;font-size:12px;font-weight:600;
+  padding:5px 11px;border-radius:999px;min-width:26px;text-align:center}
+.v3.dk .h2 .act{background:#fff;color:var(--black)}
+.v3 .screen>.note,.v3 .screen>.empty,.v3 .st-fact{color:var(--onground-mut)}
+
+/* ---- картки ---- */
+.v3 .card{background:var(--card);border:0;border-radius:28px;padding:18px}
+.v3 .card::before{display:none}
+.v3 .card+.card{margin-top:10px}
+.v3 .card-h b{font-weight:600;font-size:15px}
+.v3 .card[style*="#1F2A0B"]{background:var(--block)!important;border:0!important;color:#fff}
+.v3 .card[style*="#1F2A0B"] div{color:rgba(255,255,255,.7)!important}
+.v3 .card[style*="#1F2A0B"] .num{color:var(--lime)!important}
+
+/* ---- авто: чорна картка, великі тонкі цифри ---- */
+.v3 .carcard{background:var(--block);color:#fff;border-radius:32px;padding:22px}
+.v3 .carcard.ev{background:#0F1A16}
+.v3 .carcard .sil{opacity:1}
+.v3 .carcard .sil *{fill:rgba(255,255,255,.045)!important;stroke:none!important}
+.v3 .carcard .plate{background:transparent;border:1px solid rgba(255,255,255,.28);color:#fff;border-radius:999px;padding:5px 12px}
+.v3 .carcard h3{font-weight:600;font-size:23px;letter-spacing:-.025em;margin:4px 0 10px}
+.v3 .cc-specs span{background:rgba(255,255,255,.1);color:rgba(255,255,255,.82);border-radius:999px;padding:5px 11px}
+.v3 .cc-go{background:rgba(255,255,255,.1)}
+.v3 .cc-go .icn{color:#fff}
+.v3 .carcard .odo small{color:rgba(255,255,255,.5);opacity:1}
+.v3 .carcard .odo b{font-weight:300;font-size:36px;letter-spacing:-.045em;white-space:nowrap}
+.v3 .carcard .odo b span{opacity:.5!important}
+.v3 .cc-odo{background:var(--lime);color:var(--black);border-radius:999px;padding:12px 16px}
+.v3 .cc-odo .icn{color:var(--black)}
+.v3 .carcard.hasph .shade{background:linear-gradient(180deg,rgba(17,18,20,.1),rgba(17,18,20,.55) 45%,rgba(17,18,20,.92))}
+
+/* ---- «потребує уваги»: колір = тема ---- */
+.v3 .alert{background:#fff;border-left:0;border-radius:24px;padding:16px;align-items:center;color:var(--ink)}
+.v3 .alert+.alert{margin-top:8px}
+.v3 .alert[data-k="fine"]{background:var(--c-coral)}
+.v3 .alert[data-k="fine"].hot{background:var(--c-coral2)}
+.v3 .alert[data-k="shield"],.v3 .alert[data-k="globe"]{background:var(--c-yellow)}
+.v3 .alert[data-k="oil"]{background:var(--c-lav)}
+.v3 .alert[data-k="alert"],.v3 .alert.ok{background:var(--c-mint)}
+.v3 .alert .ic{background:rgba(15,16,17,.08);border-radius:50%;width:40px;height:40px;flex-basis:40px}
+.v3 .alert .ic .icn{color:var(--ink)!important}
+.v3 .alert .bd b{font-size:14.5px;color:var(--ink)}
+.v3 .alert .bd p{color:rgba(15,16,17,.62)}
+.v3 .alert .dd{font-family:var(--body);font-weight:600;font-size:12px;color:#fff;background:var(--black);
+  padding:6px 11px;border-radius:999px;align-self:center}
+.v3 .alert.hot .dd{color:#fff}
+
+/* ---- картки-запрошення (горить чек, спитати, запчастини) ---- */
+.v3 .askcard{background:#fff;border:0;border-radius:28px;padding:16px}
+.v3 .askcard::after{display:none}
+.v3 .askcard-ic{border-radius:50%;width:46px;height:46px;flex-basis:46px}
+.v3 .askcard .tx b{color:var(--ink)}
+.v3 .askcard .go,.v3 .nt-go{background:var(--black);width:36px;height:36px;flex-basis:36px}
+.v3 .askcard .go .icn,.v3 .nt-go .icn{color:#fff}
+.v3 .chbtn{background:#fff;border:0;border-radius:24px;padding:14px}
+.v3 .chbtn-ic{border-radius:50%}
+.v3 .chbtn-go{width:32px;height:32px;border-radius:50%;background:var(--black);display:grid;place-items:center}
+.v3 .chbtn-go .icn{color:#fff}
+
+/* ---- швидкі дії ---- */
+.v3 .quick{gap:8px}
+.v3 .quick button{background:#fff;border:0;border-radius:24px;color:var(--ink2);padding:15px 4px 12px}
+.v3 .quick button .icn{color:var(--ink)}
+.v3 .quick button:active{background:var(--lime)}
+
+.v3 .nudge{background:#fff;border:0;border-radius:24px}
+.v3 .chip{border-radius:999px}
+.v3 .chip.gh{background:var(--black);color:#fff}
+
+/* ---- кільця й цифри ---- */
+.v3 .ring .v b{font-weight:300;font-size:34px;letter-spacing:-.045em}
+.v3 .gauge .lab{font-weight:600}
+.v3 .num{font-weight:600}
+
+/* ---- кнопки: пігулки ---- */
+.v3 .btn{border-radius:999px;padding:17px;font-weight:600}
+.v3 .btn.sec{background:#fff;color:var(--ink)}
+.v3 .card .btn.sec,.v3 .sheet .btn.sec,.v3 .count .btn.sec{background:var(--surf2)}
+.v3 .btn.dan{background:#FFE4DF;color:#B8321F}
+.v3 .count .btn,.v3 .promo .btn{background:var(--black);color:#fff}
+
+/* ---- перемикачі ---- */
+.v3 .seg{background:var(--surf2);border-radius:24px}
+.v3 .seg button{border-radius:999px;color:var(--ink2)}
+.v3 .seg button.on{background:var(--black);color:#fff}
+.v3 .seg.use3{border-radius:22px}
+.v3 .seg.use3 button{border-radius:17px}
+.v3 .pills{background:#fff;border:0;border-radius:999px}
+.v3 .pills button{border-radius:999px;color:var(--mut)}
+.v3 .pills button.on{background:var(--black);color:#fff}
+.v3 .carswitch button{background:#fff;color:var(--ink2);border-radius:999px}
+.v3 .carswitch button.on{background:var(--black);color:#fff}
+
+/* ---- списки ---- */
+.v3 .list .it .dt{background:var(--surf2);border-radius:50%;width:36px;height:36px;flex-basis:36px}
+.v3 .list .it .dt .icn,.v3 .menu .it .ic .icn{color:var(--ink)}
+.v3 .list .it .ar{color:var(--ink);opacity:.35}
+
+/* ---- штрафи: коралова картка-відлік ---- */
+.v3 .count{background:var(--c-coral);border:0;border-radius:32px;color:var(--ink)}
+.v3 .count .lb{color:rgba(15,16,17,.7)}
+.v3 .count b{font-weight:300;font-size:64px;color:var(--ink)}
+.v3 .count .sb{color:rgba(15,16,17,.62)}
+.v3 .cring .tr{stroke:rgba(15,16,17,.12)}
+.v3 .cring .pv{stroke:var(--ink)}
+.v3 .pair s{color:rgba(15,16,17,.45)}
+.v3 .pair strong{color:var(--ink);font-weight:600}
+
+/* ---- преміум: чорна картка ---- */
+.v3 .promo{background:var(--block);border:0;border-radius:32px;color:#fff}
+.v3 .promo p{color:rgba(255,255,255,.66)}
+.v3 .plans button{background:rgba(255,255,255,.08);color:#fff;border-radius:22px}
+.v3 .plans button.best{background:var(--lime);border-color:var(--lime);color:var(--black)}
+.v3 .plans button.best small,.v3 .plans button.best em{color:rgba(15,16,17,.65)}
+.v3 .plans button small{color:rgba(255,255,255,.55)}
+.v3 .promo .note,.v3 .promo small{color:rgba(255,255,255,.55)}
+.v3 .promo b,.v3 .promo strong{color:#fff}
+.v3 .plans button b{color:inherit}
+
+/* ---- витрати ---- */
+.v3 .hero{border-radius:32px;background:var(--lime)}
+.v3 .hero::after{background:rgba(255,255,255,.35)}
+.v3 .hero b{font-weight:300;font-size:46px;letter-spacing:-.05em}
+.v3 .tile{background:#fff;border:0;border-radius:24px}
+.v3 .tile.acc{background:var(--block);color:#fff}
+.v3 .tile.acc small{color:rgba(255,255,255,.55)}
+.v3 .tile.acc i{color:var(--lime)}
+.v3 .tile b{font-weight:500}
+.v3 .chart .colv i{background:var(--soft)}
+.v3 .chart .col.on .colv i{background:var(--black)}
+.v3 .chart .col.on span{color:var(--ink);font-weight:700}
+.v3 .two-num>div{background:var(--soft);border-radius:20px}
+.v3 .two-num b{font-weight:400}
+.v3 .wxd{background:var(--soft);border-radius:20px}
+.v3 .wxd.on{background:var(--black);color:#fff}
+.v3 .wxd.on span,.v3 .wxd.on i{color:rgba(255,255,255,.6)}
+
+/* ---- повідомлення ---- */
+.v3 .msg.ok{background:#DDF4E7;color:#0D6B3F}
+.v3 .msg.er{background:#FFE4DF;color:#A82E1C}
+.v3 .msg.inf{background:var(--surf2);color:var(--ink2)}
+.v3 .notice{background:#fff;border:0;border-radius:24px}
+.v3 .notice.warn{background:var(--c-yellow)}
+.v3 .notice.good{background:var(--c-mint)}
+.v3 .nt-ic{background:var(--lime);border-radius:50%}
+.v3 .nt-ic .icn{color:var(--black)!important}
+.v3 .notice .tx p{color:var(--ink2)}
+
+/* ---- форми ---- */
+.v3 .field label{color:var(--mut)}
+.v3 .field input,.v3 .field select,.v3 .field textarea{background:var(--surf2);color:var(--ink);border-radius:18px}
+.v3 .field input::placeholder,.v3 .field textarea::placeholder{color:#A3A7AC}
+.v3 .field input:focus,.v3 .field select:focus,.v3 .field textarea:focus{border-color:var(--black);background:#fff}
+.v3 .field .err{color:#B8321F}
+
+/* ---- шторка ---- */
+.v3 .sheetBg{background:rgba(10,11,12,.38)}
+.v3 .sheet{background:#fff;border-radius:32px 32px 0 0}
+.v3 .sheet .grip{background:#DADCDF}
+.v3 .sheet .hd h3{font-weight:600;font-size:19px;color:var(--ink)}
+.v3 .sheet .hd button{color:var(--ink)}
+
+/* ---- нижнє меню: суцільна чорна пігулка, без скляного розмиття ---- */
+.v3 .nav{background:var(--black);border:0;border-radius:999px;backdrop-filter:none;-webkit-backdrop-filter:none;
+  box-shadow:0 14px 34px -14px rgba(0,0,0,.55);padding:8px 10px}
+.v3.dk .nav{border:1px solid rgba(255,255,255,.08)}
+.v3 .nav button{color:rgba(255,255,255,.55)}
+.v3 .nav button.on{color:var(--black)}
+.v3 .nav button.on span{color:var(--lime)}
+.v3 .nav .dot{box-shadow:0 0 0 2px var(--black)}
+
+/* ---- тост ---- */
+.v3 .toast{background:var(--black);color:#fff;border:0;backdrop-filter:none;-webkit-backdrop-filter:none}
+.v3 .toast.ok{color:var(--lime)}
+.v3 .toast.er{color:#FFB3AA}
+
+/* ---- помічник ---- */
+.v3 .bub.ai{background:#fff;color:var(--ink)}
+.v3 .bub.me{border-bottom-right-radius:8px}
+.v3 .hint{background:#fff;border:0;border-radius:20px;color:var(--ink2)}
+.v3 .chat-bar{background:linear-gradient(180deg,transparent,var(--ground) 22%)}
+.v3 .chat-bar textarea{background:#fff;color:var(--ink);border-radius:999px;padding:13px 18px}
+.v3 .chat-bar textarea:focus{border-color:var(--black);background:#fff}
+.v3 .chat-bar .send{border-radius:50%;background:var(--black)}
+.v3 .chat-bar .send .icn{color:var(--lime)}
+.v3 .chat-clear{background:#fff;color:var(--ink2);border-radius:999px}
+.v3 .chat-head b,.v3 .chat-head{color:var(--onground)}
+.v3 .ic-box{background:var(--black);border-radius:50%}
+.v3 .ic-box .icn{color:var(--lime)}
+
+/* ---- ДТП, підказки ---- */
+.v3 .acc-it{background:#fff;border:0;border-radius:24px}
+.v3 .acc-n{background:var(--surf2);color:var(--ink)}
+.v3 .acc-hd b{color:var(--ink2)}
+.v3 .acc-it.open .acc-hd b{color:var(--ink)}
+.v3 .acc-pl{color:var(--ink)}
+.v3 .tip-i{background:var(--surf3);color:var(--ink)}
+.v3 .tip-b{background:var(--black);color:#fff;box-shadow:0 18px 40px rgba(0,0,0,.25)}
+
+/* ---- знайомство ---- */
+.v3 .st-body h2{color:var(--onground);font-weight:700;font-size:32px;line-height:1.08}
+.v3 .st-body p{color:var(--onground-mut)}
+.v3 .st-tag{background:var(--black);color:var(--lime);border-radius:999px}
+.v3.dk .st-tag{background:var(--lime);color:var(--black)}
+.v3 .st-skip{color:var(--onground-mut)}
+.v3 .st-art{background:#fff;border-radius:28px}
+.v3 .st-art.hero{background:var(--lime)}
+.v3 .st-row{background:var(--surf2)}
+.v3 .st-row span{color:var(--ink2)}
+.v3 .st-row b{color:var(--ink)}
+.v3 .st-bub.ai{background:var(--surf2);color:var(--ink2)}
+.v3 .st-bars i{background:rgba(15,16,17,.14)}
+.v3.dk .st-bars i{background:rgba(255,255,255,.18)}
+.v3 .st-bars i.on,.v3 .st-bars i.done{background:var(--black)}
+.v3.dk .st-bars i.on,.v3.dk .st-bars i.done{background:var(--lime)}
+.v3 .st-back{background:#fff;border-radius:50%}
+.v3 .st-back .icn{color:var(--ink)}
+.v3 .tw{background:var(--lime)}
+
+/* ---- заставка ---- */
+.v3 .boot .lg{color:var(--onground)}
+.v3 .boot .lg em{background:var(--lime);color:var(--black);padding:0 .12em;border-radius:8px}
+.v3 .bootart .b-box{fill:#fff;stroke:rgba(15,16,17,.1)}
+.v3 .bootart .b-lid rect{fill:#F4F5F6;stroke:rgba(15,16,17,.1)}
+.v3 .bootart .b-c2 rect{fill:var(--black)}
+.v3 .bootart .b-c3 rect{fill:var(--c-lav)}
+
+/* ---- дрібниці ---- */
+.v3 .tipline{color:var(--onground-mut)}
+.v3 .tipline .icn{color:var(--onground-mut)}
+.v3 .tips button{background:#fff;color:var(--ink)}
+.v3 ::selection{background:var(--lime);color:var(--black)}
+/* текст на тлі — під колір тла; у картках — завжди темний */
+.v3.dk body{color:var(--onground)}
+.v3 .card,.v3 .alert,.v3 .askcard,.v3 .nudge,.v3 .chbtn,.v3 .tile:not(.acc),.v3 .acc-it,.v3 .hint,
+.v3 .bub.ai,.v3 .sheet,.v3 .notice,.v3 .st-art,.v3 .quick button,.v3 .pills,.v3 .count{color:var(--ink)}
+.v3 .chart .colv i{border-radius:12px}
+/* сервіс: картка з кільцем масла — бузкова, як картка масла на головній */
+.v3 #s-service>.card:first-child{background:var(--c-lav);--ring-track:rgba(15,16,17,.1)}
+.v3 #s-service>.card:first-child .ring .v small{color:rgba(15,16,17,.6)}
+/* ДТП: шапка — коралова, як усе «тривожне» */
+.v3 #s-crash>.card:first-child{background:var(--c-coral);border-left:0!important}
+.v3 #s-crash>.card:first-child p{color:rgba(15,16,17,.65)!important}
+.v3 .chat-bar textarea{scrollbar-width:none}
+.v3 .chat-bar textarea::-webkit-scrollbar{width:0}
+
+/* кнопка «день / ніч» у шапці */
+.thm{width:44px;height:44px;flex:0 0 44px;border-radius:50%;display:grid;place-items:center;
+  background:var(--surf2);transition:transform .2s var(--ease),background-color .3s}
+.thm .icn{color:var(--onground,var(--ink))}
+.thm:active{transform:scale(.92)}
+.v3 .thm{background:#fff}
+.v3 .thm .icn{color:var(--ink)}
+.v3.dk .thm{background:var(--block)}
+.v3.dk .thm .icn{color:var(--lime)}
+.top .thm{margin-right:-4px}
+.v3 .checks li::before{border-color:var(--ink);opacity:.3}
+.v3 .seg.wrap{border-radius:24px}
+/* усередині чорних блоків — світлі змінні тексту: так підхоплюються й кольори,
+   що задані прямо в розмітці (color:var(--ink2) тощо) */
+.v3 .promo,.v3 .carcard,.v3 .tile.acc,.v3 .card[style*="#1F2A0B"]{--ink:#fff;--ink2:rgba(255,255,255,.82);--mut:rgba(255,255,255,.55);--surf2:rgba(255,255,255,.08)}
+/* шторка завжди біла — усередині неї «текст на тлі» має бути темним і вночі
+   (вітання про Преміум, новини й знайомство в шторці малюються тими ж класами) */
+.v3 .sheet{--onground:var(--ink);--onground-mut:var(--mut)}
+.v3.dk .sheet .st-bars i{background:rgba(15,16,17,.14)}
+.v3.dk .sheet .st-bars i.on,.v3.dk .sheet .st-bars i.done{background:var(--black)}
+.v3.dk .sheet .st-tag{background:var(--black);color:var(--lime)}
